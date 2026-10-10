@@ -93,10 +93,31 @@
         </div>
       </section>
 
+      <!-- THEO DÕI NGÀY ĐẾN DÂU CỦA BÉ (Nhỏ nhỏ, tinh tế ngay dưới Timer) -->
+      <section class="period-tracker-widget" id="period-tracker-widget" aria-label="Góc chăm sóc chu kỳ bé Thư">
+        <div class="period-widget-content">
+          <div class="period-icon-wrap">
+            <span class="period-strawberry-icon">🍓</span>
+          </div>
+          <div class="period-info">
+            <div class="period-badge-row">
+              <span class="period-pill-badge">Góc chăm sóc bé Thư</span>
+              <span class="period-phase-text" id="period-phase-text">Dự đoán chu kỳ</span>
+            </div>
+            <p class="period-status-message" id="period-status-message">
+              Đang tính chu kỳ của bé...
+            </p>
+          </div>
+          <button id="open-period-modal-btn" class="period-edit-btn" title="Cập nhật ngày dâu" aria-label="Cập nhật chu kỳ">
+            <span>✏️</span>
+          </button>
+        </div>
+      </section>
+
       <!-- Action Buttons -->
       <div class="hero-actions">
         <button id="hero-add-memory-btn" class="btn btn-primary">
-          <span>📸 Thêm Kỷ Niệm Mới</span>
+          <span>📸 Gửi Khoảnh Khắc Mới (Locket)</span>
         </button>
         <button id="send-love-btn" class="btn btn-blush">
           <span>💌 Bắn Tim Cho Em!</span>
@@ -104,20 +125,20 @@
       </div>
     </header>
 
-    <!-- SECTION: OUR MEMORY TIMELINE (Dòng thời gian kỷ niệm) -->
+    <!-- SECTION: LOCKET MOMENTS TIMELINE (Khung ảnh & Khung mô tả câu chuyện kế bên) -->
     <section id="timeline" class="section-container timeline-section">
       <div class="section-header">
-        <div class="pill-tag">Hành Trình Yêu Thương</div>
-        <h2 class="section-title">Kỷ Niệm Của Tụi Mình</h2>
-        <p class="section-desc">Từng khoảnh khắc bên em đều là những thước phim đẹp nhất mà anh luôn nâng niu.</p>
+        <div class="pill-tag">Locket Tình Yêu</div>
+        <h2 class="section-title">Khoảnh Khắc Của Tụi Mình</h2>
+        <p class="section-desc">Từng khung ảnh và câu chuyện kỷ niệm lưu giữ theo dòng thời gian dành riêng cho bé Thư.</p>
         <button id="open-add-memory-modal-btn" class="btn btn-secondary btn-sm" style="margin-top: 14px;">
-          <span>+ Thêm Kỷ Niệm Mới</span>
+          <span>+ Gửi Khoảnh Khắc Mới 📸</span>
         </button>
       </div>
 
-      <div class="timeline-wrapper">
-        <div class="timeline-center-line"></div>
-        <div class="timeline-list" id="timeline-list-container">
+      <!-- Container danh sách các Locket Moments lưu lại theo thời gian -->
+      <div class="locket-stream-wrapper">
+        <div class="locket-list" id="timeline-list-container">
           <!-- Rendered dynamically via JS -->
         </div>
       </div>
@@ -131,17 +152,17 @@
     </footer>
   </main>
 
-  <!-- MODAL: ADD NEW TIMELINE MEMORY WITH EASY PHOTO UPLOAD -->
+  <!-- MODAL: ADD NEW LOCKET MOMENT WITH EASY PHOTO UPLOAD -->
   <dialog id="memory-modal" class="custom-modal" aria-labelledby="memory-modal-title">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="memory-modal-title">📸 Thêm Một Kỷ Niệm Mới</h3>
+        <h3 id="memory-modal-title">📸 Gửi Khoảnh Khắc Locket Mới</h3>
         <button class="modal-close-btn" id="close-memory-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
       </div>
       <form id="memory-form" class="modal-form">
         <div class="form-group">
-          <label for="memory-title-input">Tên kỷ niệm *</label>
-          <input type="text" id="memory-title-input" placeholder="Ví dụ: Lần đầu đi chơi xa, Buổi hẹn hò xem phim..." required>
+          <label for="memory-title-input">Tên khoảnh khắc *</label>
+          <input type="text" id="memory-title-input" placeholder="Ví dụ: Buổi chiều đi dạo, Bữa tối cùng bé..." required>
         </div>
 
         <div class="form-row">
@@ -151,13 +172,13 @@
           </div>
           <div class="form-group">
             <label for="memory-location-input">Địa điểm / Nơi chốn</label>
-            <input type="text" id="memory-location-input" placeholder="Ví dụ: Đà Lạt, Góc quán quen, Bờ hồ...">
+            <input type="text" id="memory-location-input" placeholder="Ví dụ: Đà Lạt, Quán cafe quen, Bờ hồ...">
           </div>
         </div>
 
         <!-- Easy Photo Upload Box for Phone & Desktop -->
         <div class="form-group">
-          <label>Hình ảnh kỷ niệm</label>
+          <label>Khung ảnh Locket</label>
           
           <div class="photo-upload-container">
             <label for="memory-file-input" class="upload-dropzone" id="upload-dropzone">
@@ -186,13 +207,43 @@
         </div>
 
         <div class="form-group">
-          <label for="memory-story-input">Câu chuyện / Cảm xúc lúc đó</label>
-          <textarea id="memory-story-input" rows="3" placeholder="Kể lại một chút kỷ niệm đáng nhớ của buổi hôm ấy nhé..."></textarea>
+          <label for="memory-story-input">Khung câu chuyện kế bên</label>
+          <textarea id="memory-story-input" rows="3" placeholder="Kể lại câu chuyện ngọt ngào của bức ảnh này nhé..."></textarea>
         </div>
 
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" id="cancel-memory-btn">Hủy</button>
-          <button type="submit" class="btn btn-primary">Lưu Kỷ Niệm 💖</button>
+          <button type="submit" class="btn btn-primary">Gửi Khoảnh Khắc Locket 💖</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL: CẬP NHẬT CHU KỲ DÂU CỦA BÉ -->
+  <dialog id="period-modal" class="custom-modal" aria-labelledby="period-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="period-modal-title">🍓 Chu Kỳ Của Bé Thư</h3>
+        <button class="modal-close-btn" id="close-period-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
+      </div>
+      <form id="period-form" class="modal-form">
+        <div class="form-group">
+          <label for="period-start-date-input">Ngày bắt đầu kỳ dâu gần nhất *</label>
+          <input type="date" id="period-start-date-input" required>
+        </div>
+        <div class="form-group">
+          <label for="period-cycle-length-input">Độ dài chu kỳ trung bình (ngày)</label>
+          <input type="number" id="period-cycle-length-input" value="28" min="21" max="45" required>
+          <small style="color: var(--text-muted); font-size: 0.78rem;">Thông thường chu kỳ từ 28 đến 30 ngày.</small>
+        </div>
+        <div style="margin-top: 4px;">
+          <button type="button" class="btn btn-outline btn-sm" id="set-period-today-btn" style="width: 100%;">
+            🌸 Đánh dấu hôm nay là ngày bắt đầu dâu
+          </button>
+        </div>
+        <div class="modal-actions" style="margin-top: 14px;">
+          <button type="button" class="btn btn-outline" id="cancel-period-btn">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu Lại Nhé 💕</button>
         </div>
       </form>
     </div>

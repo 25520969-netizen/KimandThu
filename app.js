@@ -41,6 +41,12 @@ const DEFAULT_MEMORIES = [
   }
 ];
 
+const DEFAULT_PERIOD = {
+  startDate: "2026-09-28",
+  cycleLength: 28,
+  durationDays: 5
+};
+
 // ==========================================
 // BỘ QUẢN LÝ ỨNG DỤNG (JOURNEY APP)
 // ==========================================
@@ -48,6 +54,7 @@ class JourneyApp {
   constructor() {
     this.config = this.loadData("journey_config_v3", DEFAULT_CONFIG);
     this.memories = this.loadData("journey_memories_v3", DEFAULT_MEMORIES);
+    this.period = this.loadData("journey_period_v1", DEFAULT_PERIOD);
     this.showAllMemories = false;
     this.audioContext = null;
     this.isPlayingMelody = false;
@@ -55,9 +62,11 @@ class JourneyApp {
 
     this.initDOM();
     this.initEvents();
+    this.initPeriodTracker();
     this.initPhotoUpload();
     this.startLiveCounter();
     this.renderProfile();
+    this.renderPeriodTracker();
     this.renderTimeline();
     this.initPetalsCanvas();
     this.syncFromBackend();
@@ -105,6 +114,19 @@ class JourneyApp {
     this.memoryForm = document.getElementById("memory-form");
     this.closeMemoryBtn = document.getElementById("close-memory-modal-btn");
     this.cancelMemoryBtn = document.getElementById("cancel-memory-btn");
+
+    // Period Tracker Widget & Modal
+    this.periodWidget = document.getElementById("period-tracker-widget");
+    this.periodPhaseText = document.getElementById("period-phase-text");
+    this.periodStatusMessage = document.getElementById("period-status-message");
+    this.openPeriodModalBtn = document.getElementById("open-period-modal-btn");
+    this.periodModal = document.getElementById("period-modal");
+    this.periodForm = document.getElementById("period-form");
+    this.closePeriodBtn = document.getElementById("close-period-modal-btn");
+    this.cancelPeriodBtn = document.getElementById("cancel-period-btn");
+    this.periodStartDateInput = document.getElementById("period-start-date-input");
+    this.periodCycleLengthInput = document.getElementById("period-cycle-length-input");
+    this.setPeriodTodayBtn = document.getElementById("set-period-today-btn");
 
     this.settingsModal = document.getElementById("settings-modal");
     this.settingsForm = document.getElementById("settings-form");
@@ -289,9 +311,12 @@ class JourneyApp {
       if (confirm("Em có muốn đặt lại các kỷ niệm mẫu mặc định không?")) {
         localStorage.removeItem("journey_config_v3");
         localStorage.removeItem("journey_memories_v3");
+        localStorage.removeItem("journey_period_v1");
         this.config = { ...DEFAULT_CONFIG };
         this.memories = [ ...DEFAULT_MEMORIES ];
+        this.period = { ...DEFAULT_PERIOD };
         this.renderProfile();
+        this.renderPeriodTracker();
         this.renderTimeline();
         this.settingsModal.close();
       }
@@ -353,13 +378,132 @@ class JourneyApp {
   }
 
   // ==========================================
-  // DÒNG THỜI GIAN KỶ NIỆM (TIMELINE)
+  // THEO DÕI NGÀY ĐẾN DÂU CỦA BÉ THƯ (NHỎ NHẮN, TINH TẾ)
+  // ==========================================
+  initPeriodTracker() {
+    if (!this.periodModal) return;
+
+    const openModal = (e) => {
+      if (e) e.stopPropagation();
+      this.periodStartDateInput.value = this.period.startDate || new Date().toISOString().split("T")[0];
+      this.periodCycleLengthInput.value = this.period.cycleLength || 28;
+      this.periodModal.showModal();
+    };
+
+    if (this.openPeriodModalBtn) {
+      this.openPeriodModalBtn.addEventListener("click", openModal);
+    }
+    if (this.periodWidget) {
+      this.periodWidget.addEventListener("click", openModal);
+    }
+
+    if (this.closePeriodBtn) {
+      this.closePeriodBtn.addEventListener("click", () => this.periodModal.close());
+    }
+    if (this.cancelPeriodBtn) {
+      this.cancelPeriodBtn.addEventListener("click", () => this.periodModal.close());
+    }
+
+    if (this.setPeriodTodayBtn) {
+      this.setPeriodTodayBtn.addEventListener("click", () => {
+        const todayStr = new Date().toISOString().split("T")[0];
+        this.periodStartDateInput.value = todayStr;
+        this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
+      });
+    }
+
+    if (this.periodForm) {
+      this.periodForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const startVal = this.periodStartDateInput.value;
+        const cycleVal = parseInt(this.periodCycleLengthInput.value, 10) || 28;
+
+        if (startVal) {
+          this.period.startDate = startVal;
+          this.period.cycleLength = cycleVal;
+          this.saveData("journey_period_v1", this.period);
+          this.renderPeriodTracker();
+          this.periodModal.close();
+          this.spawnHeartConfetti();
+        }
+      });
+    }
+  }
+
+  renderPeriodTracker() {
+    if (!this.periodPhaseText || !this.periodStatusMessage) return;
+
+    if (!this.period || !this.period.startDate) {
+      this.periodPhaseText.textContent = "Chưa cài đặt";
+      this.periodStatusMessage.textContent = "Bấm vào để cài đặt ngày dâu chăm sóc bé Thư 💕";
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [y, m, d] = this.period.startDate.split("-").map(Number);
+    const start = new Date(y, m - 1, d);
+    start.setHours(0, 0, 0, 0);
+
+    const cycleLength = Number(this.period.cycleLength) || 28;
+    const durationDays = Number(this.period.durationDays) || 5;
+
+    // Tính chu kỳ tiếp theo dựa trên ngày bắt đầu
+    let nextStart = new Date(start.getTime());
+    while (nextStart < today && (today - nextStart) >= durationDays * 86400000) {
+      nextStart = new Date(nextStart.getTime() + cycleLength * 86400000);
+    }
+
+    const daysUntilNext = Math.ceil((nextStart - today) / 86400000);
+
+    const formatShortDate = (dt) => {
+      const day = dt.getDate();
+      const month = dt.getMonth() + 1;
+      return `${day < 10 ? '0' + day : day}/${month < 10 ? '0' + month : month}`;
+    };
+
+    // Kiểm tra xem hiện tại có đang trong kỳ dâu không
+    let isDuringPeriod = false;
+    let periodDay = 1;
+
+    const currentPeriodStart = new Date(nextStart.getTime() - cycleLength * 86400000);
+    if (today >= currentPeriodStart) {
+      const daysSinceCurrent = Math.floor((today - currentPeriodStart) / 86400000);
+      if (daysSinceCurrent >= 0 && daysSinceCurrent < durationDays) {
+        isDuringPeriod = true;
+        periodDay = daysSinceCurrent + 1;
+      }
+    }
+    if (daysUntilNext === 0) {
+      isDuringPeriod = true;
+      periodDay = 1;
+    }
+
+    if (isDuringPeriod) {
+      this.periodPhaseText.textContent = `🌸 Đang kỳ dâu (Ngày ${periodDay}/${durationDays})`;
+      this.periodStatusMessage.textContent = "Bé iu nhớ uống nước ấm, chườm bụng và nghỉ ngơi thật nhiều nhé. Anh luôn yêu và chiều chuộng bé! 🍵💕";
+    } else if (daysUntilNext > 0 && daysUntilNext <= 3) {
+      this.periodPhaseText.textContent = `🍓 Sắp đến kỳ dâu (còn ${daysUntilNext} ngày)`;
+      this.periodStatusMessage.textContent = `Dự kiến ngày ${formatShortDate(nextStart)}. Chuẩn bị giữ ấm và để anh chăm sóc em thật chu đáo nha bé! 💕`;
+    } else if (daysUntilNext > 0) {
+      this.periodPhaseText.textContent = `✨ Dự kiến: ${formatShortDate(nextStart)} (còn ${daysUntilNext} ngày)`;
+      this.periodStatusMessage.textContent = "Bé Thư nhớ uống đủ nước, ngủ thật ngon và luôn cười thật rạng rỡ nha cô gái nhỏ! 🌸";
+    } else {
+      this.periodPhaseText.textContent = `🍓 Dự kiến: Hôm nay`;
+      this.periodStatusMessage.textContent = "Nhớ giữ ấm bụng và nghỉ ngơi thoải mái nha bé iu của anh 💕";
+    }
+  }
+
+  // ==========================================
+  // DÒNG THỜI GIAN LOCKET (KHUNG ẢNH & KHUNG CÂU CHUYỆN KẾ BÊN)
   // ==========================================
   renderTimeline() {
     if (this.memories.length === 0) {
       this.timelineContainer.innerHTML = `
-        <div style="text-align: center; padding: 40px; color: var(--text-muted);">
-          <p>Chưa có kỷ niệm nào được lưu. Bấm "+ Thêm Kỷ Niệm Mới" để lưu giữ khoảnh khắc đầu tiên nhé!</p>
+        <div style="text-align: center; padding: 40px; color: var(--text-muted); background: rgba(255,255,255,0.7); border-radius: var(--radius-lg); border: 1px dashed var(--pink-soft);">
+          <p style="font-size: 1.1rem; margin-bottom: 8px;">Chưa có khoảnh khắc Locket nào được lưu.</p>
+          <small>Bấm "+ Gửi Khoảnh Khắc Mới 📸" ở trên để gửi câu chuyện đầu tiên nhé!</small>
         </div>
       `;
       return;
@@ -379,19 +523,44 @@ class JourneyApp {
       }
 
       return `
-        <div class="timeline-item" data-id="${mem.id}">
-          <div class="polaroid-card">
-            <div class="polaroid-img-wrapper">
+        <article class="locket-card" data-id="${mem.id}">
+          <!-- Khung 1: Khung chứa ảnh (Locket Photo Widget) -->
+          <div class="locket-photo-frame" title="Chạm để xem ảnh phóng to">
+            <div class="locket-photo-inner">
               <img src="${mem.image}" alt="${this.escapeHTML(mem.title)}" loading="lazy">
-              ${mem.location ? `<span class="polaroid-badge">📍 ${this.escapeHTML(mem.location)}</span>` : ""}
-            </div>
-            <div class="polaroid-meta">
-              <span class="polaroid-date">🗓️ ${dateFormatted}</span>
-              <h3 class="polaroid-title">${this.escapeHTML(mem.title)}</h3>
-              <p class="polaroid-caption">"${this.escapeHTML(mem.story)}"</p>
+              <div class="locket-photo-overlay">
+                <span class="locket-sender-badge">💕 ${this.config.partnerOne} & ${this.config.partnerTwo}</span>
+                ${mem.location ? `<span class="locket-loc-badge">📍 ${this.escapeHTML(mem.location)}</span>` : ""}
+              </div>
+              <div class="locket-zoom-hint">🔍 Phóng to</div>
             </div>
           </div>
-        </div>
+
+          <!-- Khung 2: Khung kế bên ảnh mô tả câu chuyện (Story Frame) -->
+          <div class="locket-story-frame">
+            <div class="locket-story-header">
+              <div class="locket-time-tag">
+                <span class="locket-cal-icon">🗓️</span>
+                <span class="locket-date-text">${dateFormatted}</span>
+              </div>
+              <button class="locket-delete-btn" data-id="${mem.id}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>
+            </div>
+
+            <h3 class="locket-story-title">${this.escapeHTML(mem.title)}</h3>
+
+            <div class="locket-story-body">
+              <p class="locket-story-text">"${this.escapeHTML(mem.story || "Khoảnh khắc ngọt ngào của hai đứa...")}"</p>
+            </div>
+
+            <div class="locket-story-footer">
+              <div class="locket-footer-heart">
+                <span class="mini-heart-pulse">❤️</span>
+                <span class="locket-footer-note">Locket lưu giữ theo thời gian</span>
+              </div>
+              <button class="locket-expand-story-btn" data-id="${mem.id}">Xem chi tiết 🌸</button>
+            </div>
+          </div>
+        </article>
       `;
     }).join("");
 
@@ -412,10 +581,12 @@ class JourneyApp {
       });
     }
 
-    this.timelineContainer.querySelectorAll(".polaroid-card").forEach(card => {
-      card.addEventListener("click", () => {
-        const item = card.closest(".timeline-item");
-        const mem = this.memories.find(m => m.id === item.dataset.id);
+    // Gắn sự kiện xem ảnh lớn
+    this.timelineContainer.querySelectorAll(".locket-photo-frame, .locket-expand-story-btn").forEach(el => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const card = el.closest(".locket-card");
+        const mem = this.memories.find(m => m.id === card.dataset.id);
         if (mem) {
           this.lightboxImg.src = mem.image;
           this.lightboxTitle.textContent = mem.title;
@@ -424,6 +595,19 @@ class JourneyApp {
           this.lightboxDate.textContent = `📍 ${mem.location || "Cùng Nhau"} • 🗓️ ${dateStr}`;
           this.lightboxStory.textContent = mem.story;
           this.lightboxModal.showModal();
+        }
+      });
+    });
+
+    // Gắn sự kiện xóa khoảnh khắc
+    this.timelineContainer.querySelectorAll(".locket-delete-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const memId = btn.dataset.id;
+        if (confirm("Em/anh có muốn xóa khoảnh khắc kỷ niệm này không?")) {
+          this.memories = this.memories.filter(m => m.id !== memId);
+          this.saveData("journey_memories_v3", this.memories);
+          this.renderTimeline();
         }
       });
     });
