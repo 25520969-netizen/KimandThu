@@ -47,6 +47,23 @@ const DEFAULT_PERIOD = {
   durationDays: 5
 };
 
+const DEFAULT_CHAT_MESSAGES = [
+  {
+    id: "msg-1",
+    sender: "Kim",
+    text: "Chào bé Thư yêu của anh! 💕 Mỗi ngày bên em đều là một ngày ngọt ngào.",
+    image: "",
+    timestamp: "2025-04-02T19:05:00"
+  },
+  {
+    id: "msg-2",
+    sender: "Thư",
+    text: "Iu anh nhìu nhìu :3 ❤️ Chúng mình cùng lưu giữ thật nhiều kỷ niệm đẹp nha!",
+    image: "",
+    timestamp: "2025-04-02T19:06:00"
+  }
+];
+
 // ==========================================
 // BỘ QUẢN LÝ ỨNG DỤNG (JOURNEY APP)
 // ==========================================
@@ -55,6 +72,9 @@ class JourneyApp {
     this.config = this.loadData("journey_config_v3", DEFAULT_CONFIG);
     this.memories = this.loadData("journey_memories_v3", DEFAULT_MEMORIES);
     this.period = this.loadData("journey_period_v1", DEFAULT_PERIOD);
+    this.chatMessages = this.loadData("journey_chat_messages_v1", DEFAULT_CHAT_MESSAGES);
+    this.currentSender = this.loadData("journey_chat_sender_v1", "Kim");
+    this.chatPendingImage = null;
     this.showAllMemories = false;
     this.audioContext = null;
     this.isPlayingMelody = false;
@@ -63,6 +83,7 @@ class JourneyApp {
     this.initDOM();
     this.initEvents();
     this.initPeriodTracker();
+    this.initChat();
     this.initPhotoUpload();
     this.startLiveCounter();
     this.renderProfile();
@@ -71,6 +92,9 @@ class JourneyApp {
     this.initPetalsCanvas();
     this.syncFromBackend();
     this.checkPeriodAlert();
+
+    // Tự động kiểm tra tin nhắn mới từ backend mỗi 6 giây
+    setInterval(() => this.syncFromBackend(), 6000);
   }
 
   loadData(key, fallback) {
@@ -325,12 +349,15 @@ class JourneyApp {
         localStorage.removeItem("journey_config_v3");
         localStorage.removeItem("journey_memories_v3");
         localStorage.removeItem("journey_period_v1");
+        localStorage.removeItem("journey_chat_messages_v1");
         this.config = { ...DEFAULT_CONFIG };
         this.memories = [ ...DEFAULT_MEMORIES ];
         this.period = { ...DEFAULT_PERIOD };
+        this.chatMessages = [ ...DEFAULT_CHAT_MESSAGES ];
         this.renderProfile();
         this.renderPeriodTracker();
         this.renderTimeline();
+        this.renderChatMessages();
         this.settingsModal.close();
       }
     });
@@ -952,6 +979,189 @@ class JourneyApp {
     }
   }
 
+  // ==========================================
+  // HỘP THƯ CHAT RIÊNG TƯ (LƯU DRIVE & GOOGLE CLOUD)
+  // ==========================================
+  initChat() {
+    this.floatingChatBtn = document.getElementById("floating-chat-btn");
+    this.openChatDropdownBtn = document.getElementById("open-chat-dropdown-btn");
+    this.chatDrawer = document.getElementById("chat-drawer");
+    this.closeChatBtn = document.getElementById("close-chat-btn");
+    this.switchChatSenderBtn = document.getElementById("switch-chat-sender-btn");
+    this.currentChatSenderLabel = document.getElementById("current-chat-sender-label");
+    this.chatReceiverName = document.getElementById("chat-receiver-name");
+    this.chatMessagesContainer = document.getElementById("chat-messages-container");
+    this.chatForm = document.getElementById("chat-form");
+    this.chatTextInput = document.getElementById("chat-text-input");
+    this.chatImageFileInput = document.getElementById("chat-image-file-input");
+    this.chatImgPreviewBox = document.getElementById("chat-img-preview-box");
+    this.chatImgPreviewTag = document.getElementById("chat-img-preview-tag");
+    this.chatRemoveImgBtn = document.getElementById("chat-remove-img-btn");
+    this.chatQuickHeartBtn = document.getElementById("chat-quick-heart-btn");
+    this.chatUnreadDot = document.getElementById("chat-unread-dot");
+
+    if (this.floatingChatBtn) {
+      this.floatingChatBtn.addEventListener("click", () => this.toggleChatDrawer());
+    }
+
+    if (this.openChatDropdownBtn) {
+      this.openChatDropdownBtn.addEventListener("click", () => this.toggleChatDrawer(true));
+    }
+
+    if (this.closeChatBtn) {
+      this.closeChatBtn.addEventListener("click", () => this.toggleChatDrawer(false));
+    }
+
+    if (this.switchChatSenderBtn) {
+      this.switchChatSenderBtn.addEventListener("click", () => this.toggleChatSender());
+    }
+
+    // Chọn ảnh gửi trong chat (tự động nén và tải lên Google Drive)
+    if (this.chatImageFileInput) {
+      this.chatImageFileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const rawUrl = event.target.result;
+          this.compressImage(rawUrl, 900, 0.82, (compressed) => {
+            this.chatPendingImage = compressed;
+            if (this.chatImgPreviewTag) this.chatImgPreviewTag.src = compressed;
+            if (this.chatImgPreviewBox) this.chatImgPreviewBox.style.display = "flex";
+            if (this.chatTextInput) this.chatTextInput.focus();
+          });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    if (this.chatRemoveImgBtn) {
+      this.chatRemoveImgBtn.addEventListener("click", () => this.clearChatPendingImage());
+    }
+
+    // Nút thả tim nhanh trong chat
+    if (this.chatQuickHeartBtn) {
+      this.chatQuickHeartBtn.addEventListener("click", () => {
+        this.sendChatMessage("❤️", null);
+      });
+    }
+
+    // Gửi tin nhắn
+    if (this.chatForm) {
+      this.chatForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const text = this.chatTextInput ? this.chatTextInput.value.trim() : "";
+        if (!text && !this.chatPendingImage) return;
+
+        this.sendChatMessage(text, this.chatPendingImage);
+        if (this.chatTextInput) this.chatTextInput.value = "";
+      });
+    }
+
+    this.updateChatHeaderLabels();
+    this.renderChatMessages();
+  }
+
+  toggleChatDrawer(force) {
+    if (!this.chatDrawer) return;
+    const shouldOpen = force !== undefined ? force : !this.chatDrawer.classList.contains("open");
+    if (shouldOpen) {
+      this.chatDrawer.classList.add("open");
+      this.chatDrawer.setAttribute("aria-hidden", "false");
+      if (this.chatUnreadDot) this.chatUnreadDot.style.display = "none";
+      if (this.chatTextInput) this.chatTextInput.focus();
+      this.renderChatMessages();
+    } else {
+      this.chatDrawer.classList.remove("open");
+      this.chatDrawer.setAttribute("aria-hidden", "true");
+    }
+  }
+
+  toggleChatSender() {
+    const him = this.config.partnerOne || "Kim";
+    const her = this.config.partnerTwo || "Thư";
+    this.currentSender = (this.currentSender === him) ? her : him;
+    this.saveData("journey_chat_sender_v1", this.currentSender);
+    this.updateChatHeaderLabels();
+    this.renderChatMessages();
+    this.spawnHeartBurst(window.innerWidth - 60, window.innerHeight - 60);
+  }
+
+  updateChatHeaderLabels() {
+    const him = this.config.partnerOne || "Kim";
+    const her = this.config.partnerTwo || "Thư";
+    const receiver = (this.currentSender === him) ? her : him;
+
+    if (this.currentChatSenderLabel) {
+      this.currentChatSenderLabel.textContent = `Tôi là: ${this.currentSender}`;
+    }
+    if (this.chatReceiverName) {
+      this.chatReceiverName.textContent = `${receiver} ❤️`;
+    }
+  }
+
+  clearChatPendingImage() {
+    this.chatPendingImage = null;
+    if (this.chatImageFileInput) this.chatImageFileInput.value = "";
+    if (this.chatImgPreviewBox) this.chatImgPreviewBox.style.display = "none";
+  }
+
+  sendChatMessage(text, imageBase64) {
+    if (!text && !imageBase64) return;
+
+    const newMsg = {
+      id: "msg-" + Date.now(),
+      sender: this.currentSender,
+      text: text || "",
+      image: imageBase64 || "",
+      timestamp: new Date().toISOString()
+    };
+
+    this.chatMessages.push(newMsg);
+    this.saveData("journey_chat_messages_v1", this.chatMessages);
+    this.renderChatMessages();
+    this.clearChatPendingImage();
+    this.spawnHeartBurst(window.innerWidth - 60, window.innerHeight - 60);
+
+    // Lưu vào Google Drive và Google Sheet Backend
+    this.sendToBackend({
+      type: "chat_message",
+      ...newMsg,
+      imageBase64: imageBase64 || ""
+    });
+  }
+
+  renderChatMessages() {
+    if (!this.chatMessagesContainer) return;
+    this.chatMessagesContainer.innerHTML = this.chatMessages.map(msg => {
+      const isSent = msg.sender === this.currentSender;
+      const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+      return `
+        <div class="chat-msg-row ${isSent ? 'sent' : 'received'}">
+          <span class="chat-msg-sender-name">${this.escapeHTML(msg.sender)}</span>
+          <div class="chat-bubble">
+            ${msg.image ? `<img src="${msg.image}" alt="Ảnh tin nhắn" class="chat-msg-img" onclick="window.journeyApp.viewChatImage('${msg.image}')">` : ""}
+            ${msg.text ? `<div>${this.escapeHTML(msg.text)}</div>` : ""}
+          </div>
+          <span class="chat-msg-time">${timeStr}</span>
+        </div>
+      `;
+    }).join("");
+
+    this.chatMessagesContainer.scrollTop = this.chatMessagesContainer.scrollHeight;
+  }
+
+  viewChatImage(url) {
+    if (this.lightboxModal && this.lightboxImg) {
+      this.lightboxImg.src = url;
+      this.lightboxTitle.textContent = "Ảnh Từ Hộp Thư Chat 💕";
+      this.lightboxDate.textContent = "Lưu trữ an toàn trên Google Drive";
+      this.lightboxStory.textContent = "";
+      this.lightboxModal.showModal();
+    }
+  }
+
   syncFromBackend() {
     if (!this.config.apiUrl) return;
     fetch(this.config.apiUrl)
@@ -961,6 +1171,22 @@ class JourneyApp {
           this.memories = data.memories;
           this.saveData("journey_memories_v3", this.memories);
           this.renderTimeline();
+        }
+        if (data.messages && data.messages.length > 0) {
+          let hasNew = false;
+          data.messages.forEach(serverMsg => {
+            if (!this.chatMessages.some(m => m.id === serverMsg.id)) {
+              this.chatMessages.push(serverMsg);
+              hasNew = true;
+            }
+          });
+          if (hasNew) {
+            this.saveData("journey_chat_messages_v1", this.chatMessages);
+            this.renderChatMessages();
+            if (this.chatUnreadDot && (!this.chatDrawer || !this.chatDrawer.classList.contains("open"))) {
+              this.chatUnreadDot.style.display = "block";
+            }
+          }
         }
       })
       .catch(e => console.warn("Chưa đồng bộ được từ Google Drive:", e));

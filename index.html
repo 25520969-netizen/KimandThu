@@ -55,6 +55,10 @@
               <span class="dropdown-icon">🍓</span>
               <span class="dropdown-text" id="period-nav-label">Chăm Sóc Bé</span>
             </button>
+            <button id="open-chat-dropdown-btn" class="dropdown-item" role="menuitem">
+              <span class="dropdown-icon">💌</span>
+              <span class="dropdown-text">Hộp Thư Nhắn Tin</span>
+            </button>
           </div>
         </div>
       </div>
@@ -343,6 +347,59 @@
       </div>
     </div>
   </dialog>
+
+  <!-- FLOATING CHAT BUTTON (GÓC DƯỚI BÊN PHẢI) -->
+  <button id="floating-chat-btn" class="floating-chat-btn" title="Hộp thư tình yêu Kim & Thư 💕" aria-label="Mở khung nhắn tin">
+    <span class="chat-btn-icon">💌</span>
+    <span class="chat-badge-pulse" id="chat-unread-dot"></span>
+  </button>
+
+  <!-- CHAT DRAWER / WINDOW -->
+  <div id="chat-drawer" class="chat-drawer" aria-hidden="true">
+    <div class="chat-header">
+      <div class="chat-user-info">
+        <div class="chat-avatar-wrap">
+          <span class="chat-avatar-icon">💑</span>
+          <span class="chat-online-dot"></span>
+        </div>
+        <div class="chat-title-wrap">
+          <h4 id="chat-receiver-name">Bé Thư ❤️</h4>
+          <span class="chat-status-text">Đang yêu thương ✨</span>
+        </div>
+      </div>
+      <div class="chat-header-actions">
+        <!-- Switch Identity (Tôi là Kim / Tôi là Thư) -->
+        <button id="switch-chat-sender-btn" class="chat-sender-toggle-btn" title="Đổi người gửi">
+          <span id="current-chat-sender-label">Tôi là: Kim</span>
+        </button>
+        <button id="close-chat-btn" class="chat-close-btn" aria-label="Đóng chat">&times;</button>
+      </div>
+    </div>
+
+    <!-- Chat Messages Stream -->
+    <div class="chat-messages-container" id="chat-messages-container">
+      <!-- Dynamic messages via JS -->
+    </div>
+
+    <!-- Image Preview before sending -->
+    <div id="chat-img-preview-box" class="chat-img-preview-box" style="display: none;">
+      <img id="chat-img-preview-tag" src="" alt="Ảnh gửi kèm">
+      <button type="button" id="chat-remove-img-btn" class="chat-remove-img-btn" title="Hủy ảnh">&times;</button>
+    </div>
+
+    <!-- Chat Input Form -->
+    <form id="chat-form" class="chat-input-bar">
+      <label for="chat-image-file-input" class="chat-attach-btn" title="Gửi ảnh từ điện thoại (lưu vào Google Drive)">
+        <span>📷</span>
+      </label>
+      <input type="file" id="chat-image-file-input" accept="image/*" style="display: none;">
+      <input type="text" id="chat-text-input" placeholder="Nhắn gì đó cho người yêu..." autocomplete="off">
+      <button type="button" id="chat-quick-heart-btn" class="chat-quick-heart-btn" title="Bắn tim nhanh">❤️</button>
+      <button type="submit" id="chat-send-btn" class="chat-send-btn" title="Gửi tin nhắn">
+        <span>💌</span>
+      </button>
+    </form>
+  </div>
 
   <script src="app.js"></script>
 </body>

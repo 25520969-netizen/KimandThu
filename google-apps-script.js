@@ -66,6 +66,32 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({status: "success", imageUrl: imageUrl}))
         .setMimeType(ContentService.MimeType.JSON);
     }
+
+    // 4. LƯU TIN NHẮN CHAT VÀ ẢNH VÀO GOOGLE DRIVE
+    if (data.type === "chat_message") {
+      var sheet = ss.getSheetByName("Messages") || ss.insertSheet("Messages");
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(["ID", "Sender", "Text", "ImageUrl", "Timestamp", "CreatedAt"]);
+      }
+      
+      var imageUrl = data.image || "";
+      if (data.imageBase64 && data.imageBase64.indexOf("data:image") === 0) {
+        var folder = DriveApp.getFolderById(FOLDER_ID);
+        var contentType = data.imageBase64.substring(data.imageBase64.indexOf(":") + 1, data.imageBase64.indexOf(";"));
+        var base64Data = data.imageBase64.split(",")[1];
+        var decoded = Utilities.base64Decode(base64Data);
+        var filename = "chat_" + Utilities.formatDate(new Date(), "GMT+7", "yyyyMMdd_HHmmss") + ".jpg";
+        var blob = Utilities.newBlob(decoded, contentType, filename);
+        
+        var file = folder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+        imageUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
+      }
+      
+      sheet.appendRow([data.id, data.sender, data.text || "", imageUrl, data.timestamp || new Date().toISOString(), new Date()]);
+      return ContentService.createTextOutput(JSON.stringify({status: "success", imageUrl: imageUrl}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
     
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({status: "error", message: err.toString()}))
@@ -77,6 +103,7 @@ function doGet(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var taskSheet = ss.getSheetByName("Tasks");
   var memorySheet = ss.getSheetByName("Memories");
+  var msgSheet = ss.getSheetByName("Messages");
   
   var tasks = [];
   if (taskSheet && taskSheet.getLastRow() > 1) {
@@ -118,7 +145,21 @@ function doGet(e) {
       return new Date(b.date) - new Date(a.date);
     });
   }
+
+  var messages = [];
+  if (msgSheet && msgSheet.getLastRow() > 1) {
+    var msgData = msgSheet.getDataRange().getValues();
+    for (var k = 1; k < msgData.length; k++) {
+      messages.push({
+        id: msgData[k][0],
+        sender: msgData[k][1],
+        text: msgData[k][2],
+        image: msgData[k][3],
+        timestamp: msgData[k][4]
+      });
+    }
+  }
   
-  return ContentService.createTextOutput(JSON.stringify({tasks: tasks, memories: memories}))
+  return ContentService.createTextOutput(JSON.stringify({tasks: tasks, memories: memories, messages: messages}))
     .setMimeType(ContentService.MimeType.JSON);
 }
