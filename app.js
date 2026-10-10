@@ -10,7 +10,8 @@ const DEFAULT_CONFIG = {
   partnerOne: "Kim",
   partnerTwo: "Thư",
   startDate: "2025-04-02T19:00:00",
-  quote: "Iu béeeee:3"
+  quote: "Iu béeeee:3",
+  apiUrl: ""
 };
 
 const DEFAULT_TASKS = [
@@ -131,6 +132,7 @@ class JourneyApp {
     this.renderTasks();
     this.renderTimeline();
     this.initPetalsCanvas();
+    this.syncFromBackend();
   }
 
   loadData(key, fallback) {
@@ -333,6 +335,7 @@ class JourneyApp {
 
       this.tasks.unshift(newTask);
       this.saveData("journey_tasks_v2", this.tasks);
+      this.sendToBackend({ type: "task", ...newTask });
       this.renderTasks();
       this.taskForm.reset();
       this.taskModal.close();
@@ -378,6 +381,7 @@ class JourneyApp {
       this.memories.push(newMemory);
       this.memories.sort((a, b) => new Date(a.date) - new Date(b.date));
       this.saveData("journey_memories_v2", this.memories);
+      this.sendToBackend({ type: "memory", ...newMemory, imageBase64: newMemory.image });
       this.renderTimeline();
       this.memoryForm.reset();
       this.memoryModal.close();
@@ -406,6 +410,8 @@ class JourneyApp {
       document.getElementById("cfg-her-name").value = this.config.partnerTwo;
       document.getElementById("cfg-start-date").value = this.config.startDate.slice(0, 16);
       document.getElementById("cfg-quote").value = this.config.quote;
+      const apiInput = document.getElementById("cfg-api-url");
+      if (apiInput) apiInput.value = this.config.apiUrl || "";
       this.settingsModal.showModal();
     });
     this.closeSettingsBtn.addEventListener("click", () => this.settingsModal.close());
@@ -419,6 +425,11 @@ class JourneyApp {
         this.config.startDate = dateVal.length === 16 ? `${dateVal}:00` : dateVal;
       }
       this.config.quote = document.getElementById("cfg-quote").value.trim();
+      const apiInput = document.getElementById("cfg-api-url");
+      if (apiInput) {
+        this.config.apiUrl = apiInput.value.trim();
+        if (this.config.apiUrl) this.syncFromBackend();
+      }
 
       this.saveData("journey_config_v2", this.config);
       this.renderProfile();
@@ -570,6 +581,7 @@ class JourneyApp {
         if (task) {
           task.completed = !task.completed;
           this.saveData("journey_tasks_v2", this.tasks);
+          this.sendToBackend({ type: "toggle_task", id: task.id, completed: task.completed });
           this.renderTasks();
           if (task.completed) {
             this.spawnHeartConfetti();
@@ -808,6 +820,44 @@ class JourneyApp {
     clearTimeout(this.melodyTimer);
     this.musicStatus.textContent = "Bật Nhạc 🎵";
     this.musicToggleBtn.classList.remove("active");
+  }
+
+  // ==========================================
+  // ĐỒNG BỘ GOOGLE APPS SCRIPT / DRIVE BACKEND
+  // ==========================================
+  sendToBackend(payload) {
+    if (!this.config.apiUrl) return;
+    try {
+      fetch(this.config.apiUrl, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      }).catch(e => console.warn("Lỗi gửi dữ liệu lên Google Drive Backend:", e));
+    } catch (e) {
+      console.warn("Lỗi fetch:", e);
+    }
+  }
+
+  syncFromBackend() {
+    if (!this.config.apiUrl) return;
+    fetch(this.config.apiUrl)
+      .then(res => res.json())
+      .then(data => {
+        if (data.tasks && data.tasks.length > 0) {
+          this.tasks = data.tasks;
+          this.saveData("journey_tasks_v2", this.tasks);
+          this.renderTasks();
+        }
+        if (data.memories && data.memories.length > 0) {
+          this.memories = data.memories;
+          this.saveData("journey_memories_v2", this.memories);
+          this.renderTimeline();
+        }
+      })
+      .catch(e => console.warn("Chưa đồng bộ được từ Google Drive:", e));
   }
 
   escapeHTML(str) {
