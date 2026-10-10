@@ -112,6 +112,11 @@ function doGet(e) {
         story: memData[j][5]
       });
     }
+
+    // Sắp xếp sự kiện gần nhất lên đầu
+    memories.sort(function(a, b) {
+      return new Date(b.date) - new Date(a.date);
+    });
   }
   
   return ContentService.createTextOutput(JSON.stringify({tasks: tasks, memories: memories}))

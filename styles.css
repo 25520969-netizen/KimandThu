@@ -747,79 +747,79 @@ body {
 .timeline-list {
   display: flex;
   flex-direction: column;
-  gap: 48px;
+  gap: 26px;
   position: relative;
 }
 
 .timeline-item {
   position: relative;
   width: 50%;
-  padding: 0 32px;
+  padding: 0 28px;
 }
 
 .timeline-item:nth-child(odd) {
   left: 0;
   text-align: right;
-  padding-right: 42px;
+  padding-right: 36px;
 }
 
 .timeline-item:nth-child(even) {
   left: 50%;
   text-align: left;
-  padding-left: 42px;
+  padding-left: 36px;
 }
 
 /* Node marker on the line */
 .timeline-item::after {
   content: '❤️';
   position: absolute;
-  top: 24px;
-  width: 28px;
-  height: 28px;
+  top: 18px;
+  width: 26px;
+  height: 26px;
   background: #ffffff;
   border: 2px solid var(--pink-primary);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
-  box-shadow: 0 0 12px rgba(255, 117, 143, 0.4);
+  font-size: 0.72rem;
+  box-shadow: 0 0 10px rgba(255, 117, 143, 0.35);
   z-index: 3;
 }
 
 .timeline-item:nth-child(odd)::after {
-  right: -14px;
+  right: -13px;
 }
 
 .timeline-item:nth-child(even)::after {
-  left: -14px;
+  left: -13px;
 }
 
 /* Polaroid Card Style */
 .polaroid-card {
   background: #ffffff;
   border-radius: var(--radius-md);
-  padding: 14px 14px 18px;
+  padding: 10px 10px 14px;
   box-shadow: var(--shadow-card);
   border: 1px solid rgba(255, 218, 226, 0.8);
   transition: transform 0.35s ease, box-shadow 0.35s ease;
   cursor: pointer;
   display: inline-block;
   width: 100%;
-  max-width: 380px;
+  max-width: 330px;
   text-align: left;
 }
 
 .timeline-item:nth-child(odd) .polaroid-card {
-  transform: rotate(-1.5deg);
+  transform: rotate(-1.2deg);
 }
 
 .timeline-item:nth-child(even) .polaroid-card {
-  transform: rotate(1.5deg);
+  transform: rotate(1.2deg);
 }
 
 .polaroid-card:hover {
-  transform: rotate(0deg) translateY(-8px) scale(1.02) !important;
+  transform: rotate(0deg) translateY(-6px) scale(1.02) !important;
   box-shadow: var(--shadow-hover);
   border-color: var(--pink-soft);
 }
@@ -827,10 +827,17 @@ body {
 .polaroid-img-wrapper {
   position: relative;
   width: 100%;
-  padding-top: 72%;
+  padding-top: 58%;
   overflow: hidden;
   border-radius: var(--radius-sm);
   background: var(--pink-lightest);
+}
+
+.timeline-toggle-wrapper {
+  text-align: center;
+  position: relative;
+  z-index: 5;
+  margin-top: 14px;
 }
 
 .polaroid-img-wrapper img {

@@ -123,6 +123,7 @@ class JourneyApp {
     this.audioContext = null;
     this.isPlayingMelody = false;
     this.melodyTimer = null;
+    this.showAllMemories = false;
 
     this.initDOM();
     this.initEvents();
@@ -379,7 +380,7 @@ class JourneyApp {
       };
 
       this.memories.push(newMemory);
-      this.memories.sort((a, b) => new Date(a.date) - new Date(b.date));
+      this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
       this.saveData("journey_memories_v2", this.memories);
       this.sendToBackend({ type: "memory", ...newMemory, imageBase64: newMemory.image });
       this.renderTimeline();
@@ -613,7 +614,13 @@ class JourneyApp {
       return;
     }
 
-    this.timelineContainer.innerHTML = this.memories.map((mem) => {
+    // Luôn sắp xếp từ sự kiện gần nhất trở về trước (mới nhất ở trên cùng)
+    this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Hiển thị gọn gàng (tối đa 4 sự kiện mới nhất, có nút xem thêm nếu nhiều hơn)
+    const visibleMemories = this.showAllMemories ? this.memories : this.memories.slice(0, 4);
+
+    this.timelineContainer.innerHTML = visibleMemories.map((mem) => {
       const dateParts = mem.date.split("-");
       let dateFormatted = mem.date;
       if (dateParts.length === 3) {
@@ -636,6 +643,23 @@ class JourneyApp {
         </div>
       `;
     }).join("");
+
+    // Nút mở rộng nếu có nhiều hơn 4 kỷ niệm để trang không bị quá dài
+    if (this.memories.length > 4) {
+      const toggleWrap = document.createElement("div");
+      toggleWrap.className = "timeline-toggle-wrapper";
+      toggleWrap.innerHTML = `
+        <button id="toggle-timeline-len-btn" class="btn btn-secondary btn-sm">
+          ${this.showAllMemories ? "Thu gọn bớt ✨" : `Xem thêm kỷ niệm trước đó (${this.memories.length - 4}) 🌸`}
+        </button>
+      `;
+      this.timelineContainer.appendChild(toggleWrap);
+
+      toggleWrap.querySelector("#toggle-timeline-len-btn").addEventListener("click", () => {
+        this.showAllMemories = !this.showAllMemories;
+        this.renderTimeline();
+      });
+    }
 
     this.timelineContainer.querySelectorAll(".polaroid-card").forEach(card => {
       card.addEventListener("click", () => {
