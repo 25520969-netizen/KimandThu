@@ -34,6 +34,10 @@
         <span class="logo-text" id="nav-couple-names">Kim & Thư</span>
       </div>
       <div class="nav-actions">
+        <button id="period-nav-btn" class="icon-btn period-nav-btn" title="Góc chăm sóc bé Thư 🍓" aria-label="Góc chăm sóc chu kỳ bé Thư">
+          <span class="btn-icon">🍓</span>
+          <span class="btn-label" id="period-nav-label">Chăm Sóc Bé</span>
+        </button>
         <button id="music-toggle-btn" class="icon-btn" title="Bật / Tắt Giai Điệu Dịu Dàng" aria-label="Bật giai điệu êm dịu">
           <span class="btn-icon">🎵</span>
           <span class="btn-label" id="music-status">Bật Nhạc</span>
@@ -90,27 +94,6 @@
             <span class="counter-number" id="count-seconds">00</span>
             <span class="counter-unit">Giây</span>
           </div>
-        </div>
-      </section>
-
-      <!-- THEO DÕI NGÀY ĐẾN DÂU CỦA BÉ (Nhỏ nhỏ, tinh tế ngay dưới Timer) -->
-      <section class="period-tracker-widget" id="period-tracker-widget" aria-label="Góc chăm sóc chu kỳ bé Thư">
-        <div class="period-widget-content">
-          <div class="period-icon-wrap">
-            <span class="period-strawberry-icon">🍓</span>
-          </div>
-          <div class="period-info">
-            <div class="period-badge-row">
-              <span class="period-pill-badge">Góc chăm sóc bé Thư</span>
-              <span class="period-phase-text" id="period-phase-text">Dự đoán chu kỳ</span>
-            </div>
-            <p class="period-status-message" id="period-status-message">
-              Đang tính chu kỳ của bé...
-            </p>
-          </div>
-          <button id="open-period-modal-btn" class="period-edit-btn" title="Cập nhật ngày dâu" aria-label="Cập nhật chu kỳ">
-            <span>✏️</span>
-          </button>
         </div>
       </section>
 
@@ -223,10 +206,27 @@
   <dialog id="period-modal" class="custom-modal" aria-labelledby="period-modal-title">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="period-modal-title">🍓 Chu Kỳ Của Bé Thư</h3>
+        <h3 id="period-modal-title">🍓 Góc Chăm Sóc Bé Thư</h3>
         <button class="modal-close-btn" id="close-period-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
       </div>
-      <form id="period-form" class="modal-form">
+
+      <!-- Live status summary card inside modal -->
+      <div class="period-modal-status-card">
+        <div class="period-icon-wrap">
+          <span class="period-strawberry-icon">🍓</span>
+        </div>
+        <div class="period-info">
+          <div class="period-badge-row">
+            <span class="period-pill-badge">Tình trạng</span>
+            <span class="period-phase-text" id="period-phase-text">Dự đoán chu kỳ</span>
+          </div>
+          <p class="period-status-message" id="period-status-message">
+            Đang tính chu kỳ của bé...
+          </p>
+        </div>
+      </div>
+
+      <form id="period-form" class="modal-form" style="margin-top: 16px;">
         <div class="form-group">
           <label for="period-start-date-input">Ngày bắt đầu kỳ dâu gần nhất *</label>
           <input type="date" id="period-start-date-input" required>
@@ -242,7 +242,7 @@
           </button>
         </div>
         <div class="modal-actions" style="margin-top: 14px;">
-          <button type="button" class="btn btn-outline" id="cancel-period-btn">Hủy</button>
+          <button type="button" class="btn btn-outline" id="cancel-period-btn">Đóng</button>
           <button type="submit" class="btn btn-primary">Lưu Lại Nhé 💕</button>
         </div>
       </form>

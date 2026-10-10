@@ -115,11 +115,11 @@ class JourneyApp {
     this.closeMemoryBtn = document.getElementById("close-memory-modal-btn");
     this.cancelMemoryBtn = document.getElementById("cancel-memory-btn");
 
-    // Period Tracker Widget & Modal
-    this.periodWidget = document.getElementById("period-tracker-widget");
+    // Period Tracker (Thanh công cụ & Modal)
+    this.periodNavBtn = document.getElementById("period-nav-btn");
+    this.periodNavLabel = document.getElementById("period-nav-label");
     this.periodPhaseText = document.getElementById("period-phase-text");
     this.periodStatusMessage = document.getElementById("period-status-message");
-    this.openPeriodModalBtn = document.getElementById("open-period-modal-btn");
     this.periodModal = document.getElementById("period-modal");
     this.periodForm = document.getElementById("period-form");
     this.closePeriodBtn = document.getElementById("close-period-modal-btn");
@@ -390,11 +390,8 @@ class JourneyApp {
       this.periodModal.showModal();
     };
 
-    if (this.openPeriodModalBtn) {
-      this.openPeriodModalBtn.addEventListener("click", openModal);
-    }
-    if (this.periodWidget) {
-      this.periodWidget.addEventListener("click", openModal);
+    if (this.periodNavBtn) {
+      this.periodNavBtn.addEventListener("click", openModal);
     }
 
     if (this.closePeriodBtn) {
@@ -483,15 +480,19 @@ class JourneyApp {
     if (isDuringPeriod) {
       this.periodPhaseText.textContent = `🌸 Đang kỳ dâu (Ngày ${periodDay}/${durationDays})`;
       this.periodStatusMessage.textContent = "Bé iu nhớ uống nước ấm, chườm bụng và nghỉ ngơi thật nhiều nhé. Anh luôn yêu và chiều chuộng bé! 🍵💕";
+      if (this.periodNavBtn) this.periodNavBtn.title = `🌸 Đang kỳ dâu của bé Thư (Ngày ${periodDay}/${durationDays})`;
     } else if (daysUntilNext > 0 && daysUntilNext <= 3) {
       this.periodPhaseText.textContent = `🍓 Sắp đến kỳ dâu (còn ${daysUntilNext} ngày)`;
       this.periodStatusMessage.textContent = `Dự kiến ngày ${formatShortDate(nextStart)}. Chuẩn bị giữ ấm và để anh chăm sóc em thật chu đáo nha bé! 💕`;
+      if (this.periodNavBtn) this.periodNavBtn.title = `🍓 Sắp đến kỳ dâu của bé (còn ${daysUntilNext} ngày)`;
     } else if (daysUntilNext > 0) {
       this.periodPhaseText.textContent = `✨ Dự kiến: ${formatShortDate(nextStart)} (còn ${daysUntilNext} ngày)`;
       this.periodStatusMessage.textContent = "Bé Thư nhớ uống đủ nước, ngủ thật ngon và luôn cười thật rạng rỡ nha cô gái nhỏ! 🌸";
+      if (this.periodNavBtn) this.periodNavBtn.title = `Góc chăm sóc bé Thư 🍓 (Dự kiến: ${formatShortDate(nextStart)})`;
     } else {
       this.periodPhaseText.textContent = `🍓 Dự kiến: Hôm nay`;
       this.periodStatusMessage.textContent = "Nhớ giữ ấm bụng và nghỉ ngơi thoải mái nha bé iu của anh 💕";
+      if (this.periodNavBtn) this.periodNavBtn.title = "Hôm nay là kỳ dâu của bé Thư 🍓";
     }
   }
 
