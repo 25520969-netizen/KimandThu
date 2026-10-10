@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Journey & Future Dreams | Forever With You</title>
+  <meta name="description" content="A warm, romantic space capturing our memories, love story timeline, and future bucket list dreams together.">
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,600&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Ambient Floating Petals Background Canvas -->
+  <canvas id="petal-canvas" aria-hidden="true"></canvas>
+
+  <!-- Top Navigation / Header Bar -->
+  <nav class="nav-bar">
+    <div class="nav-container">
+      <div class="logo">
+        <span class="logo-heart">💖</span>
+        <span class="logo-text" id="nav-couple-names">Our Love Journey</span>
+      </div>
+      <div class="nav-actions">
+        <button id="music-toggle-btn" class="icon-btn" title="Toggle Soft Melody" aria-label="Play soft romantic melody">
+          <span class="btn-icon">🎵</span>
+          <span class="btn-label" id="music-status">Play Melody</span>
+        </button>
+        <button id="edit-profile-btn" class="icon-btn" title="Edit Names & Date" aria-label="Customize Names and Anniversary">
+          <span class="btn-icon">⚙️</span>
+          <span class="btn-label">Settings</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="main-content">
+    
+    <!-- Hero Section -->
+    <header class="hero-section">
+      <div class="hero-badge">
+        <span class="sparkle">✨</span>
+        <span id="hero-subtitle">Every single day is sweeter with you</span>
+        <span class="sparkle">✨</span>
+      </div>
+      
+      <h1 class="hero-title">
+        <span id="partner-one-name">Kim</span>
+        <span class="hero-heart-pulse">❤️</span>
+        <span id="partner-two-name">Thư</span>
+      </h1>
+      
+      <p class="hero-quote" id="hero-custom-quote">
+        Iu béeeee:3
+      </p>
+
+      <!-- Live Days Counter -->
+      <section class="love-counter-card" aria-label="Relationship duration counter">
+        <div class="counter-header">
+          <span class="clock-icon">⏳</span>
+          <span class="counter-title">WE HAVE BEEN TOGETHER FOR</span>
+        </div>
+        <div class="counter-grid">
+          <div class="counter-box">
+            <span class="counter-number" id="count-days">0</span>
+            <span class="counter-unit">Days</span>
+          </div>
+          <div class="counter-box">
+            <span class="counter-number" id="count-hours">00</span>
+            <span class="counter-unit">Hours</span>
+          </div>
+          <div class="counter-box">
+            <span class="counter-number" id="count-minutes">00</span>
+            <span class="counter-unit">Minutes</span>
+          </div>
+          <div class="counter-box">
+            <span class="counter-number" id="count-seconds">00</span>
+            <span class="counter-unit">Seconds</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Quick Action Buttons -->
+      <div class="hero-actions">
+        <a href="#future-tasks" class="btn btn-primary">
+          <span>🌸 Our Future Bucket List</span>
+        </a>
+        <a href="#timeline" class="btn btn-secondary">
+          <span>📸 Memory Timeline</span>
+        </a>
+        <button id="send-love-btn" class="btn btn-blush">
+          <span>💌 Send a Heart!</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- SECTION: FUTURE TASK NOTES & BUCKET LIST -->
+    <section id="future-tasks" class="section-container future-section">
+      <div class="section-header">
+        <div class="pill-tag">Future Plans & Dreams</div>
+        <h2 class="section-title">Things We're Going To Do Together</h2>
+        <p class="section-desc">Our little bucket list of dates, adventures, and cozy dreams waiting for us.</p>
+      </div>
+
+      <!-- Task Stats & Category Filter -->
+      <div class="task-controls">
+        <div class="category-tabs" id="category-filter" role="tablist">
+          <button class="tab-btn active" data-category="all" role="tab">All Notes (<span id="total-tasks-count">0</span>)</button>
+          <button class="tab-btn" data-category="travel" role="tab">✈️ Travel</button>
+          <button class="tab-btn" data-category="date" role="tab">☕ Date Ideas</button>
+          <button class="tab-btn" data-category="food" role="tab">🍲 Cooking & Food</button>
+          <button class="tab-btn" data-category="cozy" role="tab">🏡 Cozy Moments</button>
+          <button class="tab-btn" data-category="milestone" role="tab">💍 Big Milestones</button>
+        </div>
+
+        <div class="task-action-bar">
+          <div class="progress-indicator">
+            <span class="progress-text" id="progress-text">0 of 0 dreams completed</span>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="task-progress-bar" style="width: 0%;"></div>
+            </div>
+          </div>
+          <button id="open-add-task-modal-btn" class="btn btn-primary btn-sm">
+            <span>+ Add New Dream</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Task Notes Grid (Sticky Note Aesthetic) -->
+      <div class="task-grid" id="task-notes-container">
+        <!-- Rendered dynamically via JS -->
+      </div>
+    </section>
+
+    <!-- SECTION: OUR MEMORY TIMELINE -->
+    <section id="timeline" class="section-container timeline-section">
+      <div class="section-header">
+        <div class="pill-tag">Our Story So Far</div>
+        <h2 class="section-title">Chapters of Our Love</h2>
+        <p class="section-desc">Every moment with you is a memory I treasure forever.</p>
+        <button id="open-add-memory-modal-btn" class="btn btn-secondary btn-sm" style="margin-top: 14px;">
+          <span>+ Add A New Memory</span>
+        </button>
+      </div>
+
+      <div class="timeline-wrapper">
+        <div class="timeline-center-line"></div>
+        <div class="timeline-list" id="timeline-list-container">
+          <!-- Rendered dynamically via JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION: OPEN WHEN LETTERS -->
+    <section id="love-letters" class="section-container letters-section">
+      <div class="section-header">
+        <div class="pill-tag">Little Surprises</div>
+        <h2 class="section-title">"Open When..." Letters</h2>
+        <p class="section-desc">Whenever you need a reminder of how much you are cherished, click an envelope.</p>
+      </div>
+
+      <div class="envelopes-grid" id="envelopes-grid">
+        <!-- Letter 1 -->
+        <article class="envelope-card" data-letter-id="1">
+          <div class="envelope-stamp">💖</div>
+          <div class="envelope-icon">✉️</div>
+          <h3 class="envelope-title">Open when you miss me</h3>
+          <p class="envelope-sub">A reminder that I'm always thinking of you</p>
+          <button class="btn btn-outline btn-sm">Read Letter</button>
+        </article>
+
+        <!-- Letter 2 -->
+        <article class="envelope-card" data-letter-id="2">
+          <div class="envelope-stamp">🌸</div>
+          <div class="envelope-icon">💌</div>
+          <h3 class="envelope-title">Open when you had a rough day</h3>
+          <p class="envelope-sub">A gentle warm hug in words</p>
+          <button class="btn btn-outline btn-sm">Read Letter</button>
+        </article>
+
+        <!-- Letter 3 -->
+        <article class="envelope-card" data-letter-id="3">
+          <div class="envelope-stamp">✨</div>
+          <div class="envelope-icon">🌙</div>
+          <h3 class="envelope-title">Open when you can't sleep</h3>
+          <p class="envelope-sub">Peaceful night thoughts just for you</p>
+          <button class="btn btn-outline btn-sm">Read Letter</button>
+        </article>
+
+        <!-- Letter 4 -->
+        <article class="envelope-card" data-letter-id="4">
+          <div class="envelope-stamp">🎀</div>
+          <div class="envelope-icon">🎁</div>
+          <h3 class="envelope-title">Open on our anniversary</h3>
+          <p class="envelope-sub">A celebration of our love story</p>
+          <button class="btn btn-outline btn-sm">Read Letter</button>
+        </article>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <div class="footer-heart">💕</div>
+      <p>Made with all my love for you, today and forever.</p>
+      <small>Press anywhere with double tap to create floating hearts ✨</small>
+    </footer>
+  </main>
+
+  <!-- MODAL: ADD / EDIT FUTURE TASK NOTE -->
+  <dialog id="task-modal" class="custom-modal" aria-labelledby="task-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="task-modal-title">🌸 Add a Future Dream</h3>
+        <button class="modal-close-btn" id="close-task-modal-btn" aria-label="Close dialog">&times;</button>
+      </div>
+      <form id="task-form" class="modal-form">
+        <div class="form-group">
+          <label for="task-title-input">What are we going to do together? *</label>
+          <input type="text" id="task-title-input" placeholder="e.g. Picnic at the botanical garden with handmade sandwiches" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="task-category-select">Category</label>
+            <select id="task-category-select">
+              <option value="travel">✈️ Travel & Adventures</option>
+              <option value="date">☕ Romantic Date</option>
+              <option value="food">🍲 Food & Cooking</option>
+              <option value="cozy">🏡 Cozy Moments</option>
+              <option value="milestone">💍 Milestone</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="task-target-input">Target Time / Season</label>
+            <input type="text" id="task-target-input" placeholder="e.g. Next Spring, Someday, This Weekend">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="task-notes-input">Sweet Notes & Details (Optional)</label>
+          <textarea id="task-notes-input" rows="3" placeholder="Add cute notes, packing list, or what makes this special..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="cancel-task-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save to Our Wishlist 💕</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL: ADD NEW TIMELINE MEMORY -->
+  <dialog id="memory-modal" class="custom-modal" aria-labelledby="memory-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="memory-modal-title">📸 Add a New Memory</h3>
+        <button class="modal-close-btn" id="close-memory-modal-btn" aria-label="Close dialog">&times;</button>
+      </div>
+      <form id="memory-form" class="modal-form">
+        <div class="form-group">
+          <label for="memory-title-input">Milestone Title *</label>
+          <input type="text" id="memory-title-input" placeholder="e.g. The Day We First Met, Our Trip to Da Nang" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="memory-date-input">Date *</label>
+            <input type="date" id="memory-date-input" required>
+          </div>
+          <div class="form-group">
+            <label for="memory-location-input">Location / Tag</label>
+            <input type="text" id="memory-location-input" placeholder="e.g. Da Lat, Cozy Cafe, Beachside">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="memory-image-select">Choose Photo (or enter custom Image URL)</label>
+          <input type="text" id="memory-image-input" placeholder="assets/images/memory1.jpg or URL" value="assets/images/memory1.jpg">
+          <div class="preset-images-picker">
+            <span class="picker-hint">Quick pick illustrations:</span>
+            <button type="button" class="preset-img-btn" data-url="assets/images/memory1.jpg">☕ Cafe Date</button>
+            <button type="button" class="preset-img-btn" data-url="assets/images/memory2.jpg">🌅 Beach Walk</button>
+            <button type="button" class="preset-img-btn" data-url="assets/images/memory3.jpg">✨ Stargazing</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="memory-story-input">The Story / Your Feelings</label>
+          <textarea id="memory-story-input" rows="3" placeholder="Tell the little story behind this moment..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="cancel-memory-btn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Memory 💖</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL: LETTER READER -->
+  <dialog id="letter-modal" class="custom-modal" aria-labelledby="letter-modal-title">
+    <div class="modal-card letter-paper">
+      <div class="modal-header">
+        <div class="letter-stamp-seal">💌</div>
+        <h3 id="letter-modal-title">A Letter For You</h3>
+        <button class="modal-close-btn" id="close-letter-modal-btn" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="letter-body" id="letter-modal-content">
+        <!-- Rendered dynamically -->
+      </div>
+      <div class="modal-actions" style="justify-content: center; margin-top: 20px;">
+        <button type="button" class="btn btn-primary" id="dismiss-letter-btn">With all my heart ❤️</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- MODAL: SETTINGS & CUSTOMIZATION -->
+  <dialog id="settings-modal" class="custom-modal" aria-labelledby="settings-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="settings-modal-title">⚙️ Customize Our Website</h3>
+        <button class="modal-close-btn" id="close-settings-modal-btn" aria-label="Close dialog">&times;</button>
+      </div>
+      <form id="settings-form" class="modal-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cfg-him-name">His Name</label>
+            <input type="text" id="cfg-him-name" value="Kim" required>
+          </div>
+          <div class="form-group">
+            <label for="cfg-her-name">Her Name</label>
+            <input type="text" id="cfg-her-name" value="Thư" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="cfg-start-date">Anniversary / Start Date & Time</label>
+          <input type="datetime-local" id="cfg-start-date" value="2025-04-02T19:00" required>
+        </div>
+
+        <div class="form-group">
+          <label for="cfg-quote">Hero Love Note / Quote</label>
+          <textarea id="cfg-quote" rows="2">Iu béeeee:3</textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="reset-default-data-btn">Reset Sample Data</button>
+          <button type="submit" class="btn btn-primary">Save Changes ✨</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Photo Lightbox Modal -->
+  <dialog id="photo-lightbox" class="custom-modal photo-lightbox-modal">
+    <div class="lightbox-content">
+      <button class="modal-close-btn lightbox-close" id="close-lightbox-btn" aria-label="Close image viewer">&times;</button>
+      <img id="lightbox-img" src="" alt="Enlarged memory photo">
+      <div class="lightbox-caption">
+        <h4 id="lightbox-title"></h4>
+        <p id="lightbox-date"></p>
+        <p id="lightbox-story"></p>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
