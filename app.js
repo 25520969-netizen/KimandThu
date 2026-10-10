@@ -94,11 +94,14 @@ class JourneyApp {
   // KHỞI TẠO DOM ELEMENTS
   // ==========================================
   initDOM() {
-    // Nav & Profile
+    // Nav & Profile & Dropdown Menu
     this.navCoupleNames = document.getElementById("nav-couple-names");
     this.partnerOneName = document.getElementById("partner-one-name");
     this.partnerTwoName = document.getElementById("partner-two-name");
     this.heroQuote = document.getElementById("hero-custom-quote");
+    this.navDropdownWrap = document.getElementById("nav-dropdown-wrap");
+    this.navMenuToggleBtn = document.getElementById("nav-menu-toggle-btn");
+    this.navDropdownMenu = document.getElementById("nav-dropdown-menu");
 
     // Live Counter
     this.countDays = document.getElementById("count-days");
@@ -337,6 +340,51 @@ class JourneyApp {
 
     // Bật/tắt nhạc
     this.musicToggleBtn.addEventListener("click", () => this.toggleMelody());
+
+    // Nút mũi tên tròn xổ dọc xuống menu các chức năng
+    if (this.navMenuToggleBtn && this.navDropdownWrap) {
+      this.navMenuToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = this.navDropdownWrap.classList.toggle("open");
+        this.navMenuToggleBtn.setAttribute("aria-expanded", isOpen);
+        if (this.navDropdownMenu) {
+          this.navDropdownMenu.setAttribute("aria-hidden", !isOpen);
+        }
+      });
+
+      // Đóng dropdown khi bấm bất kỳ đâu bên ngoài
+      document.addEventListener("click", (e) => {
+        if (!this.navDropdownWrap.contains(e.target)) {
+          this.navDropdownWrap.classList.remove("open");
+          this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
+          if (this.navDropdownMenu) {
+            this.navDropdownMenu.setAttribute("aria-hidden", "true");
+          }
+        }
+      });
+
+      // Đóng dropdown khi bấm Esc
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && this.navDropdownWrap.classList.contains("open")) {
+          this.navDropdownWrap.classList.remove("open");
+          this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
+          if (this.navDropdownMenu) {
+            this.navDropdownMenu.setAttribute("aria-hidden", "true");
+          }
+        }
+      });
+
+      // Đóng dropdown khi chọn bất kỳ chức năng nào
+      if (this.navDropdownMenu) {
+        this.navDropdownMenu.querySelectorAll(".dropdown-item").forEach(item => {
+          item.addEventListener("click", () => {
+            this.navDropdownWrap.classList.remove("open");
+            this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
+            this.navDropdownMenu.setAttribute("aria-hidden", "true");
+          });
+        });
+      }
+    }
   }
 
   // ==========================================

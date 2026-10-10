@@ -34,18 +34,29 @@
         <span class="logo-text" id="nav-couple-names">Kim & Thư</span>
       </div>
       <div class="nav-actions">
-        <button id="period-nav-btn" class="icon-btn period-nav-btn" title="Góc chăm sóc bé Thư 🍓" aria-label="Góc chăm sóc chu kỳ bé Thư">
-          <span class="btn-icon">🍓</span>
-          <span class="btn-label" id="period-nav-label">Chăm Sóc Bé</span>
-        </button>
-        <button id="music-toggle-btn" class="icon-btn" title="Bật / Tắt Giai Điệu Dịu Dàng" aria-label="Bật giai điệu êm dịu">
-          <span class="btn-icon">🎵</span>
-          <span class="btn-label" id="music-status">Bật Nhạc</span>
-        </button>
-        <button id="edit-profile-btn" class="icon-btn" title="Chỉnh sửa thông tin" aria-label="Cài đặt thông tin">
-          <span class="btn-icon">⚙️</span>
-          <span class="btn-label">Cài Đặt</span>
-        </button>
+        <!-- Nút mũi tên hướng xuống khung tròn bé bé góc phải cùng xổ dọc xuống các chức năng -->
+        <div class="nav-dropdown-wrap" id="nav-dropdown-wrap">
+          <button id="nav-menu-toggle-btn" class="circle-menu-btn" title="Menu tính năng" aria-label="Mở menu chức năng" aria-expanded="false">
+            <svg class="chevron-down-icon" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+
+          <div class="nav-dropdown-menu" id="nav-dropdown-menu" role="menu" aria-hidden="true">
+            <button id="edit-profile-btn" class="dropdown-item" role="menuitem">
+              <span class="dropdown-icon">⚙️</span>
+              <span class="dropdown-text">Cài Đặt</span>
+            </button>
+            <button id="music-toggle-btn" class="dropdown-item" role="menuitem">
+              <span class="dropdown-icon">🎵</span>
+              <span class="dropdown-text" id="music-status">Bật Nhạc</span>
+            </button>
+            <button id="period-nav-btn" class="dropdown-item" role="menuitem">
+              <span class="dropdown-icon">🍓</span>
+              <span class="dropdown-text" id="period-nav-label">Chăm Sóc Bé</span>
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </nav>
