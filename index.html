@@ -213,6 +213,34 @@
     </div>
   </dialog>
 
+  <!-- MODAL: ALERT THÔNG BÁO NHẮC NHỞ KỲ DÂU (HIỂN THỊ KHI GẦN TRƯỚC 3 NGÀY) -->
+  <dialog id="period-alert-modal" class="custom-modal period-alert-modal" aria-labelledby="period-alert-title">
+    <div class="modal-card period-alert-card">
+      <div class="period-alert-header">
+        <div class="period-alert-badge-wrap">
+          <span class="period-alert-icon">🍓</span>
+          <span class="period-alert-tag">Nhắc Nhở Yêu Thương</span>
+        </div>
+        <button class="modal-close-btn" id="close-period-alert-btn" aria-label="Đóng thông báo">&times;</button>
+      </div>
+
+      <div class="period-alert-content">
+        <h3 id="period-alert-title" class="period-alert-title">Sắp Đến Kỳ Dâu Của Bé Thư!</h3>
+        <div class="period-alert-countdown-pill" id="period-alert-countdown-pill">
+          Còn <strong id="period-alert-days">...</strong> ngày nữa
+        </div>
+        <p id="period-alert-message" class="period-alert-message">
+          Đang tính lời nhắc chăm sóc bé...
+        </p>
+      </div>
+
+      <div class="modal-actions" style="margin-top: 20px; justify-content: space-between;">
+        <button type="button" class="btn btn-outline" id="dismiss-period-alert-btn">Đã Nhớ Rồi 💕</button>
+        <button type="button" class="btn btn-primary" id="open-care-from-alert-btn">Xem Góc Chăm Sóc 🍓</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- MODAL: CẬP NHẬT CHU KỲ DÂU CỦA BÉ -->
   <dialog id="period-modal" class="custom-modal" aria-labelledby="period-modal-title">
     <div class="modal-card">

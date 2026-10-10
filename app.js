@@ -42,7 +42,7 @@ const DEFAULT_MEMORIES = [
 ];
 
 const DEFAULT_PERIOD = {
-  startDate: "2026-09-28",
+  startDate: "2026-09-15",
   cycleLength: 28,
   durationDays: 5
 };
@@ -70,6 +70,7 @@ class JourneyApp {
     this.renderTimeline();
     this.initPetalsCanvas();
     this.syncFromBackend();
+    this.checkPeriodAlert();
   }
 
   loadData(key, fallback) {
@@ -118,7 +119,7 @@ class JourneyApp {
     this.closeMemoryBtn = document.getElementById("close-memory-modal-btn");
     this.cancelMemoryBtn = document.getElementById("cancel-memory-btn");
 
-    // Period Tracker (Thanh công cụ & Modal)
+    // Period Tracker (Thanh công cụ & Modal & Alert)
     this.periodNavBtn = document.getElementById("period-nav-btn");
     this.periodNavLabel = document.getElementById("period-nav-label");
     this.periodPhaseText = document.getElementById("period-phase-text");
@@ -130,6 +131,15 @@ class JourneyApp {
     this.periodStartDateInput = document.getElementById("period-start-date-input");
     this.periodCycleLengthInput = document.getElementById("period-cycle-length-input");
     this.setPeriodTodayBtn = document.getElementById("set-period-today-btn");
+
+    // Period Alert Modal (Thông báo khi gần trước 3 ngày)
+    this.periodAlertModal = document.getElementById("period-alert-modal");
+    this.periodAlertTitle = document.getElementById("period-alert-title");
+    this.periodAlertCountdownPill = document.getElementById("period-alert-countdown-pill");
+    this.periodAlertMessage = document.getElementById("period-alert-message");
+    this.closePeriodAlertBtn = document.getElementById("close-period-alert-btn");
+    this.dismissPeriodAlertBtn = document.getElementById("dismiss-period-alert-btn");
+    this.openCareFromAlertBtn = document.getElementById("open-care-from-alert-btn");
 
     this.settingsModal = document.getElementById("settings-modal");
     this.settingsForm = document.getElementById("settings-form");
@@ -541,6 +551,100 @@ class JourneyApp {
       this.periodPhaseText.textContent = `🍓 Dự kiến: Hôm nay`;
       this.periodStatusMessage.textContent = "Nhớ giữ ấm bụng và nghỉ ngơi thoải mái nha bé iu của anh 💕";
       if (this.periodNavBtn) this.periodNavBtn.title = "Hôm nay là kỳ dâu của bé Thư 🍓";
+    }
+  }
+
+  // ==========================================
+  // THÔNG BÁO (ALERT) KHI GẦN TRƯỚC 3 NGÀY KỲ DÂU DỰ ĐOÁN
+  // ==========================================
+  checkPeriodAlert() {
+    if (!this.periodAlertModal || !this.period || !this.period.startDate) return;
+
+    // Gắn sự kiện đóng / mở từ alert nếu chưa gắn
+    if (this.closePeriodAlertBtn) {
+      this.closePeriodAlertBtn.onclick = () => this.periodAlertModal.close();
+    }
+    if (this.dismissPeriodAlertBtn) {
+      this.dismissPeriodAlertBtn.onclick = () => this.periodAlertModal.close();
+    }
+    if (this.openCareFromAlertBtn) {
+      this.openCareFromAlertBtn.onclick = () => {
+        this.periodAlertModal.close();
+        if (this.periodModal) {
+          this.periodStartDateInput.value = this.period.startDate;
+          this.periodCycleLengthInput.value = this.period.cycleLength || 28;
+          this.periodModal.showModal();
+        }
+      };
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const [y, m, d] = this.period.startDate.split("-").map(Number);
+    const start = new Date(y, m - 1, d);
+    start.setHours(0, 0, 0, 0);
+
+    const cycleLength = Number(this.period.cycleLength) || 28;
+    const durationDays = Number(this.period.durationDays) || 5;
+
+    let nextStart = new Date(start.getTime());
+    while (nextStart < today && (today - nextStart) >= durationDays * 86400000) {
+      nextStart = new Date(nextStart.getTime() + cycleLength * 86400000);
+    }
+
+    const daysUntilNext = Math.ceil((nextStart - today) / 86400000);
+
+    const formatShortDate = (dt) => {
+      const day = dt.getDate();
+      const month = dt.getMonth() + 1;
+      return `${day < 10 ? '0' + day : day}/${month < 10 ? '0' + month : month}`;
+    };
+
+    let isDuringPeriod = false;
+    let periodDay = 1;
+
+    const currentPeriodStart = new Date(nextStart.getTime() - cycleLength * 86400000);
+    if (today >= currentPeriodStart) {
+      const daysSinceCurrent = Math.floor((today - currentPeriodStart) / 86400000);
+      if (daysSinceCurrent >= 0 && daysSinceCurrent < durationDays) {
+        isDuringPeriod = true;
+        periodDay = daysSinceCurrent + 1;
+      }
+    }
+    if (daysUntilNext === 0) {
+      isDuringPeriod = true;
+      periodDay = 1;
+    }
+
+    // Kiểm tra điều kiện: trước ba ngày kỳ dâu dự đoán (còn <= 3 ngày) hoặc đang trong kỳ dâu
+    let shouldAlert = false;
+
+    if (isDuringPeriod) {
+      this.periodAlertTitle.textContent = "🌸 Bé Thư Đang Trong Kỳ Dâu!";
+      this.periodAlertCountdownPill.innerHTML = `Đang là ngày thứ <strong style="color: var(--pink-deep);">${periodDay}/${durationDays}</strong> của kỳ dâu`;
+      this.periodAlertMessage.textContent = "Bé Thư nhớ uống nhiều nước ấm, trà gừng, chườm ấm bụng và nghỉ ngơi thật nhiều nhé. Anh luôn yêu thương và chiều chuộng bé! 🍵💕";
+      shouldAlert = true;
+    } else if (daysUntilNext > 0 && daysUntilNext <= 3) {
+      this.periodAlertTitle.textContent = "🍓 Sắp Đến Kỳ Dâu Của Bé Thư!";
+      this.periodAlertCountdownPill.innerHTML = `Chỉ còn <strong style="color: var(--pink-deep); font-size: 1.25rem;">${daysUntilNext}</strong> ngày nữa (Dự kiến: ${formatShortDate(nextStart)})`;
+      this.periodAlertMessage.textContent = `Chỉ còn ${daysUntilNext} ngày nữa là đến kỳ dâu rồi nè! Bé iu nhớ chuẩn bị giữ ấm bụng, uống nước ấm, tránh đồ lạnh và ngủ sớm nhé. Anh luôn ở cạnh chăm sóc em! 🌸💕`;
+      shouldAlert = true;
+    } else if (daysUntilNext === 0) {
+      this.periodAlertTitle.textContent = "🍓 Hôm Nay Là Ngày Dâu Của Bé Thư!";
+      this.periodAlertCountdownPill.innerHTML = `Kỳ dâu dự kiến bắt đầu: <strong style="color: var(--pink-deep);">Hôm Nay</strong>`;
+      this.periodAlertMessage.textContent = "Hôm nay là ngày dâu của bé nè. Bé nhớ giữ ấm, nghỉ ngơi thoải mái và để anh thương em nhiều hơn nha! 💕";
+      shouldAlert = true;
+    }
+
+    if (shouldAlert) {
+      // Hiển thị alert ngay khi truy cập trang web (delay nhẹ 600ms tạo hiệu ứng mượt mà)
+      setTimeout(() => {
+        if (!this.periodAlertModal.open) {
+          this.periodAlertModal.showModal();
+          this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
+        }
+      }, 650);
     }
   }
 
