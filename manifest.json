@@ -1,0 +1,16 @@
+{
+  "name": "Kim & Thư 💕 Chuyện Tình Chúng Mình",
+  "short_name": "Kim & Thư 💕",
+  "description": "Nơi lưu giữ từng kỷ niệm ngọt ngào và những mong ước tương lai của Kim và Thư.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fffafc",
+  "theme_color": "#ff758f",
+  "icons": [
+    {
+      "src": "assets/app-icon.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}

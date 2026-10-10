@@ -1,11 +1,10 @@
 /**
- * OUR JOURNEY & FUTURE DREAMS
- * Interactive application logic: Live counter, Future task notes,
- * Memory timeline, Ambient petals canvas, and Web Audio chimes.
+ * KIM & THƯ 💕 CHUYỆN TÌNH CHÚNG MÌNH
+ * Ứng dụng ghi lại hành trình yêu, dòng thời gian kỷ niệm và những mong ước tương lai.
  */
 
 // ==========================================
-// DEFAULT DATA & STATE
+// DỮ LIỆU MẶC ĐỊNH & KHỞI TẠO
 // ==========================================
 const DEFAULT_CONFIG = {
   partnerOne: "Kim",
@@ -17,50 +16,50 @@ const DEFAULT_CONFIG = {
 const DEFAULT_TASKS = [
   {
     id: "task-1",
-    title: "Picnic date with strawberry sandwiches at the park",
+    title: "Đi dã ngoại ở công viên và ăn bánh sandwich dâu tây",
     category: "food",
-    targetDate: "Next Sunny Weekend",
-    notes: "Bring our checkered blanket, freshly made strawberry sandwiches, and a Polaroid camera! 🍓",
+    targetDate: "Cuối tuần đẹp trời",
+    notes: "Mang theo khăn trải bàn ca-rô, sandwich dâu tây kem tươi tự làm và máy ảnh chụp lấy liền! 🍓",
     completed: false
   },
   {
     id: "task-2",
-    title: "Watch the sunset & stargaze on Dalat hill",
+    title: "Ngắm hoàng hôn & săn sao băng trên đồi Đà Lạt",
     category: "travel",
-    targetDate: "This Autumn",
-    notes: "Hot cocoa in a thermos, cozy oversized knit sweaters, and watching shooting stars together ✨",
+    targetDate: "Mùa thu này",
+    notes: "Một bình cacao nóng, hai chiếc áo len đôi thật ấm, và cùng ngồi ngắm sao băng rơi trên đồi thông ✨",
     completed: true
   },
   {
     id: "task-3",
-    title: "Build a giant living-room blanket fort & binge Ghibli movies",
+    title: "Dựng lều chăn gối xem phim Ghibli suốt đêm",
     category: "cozy",
-    targetDate: "Next Rainy Day",
-    notes: "Fairy lights inside the fort, warm popcorn, and watching Spirited Away & Howl's Moving Castle 🏰",
+    targetDate: "Ngày mưa tới",
+    notes: "Giăng đèn đom đóm trong lều chăn giữa phòng khách, làm bắp rang bơ và cày trọn bộ phim hoạt hình 🏰",
     completed: false
   },
   {
     id: "task-4",
-    title: "Dress up in matching Hanbok in Seoul",
+    title: "Cùng mặc Hanbok đôi dạo chơi ở Seoul",
     category: "travel",
-    targetDate: "Next Spring",
-    notes: "Stroll through Gyeongbokgung Palace under the blooming cherry blossom trees 🌸",
+    targetDate: "Mùa xuân tới",
+    notes: "Nắm tay nhau đi dạo dưới những tán hoa anh đào nở rộ ở Cung điện Gyeongbokgung 🌸",
     completed: false
   },
   {
     id: "task-5",
-    title: "Bake handmade matcha cookies from scratch",
+    title: "Tự tay làm bánh quy matcha thơm phức tại nhà",
     category: "food",
-    targetDate: "Soon",
-    notes: "Put on matching aprons, play French jazz music in the kitchen, and see whose cookies look cuter 🍵",
+    targetDate: "Sắp tới nè",
+    notes: "Đeo tạp dề đôi, bật nhạc jazz nhẹ nhàng trong bếp, rồi thi xem bánh quy của ai nặn hình dễ thương hơn 🍵",
     completed: false
   },
   {
     id: "task-6",
-    title: "Candlelight rooftop dinner with slow dancing",
+    title: "Bữa tối lãng mạn dưới ánh nến và cùng khiêu vũ chậm",
     category: "date",
-    targetDate: "Upcoming Anniversary",
-    notes: "A little private rooftop table with fairy lights and dancing to our favorite song under the stars 🕯️",
+    targetDate: "Kỷ niệm ngày yêu",
+    notes: "Một góc bàn ấm cúng với nến thơm, hoa tươi và cùng nhảy một bài hát hai đứa thích nhất dưới bầu trời đêm 🕯️",
     completed: false
   }
 ];
@@ -68,62 +67,57 @@ const DEFAULT_TASKS = [
 const DEFAULT_MEMORIES = [
   {
     id: "mem-1",
-    title: "The Day We Had Our First Coffee",
-    date: "2024-10-10",
-    location: "Cozy Corner Cafe",
+    title: "Ngày Đầu Tiên Đi Cafe Cùng Nhau",
+    date: "2025-04-02",
+    location: "Góc quán cafe quen",
     image: "assets/images/memory1.jpg",
-    story: "I remember how nervous we both were, holding our warm cups. The laughter came so naturally, and three hours flew by in what felt like five minutes. That was the moment I knew you were someone truly special."
+    story: "Anh vẫn nhớ hôm ấy hai đứa ngại ngùng thế nào lúc mới gặp. Thế mà tiếng cười cứ tự nhiên vang lên, ba tiếng đồng hồ trôi qua cứ ngỡ mới năm phút. Khoảnh khắc ấy anh biết em chính là cô gái đặc biệt nhất đời anh."
   },
   {
     id: "mem-2",
-    title: "Sunset Walk Along the Ocean Coast",
-    date: "2025-04-18",
-    location: "Beach Shore",
+    title: "Dạo Biển Dưới Hoàng Hôn Rực Rỡ",
+    date: "2025-07-15",
+    location: "Bờ biển êm đềm",
     image: "assets/images/memory2.jpg",
-    story: "The sky turned into the most breathtaking gradient of pastel pink and gold. Walking barefoot on the cool sand, feeling the ocean breeze and holding your small hand in mine. Total peace."
+    story: "Bầu trời chuyển sang dải màu hồng cam đẹp như tranh vẽ. Đi chân trần trên bãi cát mịn, lắng nghe tiếng sóng vỗ rì rào và nắm lấy bàn tay nhỏ bé của em. Bình yên đến lạ thường."
   },
   {
     id: "mem-3",
-    title: "Stargazing Wrapped in a Blanket",
-    date: "2025-11-05",
-    location: "Pine Hill",
+    title: "Ngắm Bầu Trời Sao Dưới Chiếc Chăn Ấm",
+    date: "2025-11-20",
+    location: "Đồi thông lộng gió",
     image: "assets/images/memory3.jpg",
-    story: "We sat on the quiet hill with a warm lantern, wrapped in an oversized wool blanket. When a shooting star passed, I didn't even need to make a wish—because the person I wished for was right beside me."
+    story: "Hai đứa ngồi cạnh nhau dưới chiếc chăn len to sưởi ấm, chiếc đèn bão vàng lung linh. Khi thấy vệt sao băng vụt qua, anh chẳng cần ước điều gì nữa — bởi vì điều ước đẹp nhất vũ trụ đã ngồi ngay bên cạnh anh rồi."
   }
 ];
 
 const LETTERS = {
   1: {
-    title: "When you miss me...",
-    content: `Bé Thư yêu dấu của anh,\n\nWhenever you're reading this and feeling far away, please close your eyes for three seconds and take a deep breath.\n\nNo matter where we are or how busy the world gets, my thoughts always drift back to your smile, your laughter, and the gentle way you look at me.\n\nYou are my safe haven and my favorite thought. Distance is just a temporary number—my heart is always right beside you.\n\nSend me a text right now so I can hear your sweet voice! Iu béeeee:3 ❤️`
+    title: "Mở ra khi em nhớ anh...",
+    content: `Bé Thư yêu dấu của anh,\n\nMỗi khi em đọc được lá thư này và cảm thấy nhớ anh, hãy nhắm mắt lại 3 giây và hít thở thật sâu nhé.\n\nDù hai đứa ở bất cứ đâu hay thế giới có bận rộn đến thế nào, tâm trí anh lúc nào cũng hướng về em — về nụ cười ngọt ngào, ánh mắt dịu dàng và những câu chuyện líu lo của em.\n\nEm là bến đỗ bình yên nhất và là niềm hạnh phúc lớn nhất của anh. Nhớ anh thì nhắn tin hay gọi ngay cho anh nhé, anh luôn đợi nghe giọng em nè!\n\nIu béeeee:3 ❤️`
   },
   2: {
-    title: "When you had a rough day...",
-    content: `Bé Thư của anh à,\n\nI'm so sorry today was heavy and tiring. You worked so hard, and anh tự hào về em rất nhiều.\n\nRemember: one difficult day does not define your brightness. You don't have to carry the whole world on your shoulders. Right now, kick off your shoes, grab your favorite warm drink, and wrap yourself in a soft blanket.\n\nYou are deeply loved, safe, and so precious to me. Tomorrow the sun will shine softly again. Let me take care of you tonight! 🌸`
+    title: "Mở ra khi em có một ngày mệt mỏi...",
+    content: `Bé Thư của anh à,\n\nAnh biết hôm nay có lẽ là một ngày dài và đầy áp lực với em. Em đã cố gắng rất nhiều rồi, và anh tự hào về em vô cùng.\n\nNhớ nhé: một ngày khó khăn không thể làm mất đi sự đáng yêu và rạng rỡ của em. Em không cần phải gồng mình gánh vác cả thế giới đâu. Về nhà cởi giày ra, uống một ly nước ấm, trùm chăn nghỉ ngơi thật ngoan nhé.\n\nCó anh ở đây rồi, để anh ôm em một cái thật chặt. Ngày mai mặt trời sẽ lại lên và mọi thứ sẽ dịu dàng trở lại thôi! 🌸`
   },
   3: {
-    title: "When you can't sleep...",
-    content: `My sweet girl Thư,\n\nIf sleep is playing hide and seek with you tonight, don't worry. Let your thoughts slow down.\n\nThink about our favorite quiet moments: the cool breeze on the beach, the gentle patter of rain while we were safe inside, and all the sunny mornings waiting for us in the future.\n\nI'm wishing you peaceful dreams filled with soft clouds and gentle melodies. Ngủ ngoan nhé bé iu. 🌙✨`
+    title: "Mở ra khi em khó ngủ...",
+    content: `Bé iu của anh,\n\nNếu đêm nay giấc ngủ lỡ trốn tìm với em, đừng lo lắng hay suy nghĩ nhiều nha.\n\nHãy nghĩ về những khoảnh khắc bình yên nhất của hai đứa: buổi chiều đi dạo mát rượi, những ngày mưa rả rích nằm nghe nhạc trong phòng ấm, và tất cả những chuyến đi rực rỡ đang đợi tụi mình ở phía trước.\n\nAnh gửi cho em một triệu cái ôm ấm áp và những giấc mơ ngọt ngào nhất. Nhắm mắt lại ngủ ngoan nhé, bé cưng của anh. 🌙✨`
   },
   4: {
-    title: "Happy Anniversary, bé Thư!",
-    content: `Happy Anniversary to my favorite person in the whole universe!\n\nLooking back at our journey since 19:00 on April 2, 2025, every single day with you has been a gift I thank the universe for. You make mundane days feel like adventures, and simple quiet evenings feel like home.\n\nThank you for choosing me, for laughing at my silly jokes, and for loving me so purely. Here is to a lifetime of more memories, more laughter, and checking off every single dream on our bucket list together!\n\nIu béeeee:3\nForever and always yours, with all my love. 💖`
+    title: "Chúc mừng ngày kỷ niệm của tụi mình!",
+    content: `Chúc mừng ngày kỷ niệm tình yêu của Kim và Thư!\n\nNhìn lại hành trình từ lúc 19:00 ngày 2 tháng 4 năm 2025, mỗi ngày trôi qua có em bên cạnh đều là một món quà vô giá mà anh luôn cảm ơn cuộc đời.\n\nCảm ơn em đã bước vào cuộc sống của anh, đã yêu thương và cùng anh chia sẻ từng niềm vui nhỏ bé. Cùng anh đi tiếp một chặng đường thật dài, cùng nhau hoàn thành hết tất cả những mong ước trong danh sách này nhé!\n\nIu béeeee:3\nMãi mãi yêu em trọn vẹn bằng cả trái tim! 💖`
   }
 };
 
 // ==========================================
-// APP STATE MANAGER
+// BỘ QUẢN LÝ ỨNG DỤNG (JOURNEY APP)
 // ==========================================
 class JourneyApp {
   constructor() {
-    this.config = this.loadData("journey_config", DEFAULT_CONFIG);
-    // Auto-update to latest config if previous placeholders exist
-    if (this.config.partnerOne === "Minh" || !this.config.partnerOne || this.config.startDate === "2024-10-10T00:00:00") {
-      this.config = { ...DEFAULT_CONFIG };
-      this.saveData("journey_config", this.config);
-    }
-    this.tasks = this.loadData("journey_tasks", DEFAULT_TASKS);
-    this.memories = this.loadData("journey_memories", DEFAULT_MEMORIES);
+    this.config = this.loadData("journey_config_v2", DEFAULT_CONFIG);
+    this.tasks = this.loadData("journey_tasks_v2", DEFAULT_TASKS);
+    this.memories = this.loadData("journey_memories_v2", DEFAULT_MEMORIES);
     this.activeCategory = "all";
     this.audioContext = null;
     this.isPlayingMelody = false;
@@ -131,6 +125,7 @@ class JourneyApp {
 
     this.initDOM();
     this.initEvents();
+    this.initPhotoUpload();
     this.startLiveCounter();
     this.renderProfile();
     this.renderTasks();
@@ -143,7 +138,7 @@ class JourneyApp {
       const stored = localStorage.getItem(key);
       return stored ? JSON.parse(stored) : fallback;
     } catch (e) {
-      console.warn("Error loading data from localStorage", e);
+      console.warn("Lỗi tải dữ liệu:", e);
       return fallback;
     }
   }
@@ -152,12 +147,12 @@ class JourneyApp {
     try {
       localStorage.setItem(key, JSON.stringify(data));
     } catch (e) {
-      console.error("Error saving data to localStorage", e);
+      console.error("Lỗi lưu dữ liệu:", e);
     }
   }
 
   // ==========================================
-  // DOM ELEMENT REFERENCES
+  // KHỞI TẠO DOM ELEMENTS
   // ==========================================
   initDOM() {
     // Nav & Profile
@@ -165,9 +160,8 @@ class JourneyApp {
     this.partnerOneName = document.getElementById("partner-one-name");
     this.partnerTwoName = document.getElementById("partner-two-name");
     this.heroQuote = document.getElementById("hero-custom-quote");
-    this.anniversaryDisplay = document.getElementById("anniversary-date-display");
 
-    // Counters
+    // Live Counter
     this.countDays = document.getElementById("count-days");
     this.countHours = document.getElementById("count-hours");
     this.countMinutes = document.getElementById("count-minutes");
@@ -218,13 +212,92 @@ class JourneyApp {
     this.musicToggleBtn = document.getElementById("music-toggle-btn");
     this.musicStatus = document.getElementById("music-status");
     this.sendLoveBtn = document.getElementById("send-love-btn");
+
+    // Photo Upload Elements
+    this.memoryFileInput = document.getElementById("memory-file-input");
+    this.memoryImageInput = document.getElementById("memory-image-input");
+    this.uploadDropzone = document.getElementById("upload-dropzone");
+    this.uploadPreviewWrapper = document.getElementById("upload-preview-wrapper");
+    this.uploadPreviewImg = document.getElementById("upload-preview-img");
+    this.removePreviewBtn = document.getElementById("remove-preview-btn");
   }
 
   // ==========================================
-  // EVENT LISTENERS
+  // XỬ LÝ CHỌN ẢNH TỪ ĐIỆN THOẠI (EASY UPLOAD)
+  // ==========================================
+  initPhotoUpload() {
+    if (!this.memoryFileInput) return;
+
+    // Khi người dùng chọn file ảnh từ điện thoại/máy tính
+    this.memoryFileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const rawDataUrl = event.target.result;
+        // Nén ảnh nhẹ nhàng trên canvas để đảm bảo mượt mà
+        this.compressImage(rawDataUrl, 1200, 0.85, (compressedUrl) => {
+          this.uploadPreviewImg.src = compressedUrl;
+          this.memoryImageInput.value = compressedUrl;
+          this.uploadDropzone.style.display = "none";
+          this.uploadPreviewWrapper.style.display = "block";
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Nút đổi ảnh khác
+    if (this.removePreviewBtn) {
+      this.removePreviewBtn.addEventListener("click", () => {
+        this.memoryFileInput.value = "";
+        this.memoryImageInput.value = "assets/images/memory1.jpg";
+        this.uploadPreviewWrapper.style.display = "none";
+        this.uploadDropzone.style.display = "flex";
+      });
+    }
+
+    // Khi chọn các tranh minh họa có sẵn
+    document.querySelectorAll(".preset-img-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        const url = e.target.dataset.url;
+        this.memoryImageInput.value = url;
+        this.uploadPreviewImg.src = url;
+        this.uploadDropzone.style.display = "none";
+        this.uploadPreviewWrapper.style.display = "block";
+      });
+    });
+  }
+
+  // Nén ảnh client-side để không vượt quá dung lượng localStorage
+  compressImage(dataUrl, maxWidth, quality, callback) {
+    const img = new Image();
+    img.onload = () => {
+      let width = img.width;
+      let height = img.height;
+
+      if (width > maxWidth) {
+        height = Math.round((height * maxWidth) / width);
+        width = maxWidth;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+
+      const resultUrl = canvas.toDataURL("image/jpeg", quality);
+      callback(resultUrl);
+    };
+    img.src = dataUrl;
+  }
+
+  // ==========================================
+  // LẮNG NGHE SỰ KIỆN (EVENT LISTENERS)
   // ==========================================
   initEvents() {
-    // Category tabs filter
+    // Phân loại danh mục mong ước
     this.categoryTabs.addEventListener("click", (e) => {
       const btn = e.target.closest(".tab-btn");
       if (!btn) return;
@@ -234,17 +307,17 @@ class JourneyApp {
       this.renderTasks();
     });
 
-    // Task Modal open/close
+    // Mở / Đóng modal Thêm mong ước
     this.openAddTaskBtn.addEventListener("click", () => this.taskModal.showModal());
     this.closeTaskBtn.addEventListener("click", () => this.taskModal.close());
     this.cancelTaskBtn.addEventListener("click", () => this.taskModal.close());
 
-    // Task Form Submit
+    // Submit form thêm mong ước
     this.taskForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const title = document.getElementById("task-title-input").value.trim();
       const category = document.getElementById("task-category-select").value;
-      const targetDate = document.getElementById("task-target-input").value.trim() || "Someday Soon";
+      const targetDate = document.getElementById("task-target-input").value.trim() || "Sắp tới nè";
       const notes = document.getElementById("task-notes-input").value.trim();
 
       if (!title) return;
@@ -259,32 +332,36 @@ class JourneyApp {
       };
 
       this.tasks.unshift(newTask);
-      this.saveData("journey_tasks", this.tasks);
+      this.saveData("journey_tasks_v2", this.tasks);
       this.renderTasks();
       this.taskForm.reset();
       this.taskModal.close();
       this.spawnHeartConfetti();
     });
 
-    // Memory Modal open/close
-    this.openAddMemoryBtn.addEventListener("click", () => this.memoryModal.showModal());
+    // Mở / Đóng modal Thêm kỷ niệm
+    this.openAddMemoryBtn.addEventListener("click", () => {
+      // Đặt ngày mặc định là hôm nay
+      const today = new Date().toISOString().split("T")[0];
+      document.getElementById("memory-date-input").value = today;
+      // Reset upload preview
+      if (this.uploadDropzone && this.uploadPreviewWrapper) {
+        this.uploadDropzone.style.display = "flex";
+        this.uploadPreviewWrapper.style.display = "none";
+        this.memoryImageInput.value = "assets/images/memory1.jpg";
+      }
+      this.memoryModal.showModal();
+    });
     this.closeMemoryBtn.addEventListener("click", () => this.memoryModal.close());
     this.cancelMemoryBtn.addEventListener("click", () => this.memoryModal.close());
 
-    // Preset Image selection in memory modal
-    document.querySelectorAll(".preset-img-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        document.getElementById("memory-image-input").value = e.target.dataset.url;
-      });
-    });
-
-    // Memory Form Submit
+    // Submit form thêm kỷ niệm
     this.memoryForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const title = document.getElementById("memory-title-input").value.trim();
       const date = document.getElementById("memory-date-input").value;
-      const location = document.getElementById("memory-location-input").value.trim() || "Together";
-      const image = document.getElementById("memory-image-input").value.trim() || "assets/images/memory1.jpg";
+      const location = document.getElementById("memory-location-input").value.trim() || "Cùng Nhau";
+      const image = this.memoryImageInput.value.trim() || "assets/images/memory1.jpg";
       const story = document.getElementById("memory-story-input").value.trim();
 
       if (!title || !date) return;
@@ -299,16 +376,15 @@ class JourneyApp {
       };
 
       this.memories.push(newMemory);
-      // Sort memories by date descending
       this.memories.sort((a, b) => new Date(a.date) - new Date(b.date));
-      this.saveData("journey_memories", this.memories);
+      this.saveData("journey_memories_v2", this.memories);
       this.renderTimeline();
       this.memoryForm.reset();
       this.memoryModal.close();
       this.spawnHeartConfetti();
     });
 
-    // Letters Open
+    // Mở lá thư
     document.querySelectorAll(".envelope-card").forEach(card => {
       card.addEventListener("click", () => {
         const letterId = card.dataset.letterId;
@@ -324,7 +400,7 @@ class JourneyApp {
     this.closeLetterBtn.addEventListener("click", () => this.letterModal.close());
     this.dismissLetterBtn.addEventListener("click", () => this.letterModal.close());
 
-    // Settings Modal
+    // Cài đặt thông tin
     this.openSettingsBtn.addEventListener("click", () => {
       document.getElementById("cfg-him-name").value = this.config.partnerOne;
       document.getElementById("cfg-her-name").value = this.config.partnerTwo;
@@ -344,7 +420,7 @@ class JourneyApp {
       }
       this.config.quote = document.getElementById("cfg-quote").value.trim();
 
-      this.saveData("journey_config", this.config);
+      this.saveData("journey_config_v2", this.config);
       this.renderProfile();
       this.updateCounter();
       this.settingsModal.close();
@@ -352,10 +428,10 @@ class JourneyApp {
     });
 
     this.resetDataBtn.addEventListener("click", () => {
-      if (confirm("Reset everything back to default romantic sample data?")) {
-        localStorage.removeItem("journey_config");
-        localStorage.removeItem("journey_tasks");
-        localStorage.removeItem("journey_memories");
+      if (confirm("Em có muốn đặt lại các dữ liệu mẫu mặc định ngọt ngào không?")) {
+        localStorage.removeItem("journey_config_v2");
+        localStorage.removeItem("journey_tasks_v2");
+        localStorage.removeItem("journey_memories_v2");
         this.config = { ...DEFAULT_CONFIG };
         this.tasks = [ ...DEFAULT_TASKS ];
         this.memories = [ ...DEFAULT_MEMORIES ];
@@ -366,25 +442,25 @@ class JourneyApp {
       }
     });
 
-    // Lightbox close
+    // Lightbox đóng
     this.closeLightboxBtn.addEventListener("click", () => this.lightboxModal.close());
 
-    // Send love button
+    // Nút bắn tim
     this.sendLoveBtn.addEventListener("click", (e) => {
       this.spawnHeartBurst(e.clientX, e.clientY);
     });
 
-    // Double tap or click anywhere on background to spawn cute hearts
+    // Chạm 2 lần bất kỳ đâu để bắn tim
     document.addEventListener("dblclick", (e) => {
       this.spawnHeartBurst(e.clientX, e.clientY);
     });
 
-    // Music Toggle
+    // Bật/tắt nhạc
     this.musicToggleBtn.addEventListener("click", () => this.toggleMelody());
   }
 
   // ==========================================
-  // PROFILE & LIVE COUNTER
+  // HIỂN THỊ THÔNG TIN & ĐỒNG HỒ ĐẾM NGÀY YÊU
   // ==========================================
   renderProfile() {
     const coupleText = `${this.config.partnerOne} & ${this.config.partnerTwo}`;
@@ -392,17 +468,6 @@ class JourneyApp {
     this.partnerOneName.textContent = this.config.partnerOne;
     this.partnerTwoName.textContent = this.config.partnerTwo;
     this.heroQuote.textContent = this.config.quote;
-
-    const dateObj = new Date(this.config.startDate);
-    const day = String(dateObj.getDate()).padStart(2, "0");
-    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
-    const year = dateObj.getFullYear();
-    const hours = String(dateObj.getHours()).padStart(2, "0");
-    const minutes = String(dateObj.getMinutes()).padStart(2, "0");
-    const enDate = dateObj.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-    if (this.anniversaryDisplay) {
-      this.anniversaryDisplay.textContent = `${enDate} at ${hours}:${minutes} (${day}/${month}/${year})`;
-    }
   }
 
   startLiveCounter() {
@@ -433,7 +498,7 @@ class JourneyApp {
   }
 
   // ==========================================
-  // TASK NOTES & FUTURE BUCKET LIST
+  // DANH SÁCH MONG ƯỚC (TASK NOTES)
   // ==========================================
   renderTasks() {
     const filtered = this.activeCategory === "all"
@@ -442,39 +507,38 @@ class JourneyApp {
 
     this.totalTasksCount.textContent = this.tasks.length;
 
-    // Calculate progress
     const completedCount = this.tasks.filter(t => t.completed).length;
     const totalCount = this.tasks.length;
     const percent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
-    this.progressText.textContent = `${completedCount} of ${totalCount} dreams completed (${percent}%)`;
+    this.progressText.textContent = `Đã hoàn thành ${completedCount} trên ${totalCount} mong ước (${percent}%)`;
     this.taskProgressBar.style.width = `${percent}%`;
 
     if (filtered.length === 0) {
       this.tasksContainer.innerHTML = `
         <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted);">
-          <p style="font-size: 1.2rem; font-family: var(--font-handwriting);">No plans in this category yet! ✨</p>
-          <p style="font-size: 0.9rem; margin-top: 6px;">Click <strong>+ Add New Dream</strong> to make a wish together!</p>
+          <p style="font-size: 1.25rem; font-family: var(--font-handwriting);">Chưa có mong ước nào trong mục này nè! ✨</p>
+          <p style="font-size: 0.9rem; margin-top: 6px;">Bấm <strong>+ Thêm Mong Ước Mới</strong> để hai đứa cùng ghi thêm nha!</p>
         </div>
       `;
       return;
     }
 
-    const categoryIcons = {
-      travel: "✈️ Travel",
-      date: "☕ Date Night",
-      food: "🍲 Food & Cooking",
-      cozy: "🏡 Cozy Moment",
-      milestone: "💍 Milestone"
+    const categoryNames = {
+      travel: "✈️ Du Lịch",
+      date: "☕ Hẹn Hò",
+      food: "🍲 Ăn Uống",
+      cozy: "🏡 Khoảnh Khắc",
+      milestone: "💍 Cột Mốc"
     };
 
     this.tasksContainer.innerHTML = filtered.map(task => `
       <article class="task-note ${task.completed ? "completed" : ""}" data-id="${task.id}">
         <div>
           <div class="task-note-top">
-            <span class="task-category-badge">${categoryIcons[task.category] || "🌸 Dream"}</span>
+            <span class="task-category-badge">${categoryNames[task.category] || "🌸 Mong Ước"}</span>
             <div class="task-actions">
-              <button class="task-icon-action delete-task-btn" title="Delete note" aria-label="Delete plan">🗑️</button>
+              <button class="task-icon-action delete-task-btn" title="Xóa mong ước này" aria-label="Xóa">🗑️</button>
             </div>
           </div>
 
@@ -490,23 +554,22 @@ class JourneyApp {
         <div class="task-note-footer">
           <span class="task-target-date">🗓️ ${this.escapeHTML(task.targetDate)}</span>
           ${task.completed 
-            ? `<span class="completed-stamp">Done Together 💕</span>` 
-            : `<span style="font-size: 0.78rem; color: var(--pink-primary);">In our future ✨</span>`
+            ? `<span class="completed-stamp">Đã Cùng Nhau Làm 💕</span>` 
+            : `<span style="font-size: 0.78rem; color: var(--pink-primary);">Trong tương lai gần ✨</span>`
           }
         </div>
       </article>
     `).join("");
 
-    // Attach actions
+    // Gắn sự kiện tương tác
     this.tasksContainer.querySelectorAll(".task-note").forEach(card => {
       const id = card.dataset.id;
 
-      // Toggle status
       card.querySelector(".toggle-task-status").addEventListener("click", () => {
         const task = this.tasks.find(t => t.id === id);
         if (task) {
           task.completed = !task.completed;
-          this.saveData("journey_tasks", this.tasks);
+          this.saveData("journey_tasks_v2", this.tasks);
           this.renderTasks();
           if (task.completed) {
             this.spawnHeartConfetti();
@@ -514,12 +577,11 @@ class JourneyApp {
         }
       });
 
-      // Delete task
       card.querySelector(".delete-task-btn").addEventListener("click", (e) => {
         e.stopPropagation();
-        if (confirm("Remove this dream from our wishlist?")) {
+        if (confirm("Em có muốn xóa mong ước này khỏi danh sách không?")) {
           this.tasks = this.tasks.filter(t => t.id !== id);
-          this.saveData("journey_tasks", this.tasks);
+          this.saveData("journey_tasks_v2", this.tasks);
           this.renderTasks();
         }
       });
@@ -527,24 +589,24 @@ class JourneyApp {
   }
 
   // ==========================================
-  // MEMORY TIMELINE
+  // DÒNG THỜI GIAN KỶ NIỆM (TIMELINE)
   // ==========================================
   renderTimeline() {
     if (this.memories.length === 0) {
       this.timelineContainer.innerHTML = `
         <div style="text-align: center; padding: 40px; color: var(--text-muted);">
-          <p>No memories added yet. Click "+ Add A New Memory" to start our story!</p>
+          <p>Chưa có kỷ niệm nào được lưu. Bấm "+ Thêm Kỷ Niệm Mới" để lưu giữ khoảnh khắc đầu tiên nhé!</p>
         </div>
       `;
       return;
     }
 
     this.timelineContainer.innerHTML = this.memories.map((mem) => {
-      const dateFormatted = new Date(mem.date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-      });
+      const dateParts = mem.date.split("-");
+      let dateFormatted = mem.date;
+      if (dateParts.length === 3) {
+        dateFormatted = `Ngày ${parseInt(dateParts[2])} tháng ${parseInt(dateParts[1])}, ${dateParts[0]}`;
+      }
 
       return `
         <div class="timeline-item" data-id="${mem.id}">
@@ -563,7 +625,6 @@ class JourneyApp {
       `;
     }).join("");
 
-    // Lightbox click on polaroid
     this.timelineContainer.querySelectorAll(".polaroid-card").forEach(card => {
       card.addEventListener("click", () => {
         const item = card.closest(".timeline-item");
@@ -571,7 +632,9 @@ class JourneyApp {
         if (mem) {
           this.lightboxImg.src = mem.image;
           this.lightboxTitle.textContent = mem.title;
-          this.lightboxDate.textContent = `📍 ${mem.location || "Together"} • 🗓️ ${new Date(mem.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+          const dateParts = mem.date.split("-");
+          const dateStr = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : mem.date;
+          this.lightboxDate.textContent = `📍 ${mem.location || "Cùng Nhau"} • 🗓️ ${dateStr}`;
           this.lightboxStory.textContent = mem.story;
           this.lightboxModal.showModal();
         }
@@ -580,7 +643,7 @@ class JourneyApp {
   }
 
   // ==========================================
-  // AMBIENT PETALS CANVAS
+  // HIỆU ỨNG CÁNH HOA RƠI (CANVAS PETALS)
   // ==========================================
   initPetalsCanvas() {
     const canvas = document.getElementById("petal-canvas");
@@ -645,10 +708,12 @@ class JourneyApp {
   }
 
   // ==========================================
-  // FLOATING HEARTS & CONFETTI
+  // BẮN TIM LÃNG MẠN (HEARTS CONFETTI)
   // ==========================================
   spawnHeartBurst(clientX, clientY) {
-    const symbols = ["💖", "🌸", "💕", "✨", "🤍", "🌷"];
+    const x = clientX || window.innerWidth / 2;
+    const y = clientY || window.innerHeight / 2;
+    const symbols = ["💖", "🌸", "💕", "✨", "🤍", "🌷", "🥰"];
     for (let i = 0; i < 7; i++) {
       const heart = document.createElement("div");
       heart.className = "floating-click-heart";
@@ -656,8 +721,8 @@ class JourneyApp {
       
       const offsetX = (Math.random() - 0.5) * 80;
       const offsetY = (Math.random() - 0.5) * 40;
-      heart.style.left = `${clientX + offsetX}px`;
-      heart.style.top = `${clientY + offsetY}px`;
+      heart.style.left = `${x + offsetX}px`;
+      heart.style.top = `${y + offsetY}px`;
       heart.style.fontSize = `${Math.floor(Math.random() * 16 + 18)}px`;
 
       document.body.appendChild(heart);
@@ -666,13 +731,11 @@ class JourneyApp {
   }
 
   spawnHeartConfetti() {
-    const x = window.innerWidth / 2;
-    const y = window.innerHeight / 2;
-    this.spawnHeartBurst(x, y);
+    this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
   }
 
   // ==========================================
-  // AMBIENT LULLABY MELODY (WEB AUDIO API)
+  // GIAI ĐIỆU HỘP NHẠC ÊM DỊU (WEB AUDIO API)
   // ==========================================
   toggleMelody() {
     if (this.isPlayingMelody) {
@@ -694,15 +757,15 @@ class JourneyApp {
       }
 
       this.isPlayingMelody = true;
-      this.musicStatus.textContent = "Melody Playing 🎶";
+      this.musicStatus.textContent = "Đang Phát Nhạc 🎶";
       this.musicToggleBtn.classList.add("active");
 
-      // Romantic music box notes (Pentatonic sweet melody)
+      // Giai điệu nhẹ nhàng êm ái
       const notes = [
-        261.63, 329.63, 392.00, 523.25, // C4, E4, G4, C5
-        440.00, 392.00, 329.63, 293.66, // A4, G4, E4, D4
-        329.63, 392.00, 440.00, 523.25, // E4, G4, A4, C5
-        587.33, 523.25, 392.00, 329.63  // D5, C5, G4, E4
+        261.63, 329.63, 392.00, 523.25,
+        440.00, 392.00, 329.63, 293.66,
+        329.63, 392.00, 440.00, 523.25,
+        587.33, 523.25, 392.00, 329.63
       ];
 
       let noteIdx = 0;
@@ -717,7 +780,7 @@ class JourneyApp {
 
       playNextNote();
     } catch (e) {
-      console.warn("Audio playback not permitted yet", e);
+      console.warn("Không thể bật âm thanh tự động:", e);
     }
   }
 
@@ -729,7 +792,6 @@ class JourneyApp {
     osc.type = "sine";
     osc.frequency.setValueAtTime(freq, this.audioContext.currentTime);
 
-    // Warm music box envelope
     gain.gain.setValueAtTime(0.001, this.audioContext.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.09, this.audioContext.currentTime + 0.05);
     gain.gain.exponentialRampToValueAtTime(0.0001, this.audioContext.currentTime + 1.2);
@@ -744,11 +806,10 @@ class JourneyApp {
   stopMelody() {
     this.isPlayingMelody = false;
     clearTimeout(this.melodyTimer);
-    this.musicStatus.textContent = "Play Melody";
+    this.musicStatus.textContent = "Bật Nhạc 🎵";
     this.musicToggleBtn.classList.remove("active");
   }
 
-  // Utility escape
   escapeHTML(str) {
     if (!str) return "";
     return str.replace(/[&<>'"]/g, 
@@ -763,7 +824,6 @@ class JourneyApp {
   }
 }
 
-// Initialize on page ready
 document.addEventListener("DOMContentLoaded", () => {
   window.journeyApp = new JourneyApp();
 });

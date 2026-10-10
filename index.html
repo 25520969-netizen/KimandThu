@@ -1,11 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Our Journey & Future Dreams | Forever With You</title>
-  <meta name="description" content="A warm, romantic space capturing our memories, love story timeline, and future bucket list dreams together.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kim & Thư 💕 Chuyện Tình Chúng Mình</title>
+  <meta name="description" content="Nơi lưu giữ từng kỷ niệm ngọt ngào, dòng thời gian tình yêu và những mong ước tương lai của Kim và Thư.">
   
+  <!-- iOS & Mobile App Capabilities -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Kim & Thư 💕">
+  <link rel="apple-touch-icon" href="assets/app-icon.jpg">
+  <link rel="icon" type="image/jpeg" href="assets/app-icon.jpg">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ff758f">
+
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,16 +31,16 @@
     <div class="nav-container">
       <div class="logo">
         <span class="logo-heart">💖</span>
-        <span class="logo-text" id="nav-couple-names">Our Love Journey</span>
+        <span class="logo-text" id="nav-couple-names">Kim & Thư</span>
       </div>
       <div class="nav-actions">
-        <button id="music-toggle-btn" class="icon-btn" title="Toggle Soft Melody" aria-label="Play soft romantic melody">
+        <button id="music-toggle-btn" class="icon-btn" title="Bật / Tắt Giai Điệu Dịu Dàng" aria-label="Bật giai điệu êm dịu">
           <span class="btn-icon">🎵</span>
-          <span class="btn-label" id="music-status">Play Melody</span>
+          <span class="btn-label" id="music-status">Bật Nhạc</span>
         </button>
-        <button id="edit-profile-btn" class="icon-btn" title="Edit Names & Date" aria-label="Customize Names and Anniversary">
+        <button id="edit-profile-btn" class="icon-btn" title="Chỉnh sửa thông tin" aria-label="Cài đặt thông tin">
           <span class="btn-icon">⚙️</span>
-          <span class="btn-label">Settings</span>
+          <span class="btn-label">Cài Đặt</span>
         </button>
       </div>
     </div>
@@ -44,7 +53,7 @@
     <header class="hero-section">
       <div class="hero-badge">
         <span class="sparkle">✨</span>
-        <span id="hero-subtitle">Every single day is sweeter with you</span>
+        <span id="hero-subtitle">Mỗi ngày bên em đều là một ngày ngọt ngào</span>
         <span class="sparkle">✨</span>
       </div>
       
@@ -59,27 +68,27 @@
       </p>
 
       <!-- Live Days Counter -->
-      <section class="love-counter-card" aria-label="Relationship duration counter">
+      <section class="love-counter-card" aria-label="Đồng hồ đếm ngày yêu">
         <div class="counter-header">
           <span class="clock-icon">⏳</span>
-          <span class="counter-title">WE HAVE BEEN TOGETHER FOR</span>
+          <span class="counter-title">CHÚNG MÌNH ĐÃ Ở BÊN NHAU ĐƯỢC</span>
         </div>
         <div class="counter-grid">
           <div class="counter-box">
             <span class="counter-number" id="count-days">0</span>
-            <span class="counter-unit">Days</span>
+            <span class="counter-unit">Ngày</span>
           </div>
           <div class="counter-box">
             <span class="counter-number" id="count-hours">00</span>
-            <span class="counter-unit">Hours</span>
+            <span class="counter-unit">Giờ</span>
           </div>
           <div class="counter-box">
             <span class="counter-number" id="count-minutes">00</span>
-            <span class="counter-unit">Minutes</span>
+            <span class="counter-unit">Phút</span>
           </div>
           <div class="counter-box">
             <span class="counter-number" id="count-seconds">00</span>
-            <span class="counter-unit">Seconds</span>
+            <span class="counter-unit">Giây</span>
           </div>
         </div>
       </section>
@@ -87,13 +96,13 @@
       <!-- Quick Action Buttons -->
       <div class="hero-actions">
         <a href="#future-tasks" class="btn btn-primary">
-          <span>🌸 Our Future Bucket List</span>
+          <span>🌸 Những Việc Sẽ Làm Cùng Nhau</span>
         </a>
         <a href="#timeline" class="btn btn-secondary">
-          <span>📸 Memory Timeline</span>
+          <span>📸 Kỷ Niệm Tụi Mình</span>
         </a>
         <button id="send-love-btn" class="btn btn-blush">
-          <span>💌 Send a Heart!</span>
+          <span>💌 Bắn Tim Cho Em!</span>
         </button>
       </div>
     </header>
@@ -101,31 +110,31 @@
     <!-- SECTION: FUTURE TASK NOTES & BUCKET LIST -->
     <section id="future-tasks" class="section-container future-section">
       <div class="section-header">
-        <div class="pill-tag">Future Plans & Dreams</div>
-        <h2 class="section-title">Things We're Going To Do Together</h2>
-        <p class="section-desc">Our little bucket list of dates, adventures, and cozy dreams waiting for us.</p>
+        <div class="pill-tag">Kế hoạch & Mong ước</div>
+        <h2 class="section-title">Những Điều Tụi Mình Sẽ Cùng Nhau Làm</h2>
+        <p class="section-desc">Góc lưu giữ những buổi hẹn hò, những chuyến đi và từng điều ngọt ngào đang chờ đón hai đứa.</p>
       </div>
 
       <!-- Task Stats & Category Filter -->
       <div class="task-controls">
         <div class="category-tabs" id="category-filter" role="tablist">
-          <button class="tab-btn active" data-category="all" role="tab">All Notes (<span id="total-tasks-count">0</span>)</button>
-          <button class="tab-btn" data-category="travel" role="tab">✈️ Travel</button>
-          <button class="tab-btn" data-category="date" role="tab">☕ Date Ideas</button>
-          <button class="tab-btn" data-category="food" role="tab">🍲 Cooking & Food</button>
-          <button class="tab-btn" data-category="cozy" role="tab">🏡 Cozy Moments</button>
-          <button class="tab-btn" data-category="milestone" role="tab">💍 Big Milestones</button>
+          <button class="tab-btn active" data-category="all" role="tab">Tất Cả (<span id="total-tasks-count">0</span>)</button>
+          <button class="tab-btn" data-category="travel" role="tab">✈️ Du Lịch</button>
+          <button class="tab-btn" data-category="date" role="tab">☕ Hẹn Hò</button>
+          <button class="tab-btn" data-category="food" role="tab">🍲 Nấu Nướng & Ăn Ngon</button>
+          <button class="tab-btn" data-category="cozy" role="tab">🏡 Khoảnh Khắc Êm Đềm</button>
+          <button class="tab-btn" data-category="milestone" role="tab">💍 Cột Mốc Lớn</button>
         </div>
 
         <div class="task-action-bar">
           <div class="progress-indicator">
-            <span class="progress-text" id="progress-text">0 of 0 dreams completed</span>
+            <span class="progress-text" id="progress-text">0 trên 0 mong ước đã hoàn thành</span>
             <div class="progress-bar-bg">
               <div class="progress-bar-fill" id="task-progress-bar" style="width: 0%;"></div>
             </div>
           </div>
           <button id="open-add-task-modal-btn" class="btn btn-primary btn-sm">
-            <span>+ Add New Dream</span>
+            <span>+ Thêm Mong Ước Mới</span>
           </button>
         </div>
       </div>
@@ -139,11 +148,11 @@
     <!-- SECTION: OUR MEMORY TIMELINE -->
     <section id="timeline" class="section-container timeline-section">
       <div class="section-header">
-        <div class="pill-tag">Our Story So Far</div>
-        <h2 class="section-title">Chapters of Our Love</h2>
-        <p class="section-desc">Every moment with you is a memory I treasure forever.</p>
+        <div class="pill-tag">Chặng đường đã qua</div>
+        <h2 class="section-title">Kỷ Niệm Của Tụi Mình</h2>
+        <p class="section-desc">Từng khoảnh khắc bên em đều là những ký ức tuyệt đẹp mà anh luôn nâng niu.</p>
         <button id="open-add-memory-modal-btn" class="btn btn-secondary btn-sm" style="margin-top: 14px;">
-          <span>+ Add A New Memory</span>
+          <span>+ Thêm Kỷ Niệm Mới</span>
         </button>
       </div>
 
@@ -158,9 +167,9 @@
     <!-- SECTION: OPEN WHEN LETTERS -->
     <section id="love-letters" class="section-container letters-section">
       <div class="section-header">
-        <div class="pill-tag">Little Surprises</div>
-        <h2 class="section-title">"Open When..." Letters</h2>
-        <p class="section-desc">Whenever you need a reminder of how much you are cherished, click an envelope.</p>
+        <div class="pill-tag">Những bất ngờ nhỏ</div>
+        <h2 class="section-title">Lá Thư "Mở Ra Khi..."</h2>
+        <p class="section-desc">Bất cứ khi nào em cần một cái ôm dịu dàng hoặc muốn nhớ lại anh yêu em nhường nào, hãy bấm vào từng phong thư nhé.</p>
       </div>
 
       <div class="envelopes-grid" id="envelopes-grid">
@@ -168,36 +177,36 @@
         <article class="envelope-card" data-letter-id="1">
           <div class="envelope-stamp">💖</div>
           <div class="envelope-icon">✉️</div>
-          <h3 class="envelope-title">Open when you miss me</h3>
-          <p class="envelope-sub">A reminder that I'm always thinking of you</p>
-          <button class="btn btn-outline btn-sm">Read Letter</button>
+          <h3 class="envelope-title">Mở ra khi em nhớ anh</h3>
+          <p class="envelope-sub">Một lời nhắc rằng anh luôn nghĩ về em từng giây phút</p>
+          <button class="btn btn-outline btn-sm">Mở Thư Ra Đọc</button>
         </article>
 
         <!-- Letter 2 -->
         <article class="envelope-card" data-letter-id="2">
           <div class="envelope-stamp">🌸</div>
           <div class="envelope-icon">💌</div>
-          <h3 class="envelope-title">Open when you had a rough day</h3>
-          <p class="envelope-sub">A gentle warm hug in words</p>
-          <button class="btn btn-outline btn-sm">Read Letter</button>
+          <h3 class="envelope-title">Mở ra khi em có một ngày mệt mỏi</h3>
+          <p class="envelope-sub">Một cái ôm ấm áp gửi qua từng con chữ</p>
+          <button class="btn btn-outline btn-sm">Mở Thư Ra Đọc</button>
         </article>
 
         <!-- Letter 3 -->
         <article class="envelope-card" data-letter-id="3">
           <div class="envelope-stamp">✨</div>
           <div class="envelope-icon">🌙</div>
-          <h3 class="envelope-title">Open when you can't sleep</h3>
-          <p class="envelope-sub">Peaceful night thoughts just for you</p>
-          <button class="btn btn-outline btn-sm">Read Letter</button>
+          <h3 class="envelope-title">Mở ra khi em khó ngủ</h3>
+          <p class="envelope-sub">Những suy nghĩ êm đềm ru em vào giấc mơ đẹp</p>
+          <button class="btn btn-outline btn-sm">Mở Thư Ra Đọc</button>
         </article>
 
         <!-- Letter 4 -->
         <article class="envelope-card" data-letter-id="4">
           <div class="envelope-stamp">🎀</div>
           <div class="envelope-icon">🎁</div>
-          <h3 class="envelope-title">Open on our anniversary</h3>
-          <p class="envelope-sub">A celebration of our love story</p>
-          <button class="btn btn-outline btn-sm">Read Letter</button>
+          <h3 class="envelope-title">Mở ra vào ngày kỷ niệm</h3>
+          <p class="envelope-sub">Lời chúc mừng câu chuyện tình yêu ngọt ngào của hai đứa</p>
+          <button class="btn btn-outline btn-sm">Mở Thư Ra Đọc</button>
         </article>
       </div>
     </section>
@@ -205,8 +214,8 @@
     <!-- Footer -->
     <footer class="app-footer">
       <div class="footer-heart">💕</div>
-      <p>Made with all my love for you, today and forever.</p>
-      <small>Press anywhere with double tap to create floating hearts ✨</small>
+      <p>Dành trọn tình yêu thương cho bé Thư, hôm nay và mãi mãi về sau.</p>
+      <small>Chạm 2 lần vào màn hình để bắn tim lấp lánh ✨</small>
     </footer>
   </main>
 
@@ -214,88 +223,107 @@
   <dialog id="task-modal" class="custom-modal" aria-labelledby="task-modal-title">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="task-modal-title">🌸 Add a Future Dream</h3>
-        <button class="modal-close-btn" id="close-task-modal-btn" aria-label="Close dialog">&times;</button>
+        <h3 id="task-modal-title">🌸 Thêm Mong Ước Mới</h3>
+        <button class="modal-close-btn" id="close-task-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
       </div>
       <form id="task-form" class="modal-form">
         <div class="form-group">
-          <label for="task-title-input">What are we going to do together? *</label>
-          <input type="text" id="task-title-input" placeholder="e.g. Picnic at the botanical garden with handmade sandwiches" required>
+          <label for="task-title-input">Tụi mình sẽ cùng nhau làm gì nè? *</label>
+          <input type="text" id="task-title-input" placeholder="Ví dụ: Đi ngắm hoàng hôn ở bãi biển, tự tay làm bánh..." required>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="task-category-select">Category</label>
+            <label for="task-category-select">Phân loại</label>
             <select id="task-category-select">
-              <option value="travel">✈️ Travel & Adventures</option>
-              <option value="date">☕ Romantic Date</option>
-              <option value="food">🍲 Food & Cooking</option>
-              <option value="cozy">🏡 Cozy Moments</option>
-              <option value="milestone">💍 Milestone</option>
+              <option value="travel">✈️ Du Lịch & Khám Phá</option>
+              <option value="date">☕ Hẹn Hò Lãng Mạn</option>
+              <option value="food">🍲 Nấu Nướng & Ăn Uống</option>
+              <option value="cozy">🏡 Khoảnh Khắc Êm Đềm</option>
+              <option value="milestone">💍 Cột Mốc Lớn</option>
             </select>
           </div>
           <div class="form-group">
-            <label for="task-target-input">Target Time / Season</label>
-            <input type="text" id="task-target-input" placeholder="e.g. Next Spring, Someday, This Weekend">
+            <label for="task-target-input">Dự định thời gian</label>
+            <input type="text" id="task-target-input" placeholder="Ví dụ: Cuối tuần này, Mùa thu tới, Sắp tới...">
           </div>
         </div>
 
         <div class="form-group">
-          <label for="task-notes-input">Sweet Notes & Details (Optional)</label>
-          <textarea id="task-notes-input" rows="3" placeholder="Add cute notes, packing list, or what makes this special..."></textarea>
+          <label for="task-notes-input">Ghi chú thêm (Không bắt buộc)</label>
+          <textarea id="task-notes-input" rows="3" placeholder="Ghi chú những điều em muốn chuẩn bị, quán ăn ngon, hoặc lời nhắn nhủ..."></textarea>
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="btn btn-outline" id="cancel-task-btn">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save to Our Wishlist 💕</button>
+          <button type="button" class="btn btn-outline" id="cancel-task-btn">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu Vào Danh Sách 💕</button>
         </div>
       </form>
     </div>
   </dialog>
 
-  <!-- MODAL: ADD NEW TIMELINE MEMORY -->
+  <!-- MODAL: ADD NEW TIMELINE MEMORY WITH EASY PHOTO UPLOAD -->
   <dialog id="memory-modal" class="custom-modal" aria-labelledby="memory-modal-title">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="memory-modal-title">📸 Add a New Memory</h3>
-        <button class="modal-close-btn" id="close-memory-modal-btn" aria-label="Close dialog">&times;</button>
+        <h3 id="memory-modal-title">📸 Thêm Một Kỷ Niệm Mới</h3>
+        <button class="modal-close-btn" id="close-memory-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
       </div>
       <form id="memory-form" class="modal-form">
         <div class="form-group">
-          <label for="memory-title-input">Milestone Title *</label>
-          <input type="text" id="memory-title-input" placeholder="e.g. The Day We First Met, Our Trip to Da Nang" required>
+          <label for="memory-title-input">Tên kỷ niệm *</label>
+          <input type="text" id="memory-title-input" placeholder="Ví dụ: Lần đầu đi chơi xa, Buổi hẹn hò xem phim..." required>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label for="memory-date-input">Date *</label>
+            <label for="memory-date-input">Ngày kỷ niệm *</label>
             <input type="date" id="memory-date-input" required>
           </div>
           <div class="form-group">
-            <label for="memory-location-input">Location / Tag</label>
-            <input type="text" id="memory-location-input" placeholder="e.g. Da Lat, Cozy Cafe, Beachside">
+            <label for="memory-location-input">Địa điểm / Nơi chốn</label>
+            <input type="text" id="memory-location-input" placeholder="Ví dụ: Đà Lạt, Góc quán quen, Bờ hồ...">
+          </div>
+        </div>
+
+        <!-- Easy Photo Upload Box for Phone & Desktop -->
+        <div class="form-group">
+          <label>Hình ảnh kỷ niệm</label>
+          
+          <div class="photo-upload-container">
+            <label for="memory-file-input" class="upload-dropzone" id="upload-dropzone">
+              <span class="upload-icon">📷</span>
+              <span class="upload-main-text">Bấm vào đây để chọn ảnh từ điện thoại</span>
+              <span class="upload-sub-text">(Chụp ảnh trực tiếp hoặc chọn từ Thư viện ảnh)</span>
+            </label>
+            <input type="file" id="memory-file-input" accept="image/*" style="display: none;">
+            
+            <!-- Live Preview -->
+            <div id="upload-preview-wrapper" class="upload-preview-wrapper" style="display: none;">
+              <img id="upload-preview-img" src="" alt="Xem trước ảnh kỷ niệm">
+              <button type="button" id="remove-preview-btn" class="remove-preview-btn" title="Đổi ảnh khác">✕ Đổi ảnh khác</button>
+            </div>
+          </div>
+
+          <input type="hidden" id="memory-image-input" value="assets/images/memory1.jpg">
+
+          <!-- Quick pick illustration presets -->
+          <div class="preset-images-picker" style="margin-top: 10px;">
+            <span class="picker-hint">Hoặc chọn tranh minh họa có sẵn:</span>
+            <button type="button" class="preset-img-btn" data-url="assets/images/memory1.jpg">☕ Đi Cafe</button>
+            <button type="button" class="preset-img-btn" data-url="assets/images/memory2.jpg">🌅 Dạo Biển</button>
+            <button type="button" class="preset-img-btn" data-url="assets/images/memory3.jpg">✨ Ngắm Sao</button>
           </div>
         </div>
 
         <div class="form-group">
-          <label for="memory-image-select">Choose Photo (or enter custom Image URL)</label>
-          <input type="text" id="memory-image-input" placeholder="assets/images/memory1.jpg or URL" value="assets/images/memory1.jpg">
-          <div class="preset-images-picker">
-            <span class="picker-hint">Quick pick illustrations:</span>
-            <button type="button" class="preset-img-btn" data-url="assets/images/memory1.jpg">☕ Cafe Date</button>
-            <button type="button" class="preset-img-btn" data-url="assets/images/memory2.jpg">🌅 Beach Walk</button>
-            <button type="button" class="preset-img-btn" data-url="assets/images/memory3.jpg">✨ Stargazing</button>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="memory-story-input">The Story / Your Feelings</label>
-          <textarea id="memory-story-input" rows="3" placeholder="Tell the little story behind this moment..."></textarea>
+          <label for="memory-story-input">Câu chuyện / Cảm xúc lúc đó</label>
+          <textarea id="memory-story-input" rows="3" placeholder="Kể lại một chút kỷ niệm đáng nhớ của buổi hôm ấy nhé..."></textarea>
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="btn btn-outline" id="cancel-memory-btn">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Memory 💖</button>
+          <button type="button" class="btn btn-outline" id="cancel-memory-btn">Hủy</button>
+          <button type="submit" class="btn btn-primary">Lưu Kỷ Niệm 💖</button>
         </div>
       </form>
     </div>
@@ -306,14 +334,14 @@
     <div class="modal-card letter-paper">
       <div class="modal-header">
         <div class="letter-stamp-seal">💌</div>
-        <h3 id="letter-modal-title">A Letter For You</h3>
-        <button class="modal-close-btn" id="close-letter-modal-btn" aria-label="Close dialog">&times;</button>
+        <h3 id="letter-modal-title">Lá Thư Dành Cho Em</h3>
+        <button class="modal-close-btn" id="close-letter-modal-btn" aria-label="Đóng lá thư">&times;</button>
       </div>
       <div class="letter-body" id="letter-modal-content">
         <!-- Rendered dynamically -->
       </div>
       <div class="modal-actions" style="justify-content: center; margin-top: 20px;">
-        <button type="button" class="btn btn-primary" id="dismiss-letter-btn">With all my heart ❤️</button>
+        <button type="button" class="btn btn-primary" id="dismiss-letter-btn">Yêu em nhiều lắm ❤️</button>
       </div>
     </div>
   </dialog>
@@ -322,34 +350,34 @@
   <dialog id="settings-modal" class="custom-modal" aria-labelledby="settings-modal-title">
     <div class="modal-card">
       <div class="modal-header">
-        <h3 id="settings-modal-title">⚙️ Customize Our Website</h3>
-        <button class="modal-close-btn" id="close-settings-modal-btn" aria-label="Close dialog">&times;</button>
+        <h3 id="settings-modal-title">⚙️ Cài Đặt Thông Tin</h3>
+        <button class="modal-close-btn" id="close-settings-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
       </div>
       <form id="settings-form" class="modal-form">
         <div class="form-row">
           <div class="form-group">
-            <label for="cfg-him-name">His Name</label>
+            <label for="cfg-him-name">Tên của anh</label>
             <input type="text" id="cfg-him-name" value="Kim" required>
           </div>
           <div class="form-group">
-            <label for="cfg-her-name">Her Name</label>
+            <label for="cfg-her-name">Tên của em</label>
             <input type="text" id="cfg-her-name" value="Thư" required>
           </div>
         </div>
 
         <div class="form-group">
-          <label for="cfg-start-date">Anniversary / Start Date & Time</label>
+          <label for="cfg-start-date">Thời gian bắt đầu yêu</label>
           <input type="datetime-local" id="cfg-start-date" value="2025-04-02T19:00" required>
         </div>
 
         <div class="form-group">
-          <label for="cfg-quote">Hero Love Note / Quote</label>
+          <label for="cfg-quote">Lời nhắn gửi ngọt ngào</label>
           <textarea id="cfg-quote" rows="2">Iu béeeee:3</textarea>
         </div>
 
         <div class="modal-actions">
-          <button type="button" class="btn btn-outline" id="reset-default-data-btn">Reset Sample Data</button>
-          <button type="submit" class="btn btn-primary">Save Changes ✨</button>
+          <button type="button" class="btn btn-outline" id="reset-default-data-btn">Đặt lại mặc định</button>
+          <button type="submit" class="btn btn-primary">Lưu Thay Đổi ✨</button>
         </div>
       </form>
     </div>
@@ -358,8 +386,8 @@
   <!-- Photo Lightbox Modal -->
   <dialog id="photo-lightbox" class="custom-modal photo-lightbox-modal">
     <div class="lightbox-content">
-      <button class="modal-close-btn lightbox-close" id="close-lightbox-btn" aria-label="Close image viewer">&times;</button>
-      <img id="lightbox-img" src="" alt="Enlarged memory photo">
+      <button class="modal-close-btn lightbox-close" id="close-lightbox-btn" aria-label="Đóng ảnh">&times;</button>
+      <img id="lightbox-img" src="" alt="Ảnh kỷ niệm phóng to">
       <div class="lightbox-caption">
         <h4 id="lightbox-title"></h4>
         <p id="lightbox-date"></p>
