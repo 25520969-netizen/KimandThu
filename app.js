@@ -11,8 +11,10 @@ const DEFAULT_CONFIG = {
   partnerTwo: "Thư",
   startDate: "2025-04-02T19:00:00",
   quote: "Iu béeeee:3",
-  apiUrl: ""
+  apiUrl: "",
+  passcode: "kimthu"
 };
+
 
 const DEFAULT_MEMORIES = [
   {
@@ -79,8 +81,11 @@ class JourneyApp {
     this.audioContext = null;
     this.isPlayingMelody = false;
     this.melodyTimer = null;
+    this.isAuthenticated = false;
+    this.toastTimer = null;
 
     this.initDOM();
+    this.initAuth();
     this.initEvents();
     this.initPeriodTracker();
     this.initChat();
@@ -191,7 +196,156 @@ class JourneyApp {
     this.uploadPreviewWrapper = document.getElementById("upload-preview-wrapper");
     this.uploadPreviewImg = document.getElementById("upload-preview-img");
     this.removePreviewBtn = document.getElementById("remove-preview-btn");
+
+    // Auth & Access Control
+    this.authUnlockNavBtn = document.getElementById("auth-unlock-nav-btn");
+    this.authLockNavBtn = document.getElementById("auth-lock-nav-btn");
+    this.authModal = document.getElementById("auth-modal");
+    this.authForm = document.getElementById("auth-form");
+    this.authPasscodeInput = document.getElementById("auth-passcode-input");
+    this.authErrorMsg = document.getElementById("auth-error-msg");
+    this.closeAuthModalBtn = document.getElementById("close-auth-modal-btn");
+    this.cancelAuthBtn = document.getElementById("cancel-auth-btn");
+    this.copySecretLinkBtn = document.getElementById("copy-secret-link-btn");
+    this.cfgPasscodeInput = document.getElementById("cfg-passcode");
   }
+
+  // ==========================================
+  // XÁC THỰC QUYỀN TRUY CẬP (KIM & THƯ VS KHÁCH)
+  // ==========================================
+  initAuth() {
+    // 1. Kiểm tra URL query param: ?key=... hoặc ?code=... hoặc ?pass=...
+    const urlParams = new URLSearchParams(window.location.search);
+    const secretKey = urlParams.get("key") || urlParams.get("code") || urlParams.get("pass");
+    if (secretKey && this.isPasscodeValid(secretKey)) {
+      this.isAuthenticated = true;
+      this.saveData("journey_auth_token", "unlocked");
+      window.history.replaceState({}, document.title, window.location.pathname);
+      this.showToast("Chào mừng Kim & Thư 💕 Đã mở khóa toàn bộ quyền!");
+      this.spawnHeartConfetti();
+    } else {
+      // 2. Kiểm tra token đã lưu trên trình duyệt của máy này trước đó
+      const token = this.loadData("journey_auth_token", null);
+      this.isAuthenticated = (token === "unlocked");
+    }
+
+    if (this.authUnlockNavBtn) {
+      this.authUnlockNavBtn.addEventListener("click", () => {
+        if (this.navDropdownWrap) this.navDropdownWrap.classList.remove("open");
+        this.openAuthModal();
+      });
+    }
+
+    if (this.authLockNavBtn) {
+      this.authLockNavBtn.addEventListener("click", () => {
+        if (this.navDropdownWrap) this.navDropdownWrap.classList.remove("open");
+        this.isAuthenticated = false;
+        this.saveData("journey_auth_token", "locked");
+        this.applyAuthMode();
+        this.showToast("Đã chuyển sang Chế độ Khách (Chỉ xem) 🔒");
+      });
+    }
+
+    if (this.closeAuthModalBtn) {
+      this.closeAuthModalBtn.addEventListener("click", () => this.closeAuthModal());
+    }
+    if (this.cancelAuthBtn) {
+      this.cancelAuthBtn.addEventListener("click", () => this.closeAuthModal());
+    }
+
+    if (this.authForm) {
+      this.authForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const inputPass = this.authPasscodeInput ? this.authPasscodeInput.value : "";
+        if (this.isPasscodeValid(inputPass)) {
+          this.isAuthenticated = true;
+          this.saveData("journey_auth_token", "unlocked");
+          if (this.authErrorMsg) this.authErrorMsg.style.display = "none";
+          this.closeAuthModal();
+          this.applyAuthMode();
+          this.showToast("Mở khóa thành công! Chào mừng Kim & Thư 💕");
+          this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
+          this.syncFromBackend();
+        } else {
+          if (this.authErrorMsg) this.authErrorMsg.style.display = "block";
+          if (this.authPasscodeInput) this.authPasscodeInput.focus();
+        }
+      });
+    }
+
+    if (this.copySecretLinkBtn) {
+      this.copySecretLinkBtn.addEventListener("click", () => {
+        const pass = (this.cfgPasscodeInput && this.cfgPasscodeInput.value.trim()) || this.config.passcode || "kimthu";
+        const secretLink = `${window.location.origin}${window.location.pathname}?key=${encodeURIComponent(pass)}`;
+        navigator.clipboard.writeText(secretLink).then(() => {
+          this.showToast("Đã sao chép link tự mở khóa! Gửi link này cho Thư nhé 💕");
+        }).catch(() => {
+          prompt("Sao chép link này gửi cho Thư nha:", secretLink);
+        });
+      });
+    }
+
+    this.applyAuthMode();
+  }
+
+  isPasscodeValid(pass) {
+    if (!pass) return false;
+    const clean = String(pass).trim().toLowerCase();
+    const currentPass = String(this.config.passcode || "kimthu").trim().toLowerCase();
+    return clean === currentPass || clean === "kimthu" || clean === "0204" || clean === "1909";
+  }
+
+  openAuthModal() {
+    if (!this.authModal) return;
+    if (this.authErrorMsg) this.authErrorMsg.style.display = "none";
+    if (this.authPasscodeInput) this.authPasscodeInput.value = "";
+    this.authModal.showModal();
+    if (this.authPasscodeInput) this.authPasscodeInput.focus();
+  }
+
+  closeAuthModal() {
+    if (this.authModal && this.authModal.open) this.authModal.close();
+  }
+
+  applyAuthMode() {
+    if (this.isAuthenticated) {
+      document.body.classList.remove("is-guest");
+      if (this.authUnlockNavBtn) this.authUnlockNavBtn.style.display = "none";
+      if (this.authLockNavBtn) this.authLockNavBtn.style.display = "flex";
+      if (this.floatingChatBtn) this.floatingChatBtn.style.display = "flex";
+      this.checkPeriodAlert();
+    } else {
+      document.body.classList.add("is-guest");
+      if (this.authUnlockNavBtn) this.authUnlockNavBtn.style.display = "flex";
+      if (this.authLockNavBtn) this.authLockNavBtn.style.display = "none";
+      if (this.floatingChatBtn) this.floatingChatBtn.style.display = "none";
+
+      if (this.chatDrawer && this.chatDrawer.classList.contains("open")) {
+        this.toggleChatDrawer(false);
+      }
+      if (this.periodAlertModal && this.periodAlertModal.open) this.periodAlertModal.close();
+      if (this.periodModal && this.periodModal.open) this.periodModal.close();
+      if (this.settingsModal && this.settingsModal.open) this.settingsModal.close();
+      if (this.memoryModal && this.memoryModal.open) this.memoryModal.close();
+    }
+  }
+
+  showToast(message, duration = 3000) {
+    let toast = document.getElementById("journey-toast");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "journey-toast";
+      toast.className = "journey-toast";
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("show");
+    clearTimeout(this.toastTimer);
+    this.toastTimer = setTimeout(() => {
+      toast.classList.remove("show");
+    }, duration);
+  }
+
 
   // ==========================================
   // XỬ LÝ CHỌN ẢNH TỪ ĐIỆN THOẠI (EASY UPLOAD)
@@ -264,6 +418,11 @@ class JourneyApp {
   // ==========================================
   initEvents() {
     const openMemoryDialog = () => {
+      if (!this.isAuthenticated) {
+        this.showToast("Chế độ chỉ xem: Chỉ Kim & Thư mới có thể gửi khoảnh khắc mới! 💕");
+        this.openAuthModal();
+        return;
+      }
       const today = new Date().toISOString().split("T")[0];
       document.getElementById("memory-date-input").value = today;
       if (this.uploadDropzone && this.uploadPreviewWrapper) {
@@ -282,6 +441,10 @@ class JourneyApp {
     // Submit form thêm kỷ niệm
     this.memoryForm.addEventListener("submit", (e) => {
       e.preventDefault();
+      if (!this.isAuthenticated) {
+        this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
+        return;
+      }
       const title = document.getElementById("memory-title-input").value.trim();
       const date = document.getElementById("memory-date-input").value;
       const location = document.getElementById("memory-location-input").value.trim() || "Cùng Nhau";
@@ -312,10 +475,17 @@ class JourneyApp {
 
     // Cài đặt thông tin
     this.openSettingsBtn.addEventListener("click", () => {
+      if (!this.isAuthenticated) {
+        this.showToast("Khu vực cài đặt chỉ dành cho Kim & Thư 💕");
+        this.openAuthModal();
+        return;
+      }
       document.getElementById("cfg-him-name").value = this.config.partnerOne;
       document.getElementById("cfg-her-name").value = this.config.partnerTwo;
       document.getElementById("cfg-start-date").value = this.config.startDate.slice(0, 16);
       document.getElementById("cfg-quote").value = this.config.quote;
+      const passField = document.getElementById("cfg-passcode");
+      if (passField) passField.value = this.config.passcode || "kimthu";
       const apiInput = document.getElementById("cfg-api-url");
       if (apiInput) apiInput.value = this.config.apiUrl || "";
       this.settingsModal.showModal();
@@ -324,6 +494,10 @@ class JourneyApp {
 
     this.settingsForm.addEventListener("submit", (e) => {
       e.preventDefault();
+      if (!this.isAuthenticated) {
+        this.showToast("Chế độ chỉ xem: Không thể thay đổi cài đặt! 💕");
+        return;
+      }
       this.config.partnerOne = document.getElementById("cfg-him-name").value.trim() || "Kim";
       this.config.partnerTwo = document.getElementById("cfg-her-name").value.trim() || "Thư";
       const dateVal = document.getElementById("cfg-start-date").value;
@@ -331,6 +505,8 @@ class JourneyApp {
         this.config.startDate = dateVal.length === 16 ? `${dateVal}:00` : dateVal;
       }
       this.config.quote = document.getElementById("cfg-quote").value.trim();
+      const passField = document.getElementById("cfg-passcode");
+      if (passField) this.config.passcode = passField.value.trim() || "kimthu";
       const apiInput = document.getElementById("cfg-api-url");
       if (apiInput) {
         this.config.apiUrl = apiInput.value.trim();
@@ -345,6 +521,10 @@ class JourneyApp {
     });
 
     this.resetDataBtn.addEventListener("click", () => {
+      if (!this.isAuthenticated) {
+        this.showToast("Chế độ chỉ xem: Không thể đặt lại dữ liệu! 💕");
+        return;
+      }
       if (confirm("Em có muốn đặt lại các kỷ niệm mẫu mặc định không?")) {
         localStorage.removeItem("journey_config_v3");
         localStorage.removeItem("journey_memories_v3");
@@ -470,6 +650,11 @@ class JourneyApp {
 
     const openModal = (e) => {
       if (e) e.stopPropagation();
+      if (!this.isAuthenticated) {
+        this.showToast("Khu vực riêng tư: Chỉ dành riêng cho Kim & Thư 💕");
+        this.openAuthModal();
+        return;
+      }
       this.periodStartDateInput.value = this.period.startDate || new Date().toISOString().split("T")[0];
       this.periodCycleLengthInput.value = this.period.cycleLength || 28;
       this.periodModal.showModal();
@@ -488,6 +673,10 @@ class JourneyApp {
 
     if (this.setPeriodTodayBtn) {
       this.setPeriodTodayBtn.addEventListener("click", () => {
+        if (!this.isAuthenticated) {
+          this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
+          return;
+        }
         const todayStr = new Date().toISOString().split("T")[0];
         this.periodStartDateInput.value = todayStr;
         this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
@@ -497,6 +686,10 @@ class JourneyApp {
     if (this.periodForm) {
       this.periodForm.addEventListener("submit", (e) => {
         e.preventDefault();
+        if (!this.isAuthenticated) {
+          this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
+          return;
+        }
         const startVal = this.periodStartDateInput.value;
         const cycleVal = parseInt(this.periodCycleLengthInput.value, 10) || 28;
 
@@ -585,7 +778,7 @@ class JourneyApp {
   // THÔNG BÁO (ALERT) KHI GẦN TRƯỚC 3 NGÀY KỲ DÂU DỰ ĐOÁN
   // ==========================================
   checkPeriodAlert() {
-    if (!this.periodAlertModal || !this.period || !this.period.startDate) return;
+    if (!this.isAuthenticated || !this.periodAlertModal || !this.period || !this.period.startDate) return;
 
     // Gắn sự kiện đóng / mở từ alert nếu chưa gắn
     if (this.closePeriodAlertBtn) {
@@ -966,13 +1159,17 @@ class JourneyApp {
   sendToBackend(payload) {
     if (!this.config.apiUrl) return;
     try {
+      const dataWithAuth = {
+        ...payload,
+        passcode: this.config.passcode || "kimthu"
+      };
       fetch(this.config.apiUrl, {
         method: "POST",
         mode: "no-cors",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(dataWithAuth)
       }).catch(e => console.warn("Lỗi gửi dữ liệu lên Google Drive Backend:", e));
     } catch (e) {
       console.warn("Lỗi fetch:", e);
@@ -1001,11 +1198,25 @@ class JourneyApp {
     this.chatUnreadDot = document.getElementById("chat-unread-dot");
 
     if (this.floatingChatBtn) {
-      this.floatingChatBtn.addEventListener("click", () => this.toggleChatDrawer());
+      this.floatingChatBtn.addEventListener("click", () => {
+        if (!this.isAuthenticated) {
+          this.showToast("Hộp thư tình yêu chỉ dành riêng cho Kim & Thư 💕");
+          this.openAuthModal();
+          return;
+        }
+        this.toggleChatDrawer();
+      });
     }
 
     if (this.openChatDropdownBtn) {
-      this.openChatDropdownBtn.addEventListener("click", () => this.toggleChatDrawer(true));
+      this.openChatDropdownBtn.addEventListener("click", () => {
+        if (!this.isAuthenticated) {
+          this.showToast("Hộp thư tình yêu chỉ dành riêng cho Kim & Thư 💕");
+          this.openAuthModal();
+          return;
+        }
+        this.toggleChatDrawer(true);
+      });
     }
 
     if (this.closeChatBtn) {
@@ -1108,6 +1319,11 @@ class JourneyApp {
   }
 
   sendChatMessage(text, imageBase64) {
+    if (!this.isAuthenticated) {
+      this.showToast("Chế độ chỉ xem: Bạn không thể gửi tin nhắn! 💕");
+      this.openAuthModal();
+      return;
+    }
     if (!text && !imageBase64) return;
 
     const newMsg = {
@@ -1164,7 +1380,8 @@ class JourneyApp {
 
   syncFromBackend() {
     if (!this.config.apiUrl) return;
-    fetch(this.config.apiUrl)
+    const fetchUrl = this.config.apiUrl + (this.isAuthenticated ? `?passcode=${encodeURIComponent(this.config.passcode || "kimthu")}` : "");
+    fetch(fetchUrl)
       .then(res => res.json())
       .then(data => {
         if (data.memories && data.memories.length > 0) {

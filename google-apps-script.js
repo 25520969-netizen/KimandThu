@@ -7,9 +7,22 @@
 
 var FOLDER_ID = "1dcyUgareKuDTIyj9xmhKKY6Uq0uC6Zuj";
 
+// Danh sách mật mã hợp lệ của Kim & Thư
+var ALLOWED_PASSCODES = ["kimthu", "0204", "1909"];
+
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
+    
+    // BẢO VỆ TUYỆT ĐỐI: Chỉ Kim & Thư có mật mã mới được thực thi thay đổi
+    var reqPass = data.passcode ? String(data.passcode).toLowerCase().trim() : "";
+    if (ALLOWED_PASSCODES.indexOf(reqPass) === -1) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "error",
+        message: "Chế độ khách: Bạn chỉ có quyền xem timeline & timer, không thể thực hiện thay đổi."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     
     // 1. LƯU MONG ƯỚC (TASK)
@@ -105,6 +118,10 @@ function doGet(e) {
   var memorySheet = ss.getSheetByName("Memories");
   var msgSheet = ss.getSheetByName("Messages");
   
+  // Xác thực quyền riêng tư: Nếu có mật mã thì mới trả về tin nhắn riêng tư
+  var reqPass = (e && e.parameter && e.parameter.passcode) ? String(e.parameter.passcode).toLowerCase().trim() : "";
+  var isAuth = ALLOWED_PASSCODES.indexOf(reqPass) !== -1;
+
   var tasks = [];
   if (taskSheet && taskSheet.getLastRow() > 1) {
     var taskData = taskSheet.getDataRange().getValues();
@@ -146,8 +163,9 @@ function doGet(e) {
     });
   }
 
+  // Tin nhắn chỉ trả về khi là Kim hoặc Thư đã xác thực
   var messages = [];
-  if (msgSheet && msgSheet.getLastRow() > 1) {
+  if (isAuth && msgSheet && msgSheet.getLastRow() > 1) {
     var msgData = msgSheet.getDataRange().getValues();
     for (var k = 1; k < msgData.length; k++) {
       messages.push({
@@ -160,6 +178,10 @@ function doGet(e) {
     }
   }
   
-  return ContentService.createTextOutput(JSON.stringify({tasks: tasks, memories: memories, messages: messages}))
-    .setMimeType(ContentService.MimeType.JSON);
+  return ContentService.createTextOutput(JSON.stringify({
+    tasks: tasks, 
+    memories: memories, 
+    messages: messages,
+    isAuth: isAuth
+  })).setMimeType(ContentService.MimeType.JSON);
 }

@@ -1800,3 +1800,62 @@ body {
     max-width: 100%;
   }
 }
+
+/* ==========================================
+   KIỂM SOÁT QUYỀN TRUY CẬP (GUEST VS COUPLE)
+   ========================================== */
+
+/* Khi ở Chế độ Khách (Guest mode): Ẩn triệt để toàn bộ tính năng riêng tư và thao tác thay đổi */
+body.is-guest .couple-only {
+  display: none !important;
+}
+
+/* Khi đã mở khóa Chế độ Cặp Đôi: Ẩn nút mở khóa */
+body:not(.is-guest) .guest-only {
+  display: none !important;
+}
+
+/* Đảm bảo dropdown item hiển thị đồng đều */
+.nav-dropdown-menu .dropdown-item {
+  display: flex;
+}
+
+body.is-guest .nav-dropdown-menu .dropdown-item.couple-only {
+  display: none !important;
+}
+
+body:not(.is-guest) .nav-dropdown-menu .dropdown-item.guest-only {
+  display: none !important;
+}
+
+/* ==========================================
+   TOAST NOTIFICATION (THÔNG BÁO NHẸ NHÀNG)
+   ========================================== */
+.journey-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%) translateY(40px);
+  background: rgba(30, 20, 25, 0.92);
+  color: #ffffff;
+  padding: 12px 24px;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 117, 143, 0.4);
+  z-index: 99999;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: center;
+  max-width: 90vw;
+}
+
+.journey-toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+

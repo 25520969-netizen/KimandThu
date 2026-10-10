@@ -43,7 +43,7 @@
           </button>
 
           <div class="nav-dropdown-menu" id="nav-dropdown-menu" role="menu" aria-hidden="true">
-            <button id="edit-profile-btn" class="dropdown-item" role="menuitem">
+            <button id="edit-profile-btn" class="dropdown-item couple-only" role="menuitem">
               <span class="dropdown-icon">⚙️</span>
               <span class="dropdown-text">Cài Đặt</span>
             </button>
@@ -51,13 +51,21 @@
               <span class="dropdown-icon">🎵</span>
               <span class="dropdown-text" id="music-status">Bật Nhạc</span>
             </button>
-            <button id="period-nav-btn" class="dropdown-item" role="menuitem">
+            <button id="period-nav-btn" class="dropdown-item couple-only" role="menuitem">
               <span class="dropdown-icon">🍓</span>
               <span class="dropdown-text" id="period-nav-label">Chăm Sóc Bé</span>
             </button>
-            <button id="open-chat-dropdown-btn" class="dropdown-item" role="menuitem">
+            <button id="open-chat-dropdown-btn" class="dropdown-item couple-only" role="menuitem">
               <span class="dropdown-icon">💌</span>
               <span class="dropdown-text">Hộp Thư Nhắn Tin</span>
+            </button>
+            <button id="auth-unlock-nav-btn" class="dropdown-item guest-only" role="menuitem">
+              <span class="dropdown-icon">🔐</span>
+              <span class="dropdown-text">Mở Khóa Đôi Ta</span>
+            </button>
+            <button id="auth-lock-nav-btn" class="dropdown-item couple-only" role="menuitem">
+              <span class="dropdown-icon">🔒</span>
+              <span class="dropdown-text">Xem Chế Độ Khách</span>
             </button>
           </div>
         </div>
@@ -114,7 +122,7 @@
 
       <!-- Action Buttons -->
       <div class="hero-actions">
-        <button id="hero-add-memory-btn" class="btn btn-primary">
+        <button id="hero-add-memory-btn" class="btn btn-primary couple-only">
           <span>📸 Gửi Khoảnh Khắc Mới (Locket)</span>
         </button>
         <button id="send-love-btn" class="btn btn-blush">
@@ -129,7 +137,7 @@
         <div class="pill-tag">Locket Tình Yêu</div>
         <h2 class="section-title">Khoảnh Khắc Của Tụi Mình</h2>
         <p class="section-desc">Từng khung ảnh và câu chuyện kỷ niệm lưu giữ theo dòng thời gian dành riêng cho bé Thư.</p>
-        <button id="open-add-memory-modal-btn" class="btn btn-secondary btn-sm" style="margin-top: 14px;">
+        <button id="open-add-memory-modal-btn" class="btn btn-secondary btn-sm couple-only" style="margin-top: 14px;">
           <span>+ Gửi Khoảnh Khắc Mới 📸</span>
         </button>
       </div>
@@ -322,6 +330,19 @@
         </div>
 
         <div class="form-group">
+          <label for="cfg-passcode">Mật mã mở khóa quyền riêng tư (Kim & Thư)</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="cfg-passcode" value="kimthu" style="flex: 1;" placeholder="Mật mã bí mật">
+            <button type="button" class="btn btn-secondary btn-sm" id="copy-secret-link-btn" title="Sao chép link tự động mở khóa gửi cho Thư">
+              📋 Link Tự Mở Khóa
+            </button>
+          </div>
+          <small style="color: var(--text-muted); font-size: 0.78rem;">
+            Bấm "Link Tự Mở Khóa" rồi gửi cho Thư. Thư chỉ cần click vào là máy của Thư tự mở full quyền mãi mãi!
+          </small>
+        </div>
+
+        <div class="form-group">
           <label for="cfg-api-url">Link Google Drive Backend (Tùy chọn)</label>
           <input type="url" id="cfg-api-url" placeholder="https://script.google.com/macros/s/.../exec">
           <small style="color: var(--text-muted); font-size: 0.78rem;">Dán link Web App để tự động đồng bộ ảnh vào Google Drive.</small>
@@ -330,6 +351,34 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" id="reset-default-data-btn">Đặt lại mặc định</button>
           <button type="submit" class="btn btn-primary">Lưu Thay Đổi ✨</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL: XÁC THỰC MỞ KHÓA KHÔNG GIAN RIÊNG TƯ (DÀNH CHO KIM & THƯ) -->
+  <dialog id="auth-modal" class="custom-modal" aria-labelledby="auth-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="auth-modal-title">🔐 Mở Khóa Không Gian Đôi Ta</h3>
+        <button class="modal-close-btn" id="close-auth-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
+      </div>
+      <form id="auth-form" class="modal-form">
+        <div style="text-align: center; margin-bottom: 12px;">
+          <div style="font-size: 2.2rem; margin-bottom: 6px;">💑✨</div>
+          <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5;">
+            Trang web đang ở chế độ công khai (chỉ xem kỷ niệm & đếm ngày yêu).<br>
+            Nhập mật mã tình yêu để mở khóa nhắn tin, gửi ảnh và chăm sóc bé nhé!
+          </p>
+        </div>
+        <div class="form-group">
+          <label for="auth-passcode-input">Mật mã tình yêu 💕</label>
+          <input type="password" id="auth-passcode-input" placeholder="Nhập mật khẩu..." autocomplete="current-password" required>
+          <small id="auth-error-msg" style="color: #e11d48; font-size: 0.82rem; margin-top: 6px; display: none;">Mật mã chưa đúng nè, thử lại nhé bé yêu! 💕</small>
+        </div>
+        <div class="modal-actions" style="margin-top: 18px;">
+          <button type="button" class="btn btn-outline" id="cancel-auth-btn">Xem Chế Độ Khách</button>
+          <button type="submit" class="btn btn-primary">Mở Khóa Toàn Bộ 💖</button>
         </div>
       </form>
     </div>
@@ -349,13 +398,13 @@
   </dialog>
 
   <!-- FLOATING CHAT BUTTON (GÓC DƯỚI BÊN PHẢI) -->
-  <button id="floating-chat-btn" class="floating-chat-btn" title="Hộp thư tình yêu Kim & Thư 💕" aria-label="Mở khung nhắn tin">
+  <button id="floating-chat-btn" class="floating-chat-btn couple-only" title="Hộp thư tình yêu Kim & Thư 💕" aria-label="Mở khung nhắn tin">
     <span class="chat-btn-icon">💌</span>
     <span class="chat-badge-pulse" id="chat-unread-dot"></span>
   </button>
 
   <!-- CHAT DRAWER / WINDOW -->
-  <div id="chat-drawer" class="chat-drawer" aria-hidden="true">
+  <div id="chat-drawer" class="chat-drawer couple-only" aria-hidden="true">
     <div class="chat-header">
       <div class="chat-user-info">
         <div class="chat-avatar-wrap">
