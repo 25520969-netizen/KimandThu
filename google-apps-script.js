@@ -10,6 +10,16 @@ var FOLDER_ID = "1dcyUgareKuDTIyj9xmhKKY6Uq0uC6Zuj";
 // Danh sách mật mã hợp lệ của Kim & Thư
 var ALLOWED_PASSCODES = ["kimthu", "0204", "1909"];
 
+/**
+ * HÀM CẤP QUYỀN GOOGLE DRIVE:
+ * Bạn hãy chọn hàm "capQuyenTruyCapDrive" trên thanh công cụ và bấm "Chạy" (Run) một lần.
+ * Google sẽ hiện bảng yêu cầu cấp quyền truy cập Drive -> bấm Xem lại quyền -> Nâng cao -> Đi tới ... (không an toàn) -> Cho phép.
+ */
+function capQuyenTruyCapDrive() {
+  var folder = DriveApp.getFolderById(FOLDER_ID);
+  Logger.log("Kết nối Drive thành công! Thư mục: " + folder.getName());
+}
+
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
@@ -63,16 +73,27 @@ function doPost(e) {
       
       // Nếu có ảnh chụp từ điện thoại gửi lên dạng Base64
       if (data.imageBase64 && data.imageBase64.indexOf("data:image") === 0) {
-        var folder = DriveApp.getFolderById(FOLDER_ID);
-        var contentType = data.imageBase64.substring(data.imageBase64.indexOf(":") + 1, data.imageBase64.indexOf(";"));
-        var base64Data = data.imageBase64.split(",")[1];
-        var decoded = Utilities.base64Decode(base64Data);
-        var filename = "kyniem_" + Utilities.formatDate(new Date(), "GMT+7", "yyyyMMdd_HHmmss") + ".jpg";
-        var blob = Utilities.newBlob(decoded, contentType, filename);
-        
-        var file = folder.createFile(blob);
-        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
+        try {
+          var folder;
+          try {
+            folder = DriveApp.getFolderById(FOLDER_ID);
+          } catch(eFolder) {
+            folder = DriveApp.getRootFolder();
+          }
+          var contentType = data.imageBase64.substring(data.imageBase64.indexOf(":") + 1, data.imageBase64.indexOf(";"));
+          var base64Data = data.imageBase64.split(",")[1];
+          var decoded = Utilities.base64Decode(base64Data);
+          var filename = "kyniem_" + Utilities.formatDate(new Date(), "GMT+7", "yyyyMMdd_HHmmss") + ".jpg";
+          var blob = Utilities.newBlob(decoded, contentType, filename);
+          
+          var file = folder.createFile(blob);
+          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
+        } catch (driveErr) {
+          Logger.log("Drive Error: " + driveErr.toString());
+          // Nếu Drive chưa được cấp quyền, lưu lại ảnh để dữ liệu không bị mất
+          imageUrl = data.image || "";
+        }
       }
       
       sheet.appendRow([data.id, data.title, data.date, data.location, imageUrl, data.story, new Date()]);
@@ -89,16 +110,26 @@ function doPost(e) {
       
       var imageUrl = data.image || "";
       if (data.imageBase64 && data.imageBase64.indexOf("data:image") === 0) {
-        var folder = DriveApp.getFolderById(FOLDER_ID);
-        var contentType = data.imageBase64.substring(data.imageBase64.indexOf(":") + 1, data.imageBase64.indexOf(";"));
-        var base64Data = data.imageBase64.split(",")[1];
-        var decoded = Utilities.base64Decode(base64Data);
-        var filename = "chat_" + Utilities.formatDate(new Date(), "GMT+7", "yyyyMMdd_HHmmss") + ".jpg";
-        var blob = Utilities.newBlob(decoded, contentType, filename);
-        
-        var file = folder.createFile(blob);
-        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
+        try {
+          var folder;
+          try {
+            folder = DriveApp.getFolderById(FOLDER_ID);
+          } catch(eFolder) {
+            folder = DriveApp.getRootFolder();
+          }
+          var contentType = data.imageBase64.substring(data.imageBase64.indexOf(":") + 1, data.imageBase64.indexOf(";"));
+          var base64Data = data.imageBase64.split(",")[1];
+          var decoded = Utilities.base64Decode(base64Data);
+          var filename = "chat_" + Utilities.formatDate(new Date(), "GMT+7", "yyyyMMdd_HHmmss") + ".jpg";
+          var blob = Utilities.newBlob(decoded, contentType, filename);
+          
+          var file = folder.createFile(blob);
+          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
+        } catch (driveErr) {
+          Logger.log("Drive Error: " + driveErr.toString());
+          imageUrl = data.image || "";
+        }
       }
       
       sheet.appendRow([data.id, data.sender, data.text || "", imageUrl, data.timestamp || new Date().toISOString(), new Date()]);

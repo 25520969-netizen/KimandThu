@@ -11,7 +11,7 @@ const DEFAULT_CONFIG = {
   partnerTwo: "Thư",
   startDate: "2025-04-02T19:00:00",
   quote: "Iu béeeee:3",
-  apiUrl: "",
+  apiUrl: "https://script.google.com/macros/s/AKfycbxDI9aaD94CTOU8rYk-NRc8Hb3Uajv24LgnPdrTrLXGZGsR7sykPBBUwC7ttesFfxl3PA/exec",
   passcode: "kimthu"
 };
 
@@ -72,6 +72,10 @@ const DEFAULT_CHAT_MESSAGES = [
 class JourneyApp {
   constructor() {
     this.config = this.loadData("journey_config_v3", DEFAULT_CONFIG);
+    if (!this.config.apiUrl || this.config.apiUrl.trim() === "") {
+      this.config.apiUrl = DEFAULT_CONFIG.apiUrl;
+      this.saveData("journey_config_v3", this.config);
+    }
     this.memories = this.loadData("journey_memories_v3", DEFAULT_MEMORIES);
     this.period = this.loadData("journey_period_v1", DEFAULT_PERIOD);
     this.chatMessages = this.loadData("journey_chat_messages_v1", DEFAULT_CHAT_MESSAGES);
