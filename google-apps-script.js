@@ -34,6 +34,23 @@ function capQuyenTruyCapDrive() {
   }
 }
 
+/**
+ * HÀM HỖ TRỢ XÓA FILE DRIVE BẰNG ID HOẶC LINK:
+ * Dùng để kiểm tra hoặc xóa thủ công file nếu cần
+ */
+function xoaFileDrive(fileIdOrUrl) {
+  try {
+    var raw = fileIdOrUrl || "";
+    var match = raw.match(/id=([a-zA-Z0-9_-]+)/) || raw.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    var fileId = (match && match[1]) ? match[1] : raw;
+    var file = DriveApp.getFileById(fileId);
+    file.setTrashed(true);
+    Logger.log("Đã chuyển file vào thùng rác thành công: " + file.getName() + " (" + fileId + ")");
+  } catch(e) {
+    Logger.log("Lỗi xóa file: " + e.toString());
+  }
+}
+
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
@@ -157,6 +174,66 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({status: "success", imageUrl: imageUrl}))
         .setMimeType(ContentService.MimeType.JSON);
     }
+
+    // 5. XÓA KỶ NIỆM VÀ XÓA ẢNH TRÊN GOOGLE DRIVE
+    if (data.type === "delete_memory") {
+      var sheet = ss.getSheetByName("Memories");
+      var deletedFileId = "";
+      
+      if (sheet && sheet.getLastRow() > 1) {
+        var values = sheet.getDataRange().getValues();
+        // Lặp ngược từ dưới lên để xóa an toàn không bị lệch dòng
+        for (var i = values.length - 1; i >= 1; i--) {
+          if (String(values[i][0]).trim() === String(data.id).trim()) {
+            var imgUrl = values[i][4] || data.imageUrl || "";
+            // Tìm file ID trên Google Drive từ link ảnh
+            if (imgUrl && imgUrl.indexOf("data:") === -1) {
+              var match = imgUrl.match(/id=([a-zA-Z0-9_-]+)/) || imgUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+              if (match && match[1]) {
+                deletedFileId = match[1];
+                try {
+                  DriveApp.getFileById(deletedFileId).setTrashed(true);
+                  Logger.log("Đã chuyển ảnh kỷ niệm vào thùng rác Drive: " + deletedFileId);
+                } catch(eTrash) {
+                  Logger.log("Lỗi xóa file Drive: " + eTrash.toString());
+                }
+              }
+            }
+            sheet.deleteRow(i + 1);
+          }
+        }
+      }
+
+      // Nếu chưa xóa được file qua dòng trong sheet nhưng client có gửi fileId hoặc link Drive
+      if (!deletedFileId && (data.fileId || data.imageUrl)) {
+        var rawTarget = data.fileId || data.imageUrl || "";
+        if (rawTarget.indexOf("data:") === -1) {
+          var matchClient = rawTarget.match(/id=([a-zA-Z0-9_-]+)/) || rawTarget.match(/\/d\/([a-zA-Z0-9_-]+)/);
+          var fId = (matchClient && matchClient[1]) ? matchClient[1] : (data.fileId || "");
+          if (fId && fId.length > 15) {
+            try {
+              DriveApp.getFileById(fId).setTrashed(true);
+              deletedFileId = fId;
+              Logger.log("Đã xóa file Drive trực tiếp từ dữ liệu gửi: " + fId);
+            } catch(eTrashClient) {
+              Logger.log("Lỗi xóa file Drive từ client: " + eTrashClient.toString());
+            }
+          }
+        }
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success", 
+        deletedId: data.id, 
+        deletedFileId: deletedFileId
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // Phản hồi mặc định nếu kiểu dữ liệu không khớp
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "ignored", 
+      message: "Yêu cầu không thuộc loại nào đã xử lý: " + data.type
+    })).setMimeType(ContentService.MimeType.JSON);
     
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({status: "error", message: err.toString()}))

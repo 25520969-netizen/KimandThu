@@ -77,6 +77,7 @@ class JourneyApp {
       this.saveData("journey_config_v3", this.config);
     }
     this.memories = this.loadData("journey_memories_v3", DEFAULT_MEMORIES);
+    this.deletedMemoryIds = this.loadData("journey_deleted_mem_ids", []);
     this.period = this.loadData("journey_period_v1", DEFAULT_PERIOD);
     this.chatMessages = this.loadData("journey_chat_messages_v1", DEFAULT_CHAT_MESSAGES);
     this.currentSender = this.loadData("journey_chat_sender_v1", "Kim");
@@ -564,10 +565,12 @@ class JourneyApp {
       if (confirm("Em có muốn đặt lại các kỷ niệm mẫu mặc định không?")) {
         localStorage.removeItem("journey_config_v3");
         localStorage.removeItem("journey_memories_v3");
+        localStorage.removeItem("journey_deleted_mem_ids");
         localStorage.removeItem("journey_period_v1");
         localStorage.removeItem("journey_chat_messages_v1");
         this.config = { ...DEFAULT_CONFIG };
         this.memories = [ ...DEFAULT_MEMORIES ];
+        this.deletedMemoryIds = [];
         this.period = { ...DEFAULT_PERIOD };
         this.chatMessages = [ ...DEFAULT_CHAT_MESSAGES ];
         this.renderProfile();
@@ -952,7 +955,7 @@ class JourneyApp {
                 <span class="locket-cal-icon">🗓️</span>
                 <span class="locket-date-text">${dateFormatted}</span>
               </div>
-              <button class="locket-delete-btn" data-id="${mem.id}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>
+              ${this.isAuthenticated ? `<button class="locket-delete-btn" data-id="${mem.id}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>` : ""}
             </div>
 
             <h3 class="locket-story-title">${this.escapeHTML(mem.title)}</h3>
@@ -1012,11 +1015,48 @@ class JourneyApp {
     this.timelineContainer.querySelectorAll(".locket-delete-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const memId = btn.dataset.id;
-        if (confirm("Em/anh có muốn xóa khoảnh khắc kỷ niệm này không?")) {
-          this.memories = this.memories.filter(m => m.id !== memId);
+        if (!this.isAuthenticated) {
+          this.showToast("Chỉ Kim & Thư mới có quyền xóa kỷ niệm 💕");
+          this.openAuthModal();
+          return;
+        }
+
+        const memId = String(btn.dataset.id);
+        const targetMem = this.memories.find(m => String(m.id) === memId);
+        if (!targetMem) return;
+
+        const memTitle = targetMem.title ? `"${targetMem.title}"` : "này";
+        if (confirm(`Em/anh có chắc muốn xóa vĩnh viễn khoảnh khắc ${memTitle} khỏi album và Google Drive không?`)) {
+          // 1. Thêm vào danh sách đã xóa để không bị đồng bộ ngược lại từ thiết bị khác
+          if (!this.deletedMemoryIds.includes(memId)) {
+            this.deletedMemoryIds.push(memId);
+            this.saveData("journey_deleted_mem_ids", this.deletedMemoryIds);
+          }
+
+          // 2. Trích xuất fileId nếu là ảnh trên Google Drive
+          let fileId = "";
+          if (targetMem.image) {
+            const m = targetMem.image.match(/id=([a-zA-Z0-9_-]+)/) || targetMem.image.match(/\/d\/([a-zA-Z0-9_-]+)/);
+            if (m && m[1]) fileId = m[1];
+          }
+
+          // 3. Xóa khỏi bộ nhớ và giao diện cục bộ ngay lập tức
+          this.memories = this.memories.filter(m => String(m.id) !== memId);
           this.saveData("journey_memories_v3", this.memories);
           this.renderTimeline();
+
+          // 4. Gửi yêu cầu xóa lên Google Drive & Google Sheets backend
+          if (this.config.apiUrl) {
+            this.showToast("Đang xóa và dọn dẹp ảnh trên Google Drive... 🗑️");
+            this.sendToBackend({
+              type: "delete_memory",
+              id: memId,
+              imageUrl: targetMem.image || "",
+              fileId: fileId
+            });
+          } else {
+            this.showToast("Đã xóa khoảnh khắc trên máy này! 🗑️");
+          }
         }
       });
     });
@@ -1428,8 +1468,8 @@ class JourneyApp {
     fetch(fetchUrl)
       .then(res => res.json())
       .then(data => {
-        if (data.memories && Array.isArray(data.memories) && data.memories.length > 0) {
-          this.mergeMemories(data.memories);
+        if (data.memories && Array.isArray(data.memories)) {
+          this.syncMemories(data.memories);
         }
         if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
           let hasNew = false;
@@ -1455,29 +1495,56 @@ class JourneyApp {
       .catch(e => console.warn("Chưa đồng bộ được từ Google Drive:", e));
   }
 
-  mergeMemories(serverMemories) {
+  syncMemories(serverMemories) {
     if (!Array.isArray(serverMemories)) return;
-    let changed = false;
 
-    serverMemories.forEach(sMem => {
-      const idx = this.memories.findIndex(m => m.id === sMem.id);
-      if (idx !== -1) {
-        // Nếu ảnh server là link Drive mới thì cập nhật
-        if (sMem.image && sMem.image !== this.memories[idx].image) {
-          this.memories[idx] = sMem;
-          changed = true;
-        }
-      } else {
-        this.memories.push(sMem);
-        changed = true;
-      }
+    // 1. Lọc bỏ các kỷ niệm mà người dùng đã bấm xóa trên thiết bị này
+    const validServer = serverMemories.filter(sm => !this.deletedMemoryIds.includes(String(sm.id)));
+
+    // 2. Giữ lại các kỷ niệm mặc định nếu chúng chưa bị xóa (mem-1, mem-2, mem-3)
+    const defaultMems = DEFAULT_MEMORIES.filter(dm => 
+      !this.deletedMemoryIds.includes(String(dm.id)) &&
+      !validServer.some(sm => String(sm.id) === String(dm.id))
+    );
+
+    // 3. Giữ lại các kỷ niệm cục bộ vừa mới được tạo trong vòng 60 giây (đang đợi backend lưu)
+    const now = Date.now();
+    const pendingLocal = this.memories.filter(m => {
+      const mid = String(m.id);
+      if (this.deletedMemoryIds.includes(mid)) return false;
+      if (validServer.some(sm => String(sm.id) === mid)) return false;
+      if (["mem-1", "mem-2", "mem-3"].includes(mid)) return false;
+      // Trích xuất timestamp từ ID nếu dạng 'mem-1792435...'
+      const rawNum = parseInt(mid.replace(/\D/g, "")) || 0;
+      return (now - rawNum) < 60000;
     });
 
-    if (changed) {
-      this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
+    // 4. Tổng hợp danh sách kỷ niệm mới
+    const combinedMap = new Map();
+    validServer.forEach(m => combinedMap.set(String(m.id), m));
+    pendingLocal.forEach(m => {
+      if (!combinedMap.has(String(m.id))) combinedMap.set(String(m.id), m);
+    });
+    defaultMems.forEach(m => {
+      if (!combinedMap.has(String(m.id))) combinedMap.set(String(m.id), m);
+    });
+
+    const newMemoriesList = Array.from(combinedMap.values());
+    newMemoriesList.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // 5. So sánh với this.memories hiện tại, chỉ re-render nếu có sự thay đổi
+    const curHash = this.memories.map(m => `${m.id}_${(m.image || "").slice(0, 30)}`).join("|");
+    const newHash = newMemoriesList.map(m => `${m.id}_${(m.image || "").slice(0, 30)}`).join("|");
+
+    if (curHash !== newHash) {
+      this.memories = newMemoriesList;
       this.saveData("journey_memories_v3", this.memories);
       this.renderTimeline();
     }
+  }
+
+  mergeMemories(serverMemories) {
+    this.syncMemories(serverMemories);
   }
 
   escapeHTML(str) {
