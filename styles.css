@@ -361,7 +361,7 @@ body {
 
 .hero-section {
   text-align: center;
-  padding: 40px 10px 50px;
+  padding: 36px 12px 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -379,7 +379,7 @@ body {
   padding: 6px 18px;
   border-radius: var(--radius-pill);
   box-shadow: var(--shadow-subtle);
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   letter-spacing: 0.3px;
 }
 
@@ -409,23 +409,23 @@ body {
   font-size: clamp(1.05rem, 2.5vw, 1.25rem);
   color: var(--text-muted);
   max-width: 640px;
-  margin: 0 auto 36px;
+  margin: 0 auto 26px;
   line-height: 1.6;
 }
 
-/* Love Counter Card */
+/* Love Counter Card (Khung đếm ngày yêu) */
 .love-counter-card {
   width: 100%;
-  max-width: 680px;
+  max-width: 660px;
   background: var(--bg-card);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.95);
   outline: 1px solid var(--border-delicate);
   border-radius: var(--radius-lg);
-  padding: 28px 24px;
-  box-shadow: var(--shadow-card);
-  margin-bottom: 34px;
+  padding: 24px 22px;
+  box-shadow: 0 10px 30px rgba(255, 117, 143, 0.12), 0 1px 3px rgba(0, 0, 0, 0.03);
+  margin-bottom: 0;
   transition: var(--transition-smooth);
   position: relative;
   overflow: hidden;
@@ -451,11 +451,11 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .counter-title {
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   letter-spacing: 2px;
   font-weight: 700;
   color: var(--text-soft);
@@ -469,14 +469,14 @@ body {
 }
 
 .counter-box {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 240, 244, 0.7) 100%);
-  border: 1px solid var(--pink-light);
-  border-radius: var(--radius-md);
-  padding: 14px 6px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 240, 244, 0.65) 100%);
+  border: 1px solid rgba(255, 184, 201, 0.5);
+  border-radius: 16px;
+  padding: 16px 8px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  box-shadow: inset 0 2px 6px rgba(255, 255, 255, 0.8), var(--shadow-subtle);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.9), 0 3px 10px rgba(255, 143, 163, 0.08);
   transition: var(--transition-smooth);
 }
 
@@ -709,10 +709,7 @@ body {
 }
 
 .hero-actions {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: none;
 }
 
 /* ===================================================================
@@ -720,24 +717,24 @@ body {
    =================================================================== */
 
 .section-container {
-  margin-top: 60px;
-  padding-top: 20px;
+  margin-top: 32px;
+  padding-top: 8px;
 }
 
 .section-header {
   text-align: center;
-  margin-bottom: 34px;
+  margin-bottom: 30px;
 }
 
 .pill-tag {
   display: inline-block;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1.5px;
   color: var(--pink-accent);
-  background: var(--pink-lightest);
-  border: 1px solid var(--pink-light);
+  background: rgba(255, 240, 245, 0.9);
+  border: 1px solid rgba(255, 184, 201, 0.7);
   padding: 4px 14px;
   border-radius: var(--radius-pill);
   margin-bottom: 10px;
@@ -745,67 +742,104 @@ body {
 
 .section-title {
   font-family: var(--font-display);
-  font-size: clamp(1.8rem, 4vw, 2.5rem);
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
   font-weight: 700;
   color: var(--pink-deep);
   margin-bottom: 8px;
 }
 
 .section-desc {
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   color: var(--text-muted);
-  max-width: 580px;
+  max-width: 560px;
   margin: 0 auto;
+  line-height: 1.55;
+}
+
+/* Nút thêm kỷ niệm mới tinh tế */
+.btn-add-memory {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 10px 22px;
+  background: linear-gradient(135deg, #ffffff 0%, #fff0f4 100%);
+  color: var(--pink-deep);
+  border: 1px solid rgba(255, 184, 201, 0.8);
+  border-radius: var(--radius-pill);
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: 0 3px 12px rgba(255, 117, 143, 0.12);
+  cursor: pointer;
+  transition: all 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.btn-add-memory:hover {
+  background: linear-gradient(135deg, #fff0f4 0%, #ffe4ec 100%);
+  border-color: var(--pink-primary);
+  color: var(--pink-accent);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 117, 143, 0.22);
+}
+
+.btn-add-memory svg {
+  stroke: var(--pink-primary);
+  transition: transform 0.25s ease;
+}
+
+.btn-add-memory:hover svg {
+  transform: rotate(90deg);
 }
 
 /* ===================================================================
-   SECTION: LOCKET MOMENTS TIMELINE
-   (Khung ảnh & Khung câu chuyện kế bên - Phong cách Locket)
+   SECTION: MOMENTS TIMELINE
+   (Khung ảnh & Khung câu chuyện kế bên)
    =================================================================== */
 
 .locket-stream-wrapper {
-  max-width: 920px;
+  max-width: 880px;
   margin: 0 auto;
-  padding: 10px 0;
+  padding: 4px 0 20px;
 }
 
 .locket-list {
   display: flex;
   flex-direction: column;
-  gap: 30px;
+  gap: 26px;
   position: relative;
 }
 
 .locket-card {
   display: grid;
-  grid-template-columns: 310px 1fr;
-  gap: 24px;
-  background: rgba(255, 255, 255, 0.92);
+  grid-template-columns: 290px 1fr;
+  gap: 22px;
+  background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 184, 201, 0.5);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  box-shadow: var(--shadow-card);
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(255, 117, 143, 0.08), 0 2px 6px rgba(0, 0, 0, 0.03);
   transition: var(--transition-smooth);
   align-items: stretch;
   position: relative;
 }
 
 .locket-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-hover);
+  transform: translateY(-3px);
+  box-shadow: 0 14px 34px rgba(255, 117, 143, 0.16);
   border-color: var(--pink-soft);
 }
 
-/* KHUNG 1: KHUNG CHỨA ẢNH (LOCKET PHOTO WIDGET) */
+/* KHUNG 1: KHUNG CHỨA ẢNH */
 .locket-photo-frame {
   cursor: pointer;
-  border-radius: 22px;
+  border-radius: 18px;
   overflow: hidden;
   position: relative;
   background: #fff0f4;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8), 0 8px 22px rgba(255, 117, 143, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.8), 0 6px 18px rgba(255, 117, 143, 0.12);
   display: flex;
   flex-direction: column;
 }
@@ -815,7 +849,7 @@ body {
   width: 100%;
   aspect-ratio: 1 / 1;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: 16px;
   background: #fce7ec;
 }
 
@@ -888,10 +922,10 @@ body {
 
 /* KHUNG 2: KHUNG KẾ BÊN ẢNH MÔ TẢ CÂU CHUYỆN (STORY FRAME) */
 .locket-story-frame {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 245, 248, 0.85) 100%);
-  border: 1px dashed rgba(255, 184, 201, 0.75);
-  border-radius: 20px;
-  padding: 22px 24px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 245, 248, 0.82) 100%);
+  border: 1px dashed rgba(255, 184, 201, 0.65);
+  border-radius: 18px;
+  padding: 20px 22px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1849,6 +1883,10 @@ body {
 }
 
 @media (max-width: 768px) {
+  .main-content {
+    padding: 16px 12px 60px;
+  }
+
   .nav-container {
     gap: 8px;
   }
@@ -1863,35 +1901,72 @@ body {
     gap: 4px;
   }
 
+  .hero-section {
+    padding: 22px 6px 14px;
+  }
+
   .hero-title {
     font-size: 2.2rem;
     gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .hero-quote {
+    margin-bottom: 20px;
+  }
+
+  .love-counter-card {
+    padding: 18px 12px;
+    border-radius: 18px;
   }
 
   .counter-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
   }
 
   .counter-box {
-    padding: 10px 4px;
+    padding: 10px 2px;
+    border-radius: 12px;
+  }
+
+  .counter-number {
+    font-size: 1.55rem;
+  }
+
+  .section-container {
+    margin-top: 24px;
+    padding-top: 4px;
+  }
+
+  .section-header {
+    margin-bottom: 22px;
+  }
+
+  .locket-list {
+    gap: 20px;
   }
 
   .locket-card {
     grid-template-columns: 1fr;
-    gap: 16px;
-    padding: 16px;
+    gap: 14px;
+    padding: 14px;
+    border-radius: 18px;
   }
 
   .locket-photo-frame {
     max-width: 100%;
+    border-radius: 14px;
   }
 
   .locket-photo-inner {
     aspect-ratio: 4 / 3;
+    border-radius: 12px;
   }
 
   .locket-story-frame {
-    padding: 18px 16px;
+    padding: 16px 14px;
+    border-radius: 14px;
   }
 
   .locket-story-title {

@@ -772,10 +772,12 @@ class JourneyApp {
     // Lightbox đóng
     this.closeLightboxBtn.addEventListener("click", () => this.lightboxModal.close());
 
-    // Nút bắn tim
-    this.sendLoveBtn.addEventListener("click", (e) => {
-      this.spawnHeartBurst(e.clientX, e.clientY);
-    });
+    // Nút bắn tim (nếu có trên giao diện)
+    if (this.sendLoveBtn) {
+      this.sendLoveBtn.addEventListener("click", (e) => {
+        this.spawnHeartBurst(e.clientX, e.clientY);
+      });
+    }
 
     // Chạm 2 lần bất kỳ đâu để bắn tim
     document.addEventListener("dblclick", (e) => {
@@ -1102,8 +1104,8 @@ class JourneyApp {
     if (this.memories.length === 0) {
       this.timelineContainer.innerHTML = `
         <div style="text-align: center; padding: 40px; color: var(--text-muted); background: rgba(255,255,255,0.7); border-radius: var(--radius-lg); border: 1px dashed var(--pink-soft);">
-          <p style="font-size: 1.1rem; margin-bottom: 8px;">Chưa có khoảnh khắc Locket nào được lưu.</p>
-          <small>Bấm "+ Gửi Khoảnh Khắc Mới 📸" ở trên để gửi câu chuyện đầu tiên nhé!</small>
+          <p style="font-size: 1.1rem; margin-bottom: 8px;">Chưa có khoảnh khắc kỷ niệm nào được lưu.</p>
+          <small>Bấm "Gửi khoảnh khắc mới" ở trên để lưu lại câu chuyện đầu tiên nhé!</small>
         </div>
       `;
       return;
@@ -1152,7 +1154,7 @@ class JourneyApp {
             <div class="locket-story-footer">
               <div class="locket-footer-heart">
                 <span class="mini-heart-pulse">❤️</span>
-                <span class="locket-footer-note">Locket lưu giữ theo thời gian</span>
+                <span class="locket-footer-note">Lưu giữ theo thời gian</span>
               </div>
               <button class="locket-expand-story-btn" data-id="${mem.id}">Xem chi tiết 🌸</button>
             </div>
