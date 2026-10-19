@@ -449,21 +449,13 @@ class JourneyApp {
       });
     }
 
-    // 8. Nút lấy lại toạ độ GPS Google Maps
+    // 8. Nút lấy lại toạ độ vị trí
     if (this.btnRefreshGps) {
       this.btnRefreshGps.addEventListener("click", (e) => {
         e.preventDefault();
         this.autoFetchGpsLocation();
       });
     }
-
-    // 9. Nút chọn tranh minh họa mẫu
-    document.querySelectorAll(".preset-img-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        const url = e.target.dataset.url;
-        this.setProcessedPhoto(url, Date.now());
-      });
-    });
   }
 
   processUploadedFile(file) {
@@ -528,7 +520,7 @@ class JourneyApp {
     if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "none";
     if (this.uploadPreviewWrapper) this.uploadPreviewWrapper.style.display = "block";
 
-    // 1. TỰ ĐỘNG GÁN NGÀY VÀ GIỜ THEO THỜI ĐIỂM CHỤP
+    // 1. Tự động gán ngày và giờ theo thời điểm chụp
     const d = new Date(timestamp || Date.now());
     const pad = (n) => String(n).padStart(2, "0");
     const dtLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -536,16 +528,8 @@ class JourneyApp {
     if (this.memoryDateInput) {
       this.memoryDateInput.value = dtLocal;
     }
-    const autoTimeBadge = document.getElementById("auto-time-badge");
-    if (autoTimeBadge) {
-      autoTimeBadge.textContent = `⚡ ${pad(d.getHours())}:${pad(d.getMinutes())} • ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
-    }
-    const dtHint = document.getElementById("datetime-hint");
-    if (dtHint) {
-      dtHint.textContent = `Đã tự động lấy ngày & giờ lúc chụp: ${pad(d.getHours())}:${pad(d.getMinutes())}, ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
-    }
 
-    // 2. TỰ ĐỘNG ĐỊNH VỊ TOẠ ĐỘ GOOGLE MAPS
+    // 2. Tự động định vị toạ độ Google Maps
     this.autoFetchGpsLocation();
   }
 
@@ -554,11 +538,11 @@ class JourneyApp {
     const statusText = document.getElementById("gps-status-text");
 
     if (statusText) {
-      statusText.innerHTML = `🛰️ Đang tự động lấy toạ độ Google Maps...`;
+      statusText.textContent = "Đang định vị...";
     }
 
     if (!navigator.geolocation) {
-      if (statusText) statusText.innerHTML = `⚠️ Trình duyệt chưa hỗ trợ định vị GPS`;
+      if (statusText) statusText.textContent = "";
       return;
     }
 
@@ -589,13 +573,13 @@ class JourneyApp {
         if (locInput) locInput.value = fullLocString;
 
         if (statusText) {
-          statusText.innerHTML = `✅ Đã lưu toạ độ: <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" style="color:var(--pink-deep);font-weight:700;">Xem trên Google Maps ↗</a>`;
+          statusText.innerHTML = `<a href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Xem toạ độ Google Maps</a>`;
         }
       },
       (err) => {
         console.warn("GPS error:", err);
         if (statusText) {
-          statusText.innerHTML = `📍 Bạn có thể bấm "Lấy lại GPS" hoặc cấp quyền vị trí cho trang web`;
+          statusText.textContent = "";
         }
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
