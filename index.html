@@ -171,33 +171,46 @@
           <input type="text" id="memory-title-input" placeholder="Ví dụ: Buổi chiều đi dạo, Bữa tối cùng bé..." required>
         </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label for="memory-date-input">Ngày kỷ niệm *</label>
-            <input type="date" id="memory-date-input" required>
-          </div>
-          <div class="form-group">
-            <label for="memory-location-input">Địa điểm / Nơi chốn</label>
-            <input type="text" id="memory-location-input" placeholder="Ví dụ: Đà Lạt, Quán cafe quen, Bờ hồ...">
-          </div>
-        </div>
-
-        <!-- Easy Photo Upload Box for Phone & Desktop -->
+        <!-- Khung Chọn & Chụp ảnh Locket -->
         <div class="form-group">
-          <label>Khung ảnh Locket</label>
+          <label>Khung ảnh Locket *</label>
           
           <div class="photo-upload-container">
-            <label for="memory-file-input" class="upload-dropzone" id="upload-dropzone">
-              <span class="upload-icon">📷</span>
-              <span class="upload-main-text">Bấm vào đây để chọn ảnh từ điện thoại</span>
-              <span class="upload-sub-text">(Chụp ảnh trực tiếp hoặc chọn từ Thư viện ảnh)</span>
-            </label>
+            <!-- 2 Lựa chọn rõ ràng: Mở Camera chụp ngay hoặc Tải từ thư viện -->
+            <div class="photo-action-buttons-grid" id="photo-action-buttons-grid">
+              <button type="button" id="btn-camera-trigger" class="photo-source-btn camera-source-btn">
+                <span class="source-btn-icon">📸</span>
+                <span class="source-btn-title">Mở Camera Chụp Ảnh</span>
+                <span class="source-btn-subtitle">Chụp trực tiếp bằng camera</span>
+              </button>
+
+              <button type="button" id="btn-gallery-trigger" class="photo-source-btn gallery-source-btn">
+                <span class="source-btn-icon">🖼️</span>
+                <span class="source-btn-title">Chọn Từ Thư Viện</span>
+                <span class="source-btn-subtitle">Tải ảnh có sẵn trên máy</span>
+              </button>
+            </div>
+
+            <!-- Input chụp ảnh trực tiếp (Kích hoạt native camera trên điện thoại) -->
+            <input type="file" id="memory-camera-input" accept="image/*" capture="environment" style="display: none;">
+            <!-- Input chọn ảnh từ thư viện -->
             <input type="file" id="memory-file-input" accept="image/*" style="display: none;">
+
+            <!-- In-App Camera Viewfinder cho Webcam máy tính hoặc khi bật camera trên app -->
+            <div id="inapp-camera-wrapper" class="inapp-camera-wrapper" style="display: none;">
+              <video id="inapp-camera-video" autoplay playsinline muted></video>
+              <div class="camera-controls-bar">
+                <button type="button" id="btn-capture-inapp" class="btn-shutter-capture">⚪ Bấm Chụp</button>
+                <button type="button" id="btn-close-inapp" class="btn-close-camera-view">✕ Đóng Camera</button>
+              </div>
+            </div>
             
-            <!-- Live Preview -->
+            <!-- Live Preview khi đã có ảnh -->
             <div id="upload-preview-wrapper" class="upload-preview-wrapper" style="display: none;">
               <img id="upload-preview-img" src="" alt="Xem trước ảnh kỷ niệm">
-              <button type="button" id="remove-preview-btn" class="remove-preview-btn" title="Đổi ảnh khác">✕ Đổi ảnh khác</button>
+              <div class="preview-actions-overlay">
+                <button type="button" id="remove-preview-btn" class="remove-preview-btn" title="Đổi ảnh khác">✕ Chọn ảnh khác</button>
+              </div>
             </div>
           </div>
 
@@ -205,10 +218,32 @@
 
           <!-- Quick pick illustration presets -->
           <div class="preset-images-picker" style="margin-top: 10px;">
-            <span class="picker-hint">Hoặc chọn tranh minh họa có sẵn:</span>
+            <span class="picker-hint">Hoặc chọn tranh mẫu:</span>
             <button type="button" class="preset-img-btn" data-url="assets/images/memory1.jpg">☕ Đi Cafe</button>
             <button type="button" class="preset-img-btn" data-url="assets/images/memory2.jpg">🌅 Dạo Biển</button>
             <button type="button" class="preset-img-btn" data-url="assets/images/memory3.jpg">✨ Ngắm Sao</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <div class="label-with-badge">
+              <label for="memory-date-input">Ngày & Giờ Kỷ Niệm *</label>
+              <span class="auto-fill-tag" id="auto-time-badge" title="Tự động lấy thời điểm chụp ảnh">⚡ Tự động</span>
+            </div>
+            <input type="datetime-local" id="memory-date-input" required>
+            <small class="field-hint" id="datetime-hint">Đã tự động lấy ngày & giờ theo thời điểm chụp</small>
+          </div>
+
+          <div class="form-group">
+            <div class="label-with-badge">
+              <label for="memory-location-input">Toạ Độ Google Maps *</label>
+              <button type="button" class="btn-refresh-gps" id="btn-refresh-gps" title="Lấy lại toạ độ GPS hiện tại">🔄 Lấy lại GPS</button>
+            </div>
+            <input type="text" id="memory-location-input" placeholder="Đang tự động định vị Google Maps...">
+            <small class="field-hint gps-hint" id="gps-status-hint">
+              <span id="gps-status-text">🛰️ Đang tự động lấy toạ độ Google Maps...</span>
+            </small>
           </div>
         </div>
 

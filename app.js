@@ -194,13 +194,25 @@ class JourneyApp {
     this.musicStatus = document.getElementById("music-status");
     this.sendLoveBtn = document.getElementById("send-love-btn");
 
-    // Photo Upload Elements
+    // Photo Upload, Camera & GPS Elements
     this.memoryFileInput = document.getElementById("memory-file-input");
+    this.memoryCameraInput = document.getElementById("memory-camera-input");
+    this.btnCameraTrigger = document.getElementById("btn-camera-trigger");
+    this.btnGalleryTrigger = document.getElementById("btn-gallery-trigger");
+    this.photoActionButtonsGrid = document.getElementById("photo-action-buttons-grid");
+    this.inappCameraWrapper = document.getElementById("inapp-camera-wrapper");
+    this.inappCameraVideo = document.getElementById("inapp-camera-video");
+    this.btnCaptureInapp = document.getElementById("btn-capture-inapp");
+    this.btnCloseInapp = document.getElementById("btn-close-inapp");
     this.memoryImageInput = document.getElementById("memory-image-input");
-    this.uploadDropzone = document.getElementById("upload-dropzone");
     this.uploadPreviewWrapper = document.getElementById("upload-preview-wrapper");
     this.uploadPreviewImg = document.getElementById("upload-preview-img");
     this.removePreviewBtn = document.getElementById("remove-preview-btn");
+    this.btnRefreshGps = document.getElementById("btn-refresh-gps");
+    this.gpsStatusText = document.getElementById("gps-status-text");
+    this.memoryDateInput = document.getElementById("memory-date-input");
+    this.memoryLocationInput = document.getElementById("memory-location-input");
+    this.cameraStream = null;
 
     // Auth & Access Control
     this.authUnlockNavBtn = document.getElementById("auth-unlock-nav-btn");
@@ -369,46 +381,225 @@ class JourneyApp {
 
 
   // ==========================================
-  // XỬ LÝ CHỌN ẢNH TỪ ĐIỆN THOẠI (EASY UPLOAD)
+  // XỬ LÝ CHỤP & CHỌN ẢNH, TỰ ĐỘNG NGÀY GIỜ & GOOGLE MAPS GPS
   // ==========================================
   initPhotoUpload() {
-    if (!this.memoryFileInput) return;
-
-    this.memoryFileInput.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const rawDataUrl = event.target.result;
-        this.compressImage(rawDataUrl, 1200, 0.85, (compressedUrl) => {
-          this.uploadPreviewImg.src = compressedUrl;
-          this.memoryImageInput.value = compressedUrl;
-          this.uploadDropzone.style.display = "none";
-          this.uploadPreviewWrapper.style.display = "block";
-        });
-      };
-      reader.readAsDataURL(file);
-    });
-
-    if (this.removePreviewBtn) {
-      this.removePreviewBtn.addEventListener("click", () => {
-        this.memoryFileInput.value = "";
-        this.memoryImageInput.value = "assets/images/memory1.jpg";
-        this.uploadPreviewWrapper.style.display = "none";
-        this.uploadDropzone.style.display = "flex";
+    // 1. Mở camera chụp ảnh
+    if (this.btnCameraTrigger) {
+      this.btnCameraTrigger.addEventListener("click", () => {
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (isMobile) {
+          // Trên điện thoại, mở trực tiếp camera native của máy
+          if (this.memoryCameraInput) this.memoryCameraInput.click();
+        } else {
+          // Trên máy tính bàn / laptop, khởi động camera in-app từ webcam
+          this.startInAppCamera();
+        }
       });
     }
 
+    // 2. Mở thư viện chọn ảnh
+    if (this.btnGalleryTrigger) {
+      this.btnGalleryTrigger.addEventListener("click", () => {
+        if (this.memoryFileInput) this.memoryFileInput.click();
+      });
+    }
+
+    // 3. Xử lý ảnh từ input camera (điện thoại)
+    if (this.memoryCameraInput) {
+      this.memoryCameraInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        this.processUploadedFile(file);
+      });
+    }
+
+    // 4. Xử lý ảnh từ input thư viện
+    if (this.memoryFileInput) {
+      this.memoryFileInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        this.processUploadedFile(file);
+      });
+    }
+
+    // 5. Nút chụp ảnh từ webcam in-app (máy tính)
+    if (this.btnCaptureInapp) {
+      this.btnCaptureInapp.addEventListener("click", () => {
+        this.captureInAppPhoto();
+      });
+    }
+
+    // 6. Nút đóng camera in-app
+    if (this.btnCloseInapp) {
+      this.btnCloseInapp.addEventListener("click", () => {
+        this.stopInAppCamera();
+      });
+    }
+
+    // 7. Nút đổi ảnh khác
+    if (this.removePreviewBtn) {
+      this.removePreviewBtn.addEventListener("click", () => {
+        if (this.memoryFileInput) this.memoryFileInput.value = "";
+        if (this.memoryCameraInput) this.memoryCameraInput.value = "";
+        this.memoryImageInput.value = "assets/images/memory1.jpg";
+        this.uploadPreviewWrapper.style.display = "none";
+        if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "grid";
+        this.stopInAppCamera();
+      });
+    }
+
+    // 8. Nút lấy lại toạ độ GPS Google Maps
+    if (this.btnRefreshGps) {
+      this.btnRefreshGps.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.autoFetchGpsLocation();
+      });
+    }
+
+    // 9. Nút chọn tranh minh họa mẫu
     document.querySelectorAll(".preset-img-btn").forEach(btn => {
       btn.addEventListener("click", (e) => {
         const url = e.target.dataset.url;
-        this.memoryImageInput.value = url;
-        this.uploadPreviewImg.src = url;
-        this.uploadDropzone.style.display = "none";
-        this.uploadPreviewWrapper.style.display = "block";
+        this.setProcessedPhoto(url, Date.now());
       });
     });
+  }
+
+  processUploadedFile(file) {
+    const lastMod = file.lastModified || Date.now();
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const rawDataUrl = event.target.result;
+      this.compressImage(rawDataUrl, 1200, 0.85, (compressedUrl) => {
+        this.setProcessedPhoto(compressedUrl, lastMod);
+      });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async startInAppCamera() {
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        this.cameraStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }
+        });
+        if (this.inappCameraVideo) {
+          this.inappCameraVideo.srcObject = this.cameraStream;
+        }
+        if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "block";
+        if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "none";
+        return;
+      }
+    } catch (err) {
+      console.warn("Không mở được webcam in-app, chuyển qua file picker:", err);
+    }
+    // Nếu webcam bị từ chối hoặc lỗi, chuyển qua input camera
+    if (this.memoryCameraInput) this.memoryCameraInput.click();
+  }
+
+  stopInAppCamera() {
+    if (this.cameraStream) {
+      this.cameraStream.getTracks().forEach(track => track.stop());
+      this.cameraStream = null;
+    }
+    if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "none";
+    if (this.photoActionButtonsGrid && (!this.uploadPreviewWrapper || this.uploadPreviewWrapper.style.display === "none")) {
+      this.photoActionButtonsGrid.style.display = "grid";
+    }
+  }
+
+  captureInAppPhoto() {
+    if (!this.inappCameraVideo || !this.cameraStream) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = this.inappCameraVideo.videoWidth || 1280;
+    canvas.height = this.inappCameraVideo.videoHeight || 720;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(this.inappCameraVideo, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    this.stopInAppCamera();
+    this.setProcessedPhoto(dataUrl, Date.now());
+  }
+
+  setProcessedPhoto(imgUrl, timestamp) {
+    if (this.uploadPreviewImg) this.uploadPreviewImg.src = imgUrl;
+    if (this.memoryImageInput) this.memoryImageInput.value = imgUrl;
+    if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "none";
+    if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "none";
+    if (this.uploadPreviewWrapper) this.uploadPreviewWrapper.style.display = "block";
+
+    // 1. TỰ ĐỘNG GÁN NGÀY VÀ GIỜ THEO THỜI ĐIỂM CHỤP
+    const d = new Date(timestamp || Date.now());
+    const pad = (n) => String(n).padStart(2, "0");
+    const dtLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    
+    if (this.memoryDateInput) {
+      this.memoryDateInput.value = dtLocal;
+    }
+    const autoTimeBadge = document.getElementById("auto-time-badge");
+    if (autoTimeBadge) {
+      autoTimeBadge.textContent = `⚡ ${pad(d.getHours())}:${pad(d.getMinutes())} • ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+    }
+    const dtHint = document.getElementById("datetime-hint");
+    if (dtHint) {
+      dtHint.textContent = `Đã tự động lấy ngày & giờ lúc chụp: ${pad(d.getHours())}:${pad(d.getMinutes())}, ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    }
+
+    // 2. TỰ ĐỘNG ĐỊNH VỊ TOẠ ĐỘ GOOGLE MAPS
+    this.autoFetchGpsLocation();
+  }
+
+  autoFetchGpsLocation() {
+    const locInput = this.memoryLocationInput || document.getElementById("memory-location-input");
+    const statusText = document.getElementById("gps-status-text");
+
+    if (statusText) {
+      statusText.innerHTML = `🛰️ Đang tự động lấy toạ độ Google Maps...`;
+    }
+
+    if (!navigator.geolocation) {
+      if (statusText) statusText.innerHTML = `⚠️ Trình duyệt chưa hỗ trợ định vị GPS`;
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude.toFixed(6);
+        const lng = pos.coords.longitude.toFixed(6);
+        const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+
+        let placeName = "";
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&accept-language=vi`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.address) {
+              const a = data.address;
+              const parts = [
+                a.road || a.suburb || a.neighbourhood || "",
+                a.city_district || a.district || a.county || "",
+                a.city || a.state || ""
+              ].filter(Boolean);
+              if (parts.length > 0) placeName = parts.join(", ");
+            }
+          }
+        } catch(e) {}
+
+        const fullLocString = placeName ? `${placeName} (${mapsUrl})` : mapsUrl;
+        if (locInput) locInput.value = fullLocString;
+
+        if (statusText) {
+          statusText.innerHTML = `✅ Đã lưu toạ độ: <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" style="color:var(--pink-deep);font-weight:700;">Xem trên Google Maps ↗</a>`;
+        }
+      },
+      (err) => {
+        console.warn("GPS error:", err);
+        if (statusText) {
+          statusText.innerHTML = `📍 Bạn có thể bấm "Lấy lại GPS" hoặc cấp quyền vị trí cho trang web`;
+        }
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
   }
 
   compressImage(dataUrl, maxWidth, quality, callback) {
@@ -444,20 +635,35 @@ class JourneyApp {
         this.openAuthModal();
         return;
       }
-      const today = new Date().toISOString().split("T")[0];
-      document.getElementById("memory-date-input").value = today;
-      if (this.uploadDropzone && this.uploadPreviewWrapper) {
-        this.uploadDropzone.style.display = "flex";
-        this.uploadPreviewWrapper.style.display = "none";
-        this.memoryImageInput.value = "assets/images/memory1.jpg";
-      }
+
+      // Mặc định tự động điền ngày giờ hiện tại
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, "0");
+      const currentDt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      if (this.memoryDateInput) this.memoryDateInput.value = currentDt;
+
+      // Reset các chế độ chụp/chọn ảnh
+      if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "grid";
+      if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "none";
+      if (this.uploadPreviewWrapper) this.uploadPreviewWrapper.style.display = "none";
+      if (this.memoryImageInput) this.memoryImageInput.value = "assets/images/memory1.jpg";
+
+      // Tự động kích hoạt định vị GPS Google Maps
+      this.autoFetchGpsLocation();
+
       this.memoryModal.showModal();
     };
 
     if (this.openAddMemoryBtn) this.openAddMemoryBtn.addEventListener("click", openMemoryDialog);
     if (this.heroAddMemoryBtn) this.heroAddMemoryBtn.addEventListener("click", openMemoryDialog);
-    if (this.closeMemoryBtn) this.closeMemoryBtn.addEventListener("click", () => this.memoryModal.close());
-    if (this.cancelMemoryBtn) this.cancelMemoryBtn.addEventListener("click", () => this.memoryModal.close());
+    if (this.closeMemoryBtn) this.closeMemoryBtn.addEventListener("click", () => {
+      this.stopInAppCamera();
+      this.memoryModal.close();
+    });
+    if (this.cancelMemoryBtn) this.cancelMemoryBtn.addEventListener("click", () => {
+      this.stopInAppCamera();
+      this.memoryModal.close();
+    });
 
     // Submit form thêm kỷ niệm
     this.memoryForm.addEventListener("submit", (e) => {
@@ -928,11 +1134,8 @@ class JourneyApp {
     const visibleMemories = this.showAllMemories ? this.memories : this.memories.slice(0, 4);
 
     this.timelineContainer.innerHTML = visibleMemories.map((mem) => {
-      const dateParts = mem.date.split("-");
-      let dateFormatted = mem.date;
-      if (dateParts.length === 3) {
-        dateFormatted = `Ngày ${parseInt(dateParts[2])} tháng ${parseInt(dateParts[1])}, ${dateParts[0]}`;
-      }
+      const dateFormatted = this.formatMemoryDate(mem.date);
+      const locBadgeHtml = this.formatLocationBadge(mem.location);
 
       return `
         <article class="locket-card" data-id="${mem.id}">
@@ -942,7 +1145,7 @@ class JourneyApp {
               <img src="${mem.image}" alt="${this.escapeHTML(mem.title)}" loading="lazy">
               <div class="locket-photo-overlay">
                 <span class="locket-sender-badge">💕 ${this.config.partnerOne} & ${this.config.partnerTwo}</span>
-                ${mem.location ? `<span class="locket-loc-badge">📍 ${this.escapeHTML(mem.location)}</span>` : ""}
+                ${locBadgeHtml}
               </div>
               <div class="locket-zoom-hint">🔍 Phóng to</div>
             </div>
@@ -1002,9 +1205,9 @@ class JourneyApp {
         if (mem) {
           this.lightboxImg.src = mem.image;
           this.lightboxTitle.textContent = mem.title;
-          const dateParts = mem.date.split("-");
-          const dateStr = dateParts.length === 3 ? `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}` : mem.date;
-          this.lightboxDate.textContent = `📍 ${mem.location || "Cùng Nhau"} • 🗓️ ${dateStr}`;
+          const dateFormatted = this.formatMemoryDate(mem.date);
+          const locBadgeHtml = this.formatLocationBadge(mem.location);
+          this.lightboxDate.innerHTML = `${locBadgeHtml ? locBadgeHtml + " • " : ""}🗓️ ${dateFormatted}`;
           this.lightboxStory.textContent = mem.story;
           this.lightboxModal.showModal();
         }
@@ -1545,6 +1748,35 @@ class JourneyApp {
 
   mergeMemories(serverMemories) {
     this.syncMemories(serverMemories);
+  }
+
+  formatLocationBadge(locationStr) {
+    if (!locationStr) return "";
+    const match = locationStr.match(/(https?:\/\/[^\s\)]+)/);
+    if (match) {
+      const url = match[1];
+      let label = locationStr.replace(url, "").replace(/[\(\)]/g, "").trim();
+      if (!label || label === "-") label = "Toạ độ Google Maps";
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="locket-loc-badge locket-loc-link" title="Xem trên Google Maps" onclick="event.stopPropagation()">📍 ${this.escapeHTML(label)} ↗</a>`;
+    }
+    return `<span class="locket-loc-badge">📍 ${this.escapeHTML(locationStr)}</span>`;
+  }
+
+  formatMemoryDate(dateStr) {
+    if (!dateStr) return "";
+    const parts = dateStr.split("T");
+    const dateParts = parts[0].split("-");
+    let formatted = parts[0];
+    if (dateParts.length === 3) {
+      formatted = `Ngày ${parseInt(dateParts[2])} tháng ${parseInt(dateParts[1])}, ${dateParts[0]}`;
+    }
+    if (parts.length > 1 && parts[1]) {
+      const timeParts = parts[1].split(":");
+      if (timeParts.length >= 2) {
+        formatted = `${timeParts[0]}:${timeParts[1]} • ${formatted}`;
+      }
+    }
+    return formatted;
   }
 
   escapeHTML(str) {

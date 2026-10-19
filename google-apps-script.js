@@ -271,9 +271,18 @@ function doGet(e) {
     var memData = memorySheet.getDataRange().getValues();
     for (var j = 1; j < memData.length; j++) {
       var dateVal = memData[j][2];
-      var formattedDate = dateVal;
+      var formattedDate = String(dateVal);
       try {
-        formattedDate = Utilities.formatDate(new Date(dateVal), "GMT+7", "yyyy-MM-dd");
+        var d = new Date(dateVal);
+        if (!isNaN(d.getTime())) {
+          var hours = Utilities.formatDate(d, "GMT+7", "HH:mm");
+          var datePart = Utilities.formatDate(d, "GMT+7", "yyyy-MM-dd");
+          if (hours && hours !== "00:00") {
+            formattedDate = datePart + "T" + hours;
+          } else {
+            formattedDate = datePart;
+          }
+        }
       } catch(e) {}
       
       memories.push({
