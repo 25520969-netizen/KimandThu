@@ -11,13 +11,27 @@ var FOLDER_ID = "1dcyUgareKuDTIyj9xmhKKY6Uq0uC6Zuj";
 var ALLOWED_PASSCODES = ["kimthu", "0204", "1909"];
 
 /**
- * HÀM CẤP QUYỀN GOOGLE DRIVE:
- * Bạn hãy chọn hàm "capQuyenTruyCapDrive" trên thanh công cụ và bấm "Chạy" (Run) một lần.
- * Google sẽ hiện bảng yêu cầu cấp quyền truy cập Drive -> bấm Xem lại quyền -> Nâng cao -> Đi tới ... (không an toàn) -> Cho phép.
+ * HÀM CẤP QUYỀN VÀ KIỂM TRA GOOGLE DRIVE:
+ * Bạn có thể chọn hàm này và bấm "Chạy" (Run) để kiểm tra tạo file trong thư mục.
  */
 function capQuyenTruyCapDrive() {
-  var folder = DriveApp.getFolderById(FOLDER_ID);
-  Logger.log("Kết nối Drive thành công! Thư mục: " + folder.getName());
+  try {
+    var folder = DriveApp.getFolderById(FOLDER_ID);
+    Logger.log("1. Kết nối Drive thành công! Thư mục: " + folder.getName());
+    var blob = Utilities.newBlob("Test connection", "text/plain", "test.txt");
+    var file = folder.createFile(blob);
+    Logger.log("2. Tạo file thành công! ID: " + file.getId());
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      Logger.log("3. Cấp quyền xem công khai thành công!");
+    } catch(errShare) {
+      Logger.log("3. Lưu ý chia sẻ (tài khoản tổ chức): " + errShare.toString());
+    }
+    file.setTrashed(true);
+    Logger.log("Hoàn tất kiểm tra Drive!");
+  } catch(e) {
+    Logger.log("Lỗi: " + e.toString());
+  }
 }
 
 function doPost(e) {
@@ -87,11 +101,14 @@ function doPost(e) {
           var blob = Utilities.newBlob(decoded, contentType, filename);
           
           var file = folder.createFile(blob);
-          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          try {
+            file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          } catch(shareErr) {
+            Logger.log("Sharing warning: " + shareErr.toString());
+          }
           imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
         } catch (driveErr) {
           Logger.log("Drive Error: " + driveErr.toString());
-          // Nếu Drive chưa được cấp quyền, lưu lại ảnh để dữ liệu không bị mất
           imageUrl = data.image || "";
         }
       }
@@ -124,7 +141,11 @@ function doPost(e) {
           var blob = Utilities.newBlob(decoded, contentType, filename);
           
           var file = folder.createFile(blob);
-          file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          try {
+            file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          } catch(shareErr) {
+            Logger.log("Sharing warning: " + shareErr.toString());
+          }
           imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
         } catch (driveErr) {
           Logger.log("Drive Error: " + driveErr.toString());
