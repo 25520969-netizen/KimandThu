@@ -214,9 +214,22 @@ class JourneyApp {
   // XÁC THỰC QUYỀN TRUY CẬP (KIM & THƯ VS KHÁCH)
   // ==========================================
   initAuth() {
-    // 1. Kiểm tra URL query param: ?key=... hoặc ?code=... hoặc ?pass=...
+    // 1. Kiểm tra URL query param: ?key=... hoặc ?code=... hoặc ?pass=... và ?api=...
     const urlParams = new URLSearchParams(window.location.search);
     const secretKey = urlParams.get("key") || urlParams.get("code") || urlParams.get("pass");
+    const apiUrlParam = urlParams.get("api");
+
+    if (apiUrlParam) {
+      try {
+        const decodedUrl = decodeURIComponent(apiUrlParam);
+        if (decodedUrl.startsWith("http")) {
+          this.config.apiUrl = decodedUrl;
+          this.saveData("journey_config_v3", this.config);
+          console.log("Đã tự động kết nối Backend API từ link:", decodedUrl);
+        }
+      } catch (e) {}
+    }
+
     if (secretKey && this.isPasscodeValid(secretKey)) {
       this.isAuthenticated = true;
       this.saveData("journey_auth_token", "unlocked");
@@ -276,9 +289,12 @@ class JourneyApp {
     if (this.copySecretLinkBtn) {
       this.copySecretLinkBtn.addEventListener("click", () => {
         const pass = (this.cfgPasscodeInput && this.cfgPasscodeInput.value.trim()) || this.config.passcode || "kimthu";
-        const secretLink = `${window.location.origin}${window.location.pathname}?key=${encodeURIComponent(pass)}`;
+        let secretLink = `${window.location.origin}${window.location.pathname}?key=${encodeURIComponent(pass)}`;
+        if (this.config.apiUrl) {
+          secretLink += `&api=${encodeURIComponent(this.config.apiUrl)}`;
+        }
         navigator.clipboard.writeText(secretLink).then(() => {
-          this.showToast("Đã sao chép link tự mở khóa! Gửi link này cho Thư nhé 💕");
+          this.showToast("Đã sao chép link tự mở khóa & đồng bộ Google Drive! Gửi link này cho Thư nhé 💕");
         }).catch(() => {
           prompt("Sao chép link này gửi cho Thư nha:", secretLink);
         });
@@ -466,11 +482,17 @@ class JourneyApp {
       // Sắp xếp sự kiện gần nhất lên đầu
       this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
       this.saveData("journey_memories_v3", this.memories);
-      this.sendToBackend({ type: "memory", ...newMemory, imageBase64: newMemory.image });
       this.renderTimeline();
       this.memoryForm.reset();
       this.memoryModal.close();
       this.spawnHeartConfetti();
+
+      if (this.config.apiUrl) {
+        this.showToast("Đang đồng bộ ảnh lên Google Drive cho cả hai... ☁️");
+        this.sendToBackend({ type: "memory", ...newMemory, imageBase64: newMemory.image });
+      } else {
+        this.showToast("⚠️ Chưa kết nối link Google Drive trong Cài Đặt nên ảnh này chỉ xem được trên máy này!", 6000);
+      }
     });
 
     // Cài đặt thông tin
@@ -488,6 +510,16 @@ class JourneyApp {
       if (passField) passField.value = this.config.passcode || "kimthu";
       const apiInput = document.getElementById("cfg-api-url");
       if (apiInput) apiInput.value = this.config.apiUrl || "";
+
+      const statusHint = document.getElementById("backend-status-hint");
+      if (statusHint) {
+        if (this.config.apiUrl && this.config.apiUrl.startsWith("http")) {
+          statusHint.innerHTML = `<span style="color: #10b981; font-weight: 600;">🟢 Đã kết nối Google Drive & Sheets</span>`;
+        } else {
+          statusHint.innerHTML = `<span style="color: #e11d48; font-weight: 600;">🔴 Chưa kết nối: Hãy dán link Web App để 2 người xem chung ảnh!</span>`;
+        }
+      }
+
       this.settingsModal.showModal();
     });
     this.closeSettingsBtn.addEventListener("click", () => this.settingsModal.close());
@@ -1163,14 +1195,18 @@ class JourneyApp {
         ...payload,
         passcode: this.config.passcode || "kimthu"
       };
+
+      // Gửi text/plain để không bị chặn bởi CORS Preflight OPTIONS trên browser
       fetch(this.config.apiUrl, {
         method: "POST",
         mode: "no-cors",
-        headers: {
-          "Content-Type": "application/json"
-        },
         body: JSON.stringify(dataWithAuth)
-      }).catch(e => console.warn("Lỗi gửi dữ liệu lên Google Drive Backend:", e));
+      })
+      .then(() => {
+        // Đồng bộ lại sau 3.5s để cập nhật link ảnh chính thức từ Drive
+        setTimeout(() => this.syncFromBackend(), 3500);
+      })
+      .catch(e => console.warn("Lỗi gửi dữ liệu lên Google Drive Backend:", e));
     } catch (e) {
       console.warn("Lỗi fetch:", e);
     }
@@ -1341,11 +1377,15 @@ class JourneyApp {
     this.spawnHeartBurst(window.innerWidth - 60, window.innerHeight - 60);
 
     // Lưu vào Google Drive và Google Sheet Backend
-    this.sendToBackend({
-      type: "chat_message",
-      ...newMsg,
-      imageBase64: imageBase64 || ""
-    });
+    if (this.config.apiUrl) {
+      this.sendToBackend({
+        type: "chat_message",
+        ...newMsg,
+        imageBase64: imageBase64 || ""
+      });
+    } else if (imageBase64) {
+      this.showToast("⚠️ Lưu ý: Chưa kết nối link Google Drive trong Cài Đặt nên ảnh này chỉ lưu trên máy bạn!");
+    }
   }
 
   renderChatMessages() {
@@ -1384,16 +1424,18 @@ class JourneyApp {
     fetch(fetchUrl)
       .then(res => res.json())
       .then(data => {
-        if (data.memories && data.memories.length > 0) {
-          this.memories = data.memories;
-          this.saveData("journey_memories_v3", this.memories);
-          this.renderTimeline();
+        if (data.memories && Array.isArray(data.memories) && data.memories.length > 0) {
+          this.mergeMemories(data.memories);
         }
-        if (data.messages && data.messages.length > 0) {
+        if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
           let hasNew = false;
           data.messages.forEach(serverMsg => {
-            if (!this.chatMessages.some(m => m.id === serverMsg.id)) {
+            const existingIdx = this.chatMessages.findIndex(m => m.id === serverMsg.id);
+            if (existingIdx === -1) {
               this.chatMessages.push(serverMsg);
+              hasNew = true;
+            } else if (serverMsg.image && serverMsg.image !== this.chatMessages[existingIdx].image) {
+              this.chatMessages[existingIdx].image = serverMsg.image;
               hasNew = true;
             }
           });
@@ -1407,6 +1449,31 @@ class JourneyApp {
         }
       })
       .catch(e => console.warn("Chưa đồng bộ được từ Google Drive:", e));
+  }
+
+  mergeMemories(serverMemories) {
+    if (!Array.isArray(serverMemories)) return;
+    let changed = false;
+
+    serverMemories.forEach(sMem => {
+      const idx = this.memories.findIndex(m => m.id === sMem.id);
+      if (idx !== -1) {
+        // Nếu ảnh server là link Drive mới thì cập nhật
+        if (sMem.image && sMem.image !== this.memories[idx].image) {
+          this.memories[idx] = sMem;
+          changed = true;
+        }
+      } else {
+        this.memories.push(sMem);
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
+      this.saveData("journey_memories_v3", this.memories);
+      this.renderTimeline();
+    }
   }
 
   escapeHTML(str) {

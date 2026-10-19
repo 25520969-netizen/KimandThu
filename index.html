@@ -343,9 +343,12 @@
         </div>
 
         <div class="form-group">
-          <label for="cfg-api-url">Link Google Drive Backend (Tùy chọn)</label>
+          <label for="cfg-api-url">Link Google Apps Script Backend (Đồng bộ ảnh & tin nhắn)</label>
           <input type="url" id="cfg-api-url" placeholder="https://script.google.com/macros/s/.../exec">
-          <small style="color: var(--text-muted); font-size: 0.78rem;">Dán link Web App để tự động đồng bộ ảnh vào Google Drive.</small>
+          <div id="backend-status-hint" style="font-size: 0.82rem; margin-top: 4px;"></div>
+          <small style="color: var(--text-muted); font-size: 0.78rem;">
+            Dán link Web App từ Google Apps Script để ảnh tự động lưu vào Google Drive và cả hai đều xem được trên mọi thiết bị.
+          </small>
         </div>
 
         <div class="modal-actions">

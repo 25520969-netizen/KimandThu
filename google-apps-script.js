@@ -72,7 +72,7 @@ function doPost(e) {
         
         var file = folder.createFile(blob);
         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        imageUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
+        imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
       }
       
       sheet.appendRow([data.id, data.title, data.date, data.location, imageUrl, data.story, new Date()]);
@@ -98,7 +98,7 @@ function doPost(e) {
         
         var file = folder.createFile(blob);
         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-        imageUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
+        imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
       }
       
       sheet.appendRow([data.id, data.sender, data.text || "", imageUrl, data.timestamp || new Date().toISOString(), new Date()]);
