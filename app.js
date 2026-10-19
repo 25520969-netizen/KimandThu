@@ -535,14 +535,16 @@ class JourneyApp {
 
   autoFetchGpsLocation() {
     const locInput = this.memoryLocationInput || document.getElementById("memory-location-input");
-    const statusText = document.getElementById("gps-status-text");
+    const refreshBtn = this.btnRefreshGps || document.getElementById("btn-refresh-gps");
 
-    if (statusText) {
-      statusText.textContent = "Đang định vị...";
+    if (refreshBtn) refreshBtn.classList.add("spinning");
+    if (locInput && !locInput.value) {
+      locInput.placeholder = "Đang định vị toạ độ...";
     }
 
     if (!navigator.geolocation) {
-      if (statusText) statusText.textContent = "";
+      if (refreshBtn) refreshBtn.classList.remove("spinning");
+      if (locInput && !locInput.value) locInput.placeholder = "Vị trí...";
       return;
     }
 
@@ -571,16 +573,12 @@ class JourneyApp {
 
         const fullLocString = placeName ? `${placeName} (${mapsUrl})` : mapsUrl;
         if (locInput) locInput.value = fullLocString;
-
-        if (statusText) {
-          statusText.innerHTML = `<a href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Xem toạ độ Google Maps</a>`;
-        }
+        if (refreshBtn) refreshBtn.classList.remove("spinning");
       },
       (err) => {
         console.warn("GPS error:", err);
-        if (statusText) {
-          statusText.textContent = "";
-        }
+        if (refreshBtn) refreshBtn.classList.remove("spinning");
+        if (locInput && !locInput.value) locInput.placeholder = "Vị trí...";
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
     );

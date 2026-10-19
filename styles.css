@@ -1126,27 +1126,57 @@ body {
 .photo-action-buttons-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 
-.photo-source-pill {
+.photo-source-card {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid #ebd8de;
-  background: #ffffff;
-  color: var(--text-main);
-  font-size: 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 117, 143, 0.35);
+  background: linear-gradient(135deg, #ffffff 0%, #fff6f8 100%);
+  color: var(--pink-deep);
+  font-family: inherit;
+  font-size: 0.92rem;
   font-weight: 600;
   cursor: pointer;
-  text-align: center;
-  transition: var(--transition-smooth);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(255, 117, 143, 0.08);
 }
 
-.photo-source-pill:hover, .photo-source-pill:active {
-  background: var(--pink-lightest);
+.photo-source-card:hover {
+  background: linear-gradient(135deg, #ffffff 0%, #ffeef2 100%);
   border-color: var(--pink-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(255, 117, 143, 0.22);
+  color: var(--pink-primary);
+}
+
+.photo-source-card:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(255, 117, 143, 0.12);
+}
+
+.source-card-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pink-primary);
+  transition: transform 0.25s ease;
+}
+
+.photo-source-card:hover .source-card-icon {
+  transform: scale(1.12);
   color: var(--pink-deep);
-  transform: translateY(-1px);
+}
+
+.source-card-text {
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 /* In-App Camera Viewfinder */
@@ -1246,20 +1276,40 @@ body {
   margin-bottom: 4px;
 }
 
-.btn-text-action {
-  background: none;
-  border: none;
+.btn-circular-reset {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #ffd1dc;
+  background: #fff5f7;
   color: var(--pink-primary);
-  font-size: 0.75rem;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0;
-  transition: var(--transition-smooth);
+  flex-shrink: 0;
 }
 
-.btn-text-action:hover {
-  color: var(--pink-deep);
-  text-decoration: underline;
+.btn-circular-reset:hover {
+  background: var(--pink-primary);
+  color: #ffffff;
+  border-color: var(--pink-primary);
+  transform: rotate(180deg);
+  box-shadow: 0 3px 8px rgba(255, 117, 143, 0.35);
+}
+
+.btn-circular-reset:active {
+  transform: rotate(360deg) scale(0.95);
+}
+
+.btn-circular-reset.spinning svg {
+  animation: spinGps 0.65s linear infinite;
+}
+
+@keyframes spinGps {
+  100% { transform: rotate(360deg); }
 }
 
 .subtle-status {
