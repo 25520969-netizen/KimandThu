@@ -229,6 +229,58 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    // 6. LƯU ĐỊA ĐIỂM MUỐN ĐI (PLACES WISHLIST)
+    if (data.type === "place") {
+      var placeSheet = ss.getSheetByName("Places") || ss.insertSheet("Places");
+      if (placeSheet.getLastRow() === 0) {
+        placeSheet.appendRow(["ID", "Name", "MapUrl", "TiktokUrl", "Lat", "Lng", "Notes", "Visited", "CreatedAt"]);
+      }
+      placeSheet.appendRow([
+        data.id,
+        data.name || "",
+        data.mapUrl || "",
+        data.tiktokUrl || "",
+        data.lat !== undefined ? data.lat : "",
+        data.lng !== undefined ? data.lng : "",
+        data.notes || "",
+        data.visited === true,
+        new Date()
+      ]);
+      return ContentService.createTextOutput(JSON.stringify({status: "success"}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 7. CẬP NHẬT TRẠNG THÁI ĐÃ ĐI / CHƯA ĐI
+    if (data.type === "toggle_place") {
+      var placeSheet = ss.getSheetByName("Places");
+      if (placeSheet && placeSheet.getLastRow() > 1) {
+        var values = placeSheet.getDataRange().getValues();
+        for (var i = 1; i < values.length; i++) {
+          if (String(values[i][0]).trim() === String(data.id).trim()) {
+            placeSheet.getRange(i + 1, 8).setValue(data.visited === true);
+            break;
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({status: "success"}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // 8. XÓA ĐỊA ĐIỂM MUỐN ĐI
+    if (data.type === "delete_place") {
+      var placeSheet = ss.getSheetByName("Places");
+      if (placeSheet && placeSheet.getLastRow() > 1) {
+        var values = placeSheet.getDataRange().getValues();
+        for (var i = values.length - 1; i >= 1; i--) {
+          if (String(values[i][0]).trim() === String(data.id).trim()) {
+            placeSheet.deleteRow(i + 1);
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({status: "success", deletedId: data.id}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     // Phản hồi mặc định nếu kiểu dữ liệu không khớp
     return ContentService.createTextOutput(JSON.stringify({
       status: "ignored", 
@@ -246,6 +298,7 @@ function doGet(e) {
   var taskSheet = ss.getSheetByName("Tasks");
   var memorySheet = ss.getSheetByName("Memories");
   var msgSheet = ss.getSheetByName("Messages");
+  var placeSheet = ss.getSheetByName("Places");
   
   // Xác thực quyền riêng tư: Nếu có mật mã thì mới trả về tin nhắn riêng tư
   var reqPass = (e && e.parameter && e.parameter.passcode) ? String(e.parameter.passcode).toLowerCase().trim() : "";
@@ -316,10 +369,30 @@ function doGet(e) {
     }
   }
   
+  // Danh sách địa điểm muốn đi
+  var places = [];
+  if (placeSheet && placeSheet.getLastRow() > 1) {
+    var placeData = placeSheet.getDataRange().getValues();
+    for (var p = 1; p < placeData.length; p++) {
+      places.push({
+        id: String(placeData[p][0]),
+        name: placeData[p][1] || "",
+        mapUrl: placeData[p][2] || "",
+        tiktokUrl: placeData[p][3] || "",
+        lat: placeData[p][4] !== "" ? parseFloat(placeData[p][4]) : null,
+        lng: placeData[p][5] !== "" ? parseFloat(placeData[p][5]) : null,
+        notes: placeData[p][6] || "",
+        visited: placeData[p][7] === true || placeData[p][7] === "TRUE",
+        createdAt: placeData[p][8] ? String(placeData[p][8]) : ""
+      });
+    }
+  }
+
   return ContentService.createTextOutput(JSON.stringify({
     tasks: tasks, 
     memories: memories, 
     messages: messages,
+    places: places,
     isAuth: isAuth
   })).setMimeType(ContentService.MimeType.JSON);
 }

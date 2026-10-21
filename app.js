@@ -66,6 +66,42 @@ const DEFAULT_CHAT_MESSAGES = [
   }
 ];
 
+const DEFAULT_PLACES = [
+  {
+    id: "place-1",
+    name: "Ga Tàu Thuỷ Bạch Đằng (Waterbus)",
+    mapUrl: "https://www.google.com/maps?q=10.773347,106.706346",
+    tiktokUrl: "https://www.tiktok.com",
+    lat: 10.773347,
+    lng: 106.706346,
+    notes: "Ngắm hoàng hôn trên sông Sài Gòn và đón gió mát cùng bé Thư 🌅",
+    visited: false,
+    createdAt: "2026-10-21T12:00:00"
+  },
+  {
+    id: "place-2",
+    name: "Hồ Con Rùa (Công trường Quốc Tế)",
+    mapUrl: "https://www.google.com/maps?q=10.782639,106.695833",
+    tiktokUrl: "https://www.tiktok.com",
+    lat: 10.782639,
+    lng: 106.695833,
+    notes: "Ăn bánh tráng nướng, uống trà dâu và hóng gió đêm 🍓",
+    visited: true,
+    createdAt: "2026-10-20T10:00:00"
+  },
+  {
+    id: "place-3",
+    name: "Bảo Tàng Mỹ Thuật TP.HCM",
+    mapUrl: "https://www.google.com/maps?q=10.769919,106.699389",
+    tiktokUrl: "https://www.tiktok.com",
+    lat: 10.769919,
+    lng: 106.699389,
+    notes: "Chụp ảnh phong cách vintage cho bé Thư 📸",
+    visited: false,
+    createdAt: "2026-10-19T15:00:00"
+  }
+];
+
 // ==========================================
 // BỘ QUẢN LÝ ỨNG DỤNG (JOURNEY APP)
 // ==========================================
@@ -78,6 +114,11 @@ class JourneyApp {
     }
     this.memories = this.loadData("journey_memories_v3", DEFAULT_MEMORIES);
     this.deletedMemoryIds = this.loadData("journey_deleted_mem_ids", []);
+    this.places = this.loadData("journey_places_v2", DEFAULT_PLACES);
+    this.deletedPlaceIds = this.loadData("journey_deleted_place_ids", []);
+    this.placesFilter = "all";
+    this.lastUserPosition = null;
+    this.placeDistances = new Map();
     this.period = this.loadData("journey_period_v1", DEFAULT_PERIOD);
     this.chatMessages = this.loadData("journey_chat_messages_v1", DEFAULT_CHAT_MESSAGES);
     this.currentSender = this.loadData("journey_chat_sender_v1", "Kim");
@@ -95,10 +136,12 @@ class JourneyApp {
     this.initPeriodTracker();
     this.initChat();
     this.initPhotoUpload();
+    this.initPlaces();
     this.startLiveCounter();
     this.renderProfile();
     this.renderPeriodTracker();
     this.renderTimeline();
+    this.renderPlaces();
     this.initPetalsCanvas();
     this.syncFromBackend();
     this.checkPeriodAlert();
@@ -225,6 +268,24 @@ class JourneyApp {
     this.cancelAuthBtn = document.getElementById("cancel-auth-btn");
     this.copySecretLinkBtn = document.getElementById("copy-secret-link-btn");
     this.cfgPasscodeInput = document.getElementById("cfg-passcode");
+
+    // Places Wishlist
+    this.placesListContainer = document.getElementById("places-list-container");
+    this.reloadPlacesGpsBtn = document.getElementById("reload-places-gps-btn");
+    this.openAddPlaceModalBtn = document.getElementById("open-add-place-modal-btn");
+    this.placeModal = document.getElementById("place-modal");
+    this.placeForm = document.getElementById("place-form");
+    this.closePlaceModalBtn = document.getElementById("close-place-modal-btn");
+    this.cancelPlaceBtn = document.getElementById("cancel-place-btn");
+    this.placeNameInput = document.getElementById("place-name-input");
+    this.placeMapInput = document.getElementById("place-map-input");
+    this.placeTiktokInput = document.getElementById("place-tiktok-input");
+    this.placeNotesInput = document.getElementById("place-notes-input");
+    this.btnPlaceUseCurrentGps = document.getElementById("btn-place-use-current-gps");
+    this.navPlacesBtn = document.getElementById("nav-places-btn");
+    this.countPlacesAll = document.getElementById("count-places-all");
+    this.countPlacesUnvisited = document.getElementById("count-places-unvisited");
+    this.countPlacesVisited = document.getElementById("count-places-visited");
   }
 
   // ==========================================
@@ -360,6 +421,7 @@ class JourneyApp {
       if (this.periodModal && this.periodModal.open) this.periodModal.close();
       if (this.settingsModal && this.settingsModal.open) this.settingsModal.close();
       if (this.memoryModal && this.memoryModal.open) this.memoryModal.close();
+      if (this.placeModal && this.placeModal.open) this.placeModal.close();
     }
   }
 
@@ -798,16 +860,21 @@ class JourneyApp {
         localStorage.removeItem("journey_config_v3");
         localStorage.removeItem("journey_memories_v3");
         localStorage.removeItem("journey_deleted_mem_ids");
+        localStorage.removeItem("journey_places_v2");
+        localStorage.removeItem("journey_deleted_place_ids");
         localStorage.removeItem("journey_period_v1");
         localStorage.removeItem("journey_chat_messages_v1");
         this.config = { ...DEFAULT_CONFIG };
         this.memories = [ ...DEFAULT_MEMORIES ];
         this.deletedMemoryIds = [];
+        this.places = [ ...DEFAULT_PLACES ];
+        this.deletedPlaceIds = [];
         this.period = { ...DEFAULT_PERIOD };
         this.chatMessages = [ ...DEFAULT_CHAT_MESSAGES ];
         this.renderProfile();
         this.renderPeriodTracker();
         this.renderTimeline();
+        this.renderPlaces();
         this.renderChatMessages();
         this.settingsModal.close();
       }
@@ -1294,6 +1361,406 @@ class JourneyApp {
   }
 
   // ==========================================
+  // NHỮNG NƠI MUỐN ĐI CÙNG EM (PLACES WISHLIST)
+  // ==========================================
+  initPlaces() {
+    // 1. Chuyển đổi tab bộ lọc (Tất cả / Chưa đi / Đã đến)
+    document.querySelectorAll(".place-tab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".place-tab").forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        this.placesFilter = tab.dataset.filter || "all";
+        this.renderPlaces();
+      });
+    });
+
+    // 2. Nút reload vị trí và sắp xếp nơi gần nhất từ trên xuống
+    if (this.reloadPlacesGpsBtn) {
+      this.reloadPlacesGpsBtn.addEventListener("click", () => {
+        this.reloadPlacesByGps();
+      });
+    }
+
+    // 3. Mở modal thêm địa điểm mới
+    if (this.openAddPlaceModalBtn) {
+      this.openAddPlaceModalBtn.addEventListener("click", () => {
+        if (!this.isAuthenticated) {
+          this.showToast("Chỉ Kim & Thư mới có quyền thêm địa điểm 💕");
+          this.openAuthModal();
+          return;
+        }
+        if (this.placeForm) this.placeForm.reset();
+        if (this.placeModal) this.placeModal.showModal();
+        if (this.placeNameInput) this.placeNameInput.focus();
+      });
+    }
+
+    // 4. Đóng modal thêm địa điểm
+    if (this.closePlaceModalBtn) {
+      this.closePlaceModalBtn.addEventListener("click", () => {
+        if (this.placeModal) this.placeModal.close();
+      });
+    }
+    if (this.cancelPlaceBtn) {
+      this.cancelPlaceBtn.addEventListener("click", () => {
+        if (this.placeModal) this.placeModal.close();
+      });
+    }
+
+    // 5. Nút lấy toạ độ GPS hiện tại điền vào ô link map
+    if (this.btnPlaceUseCurrentGps) {
+      this.btnPlaceUseCurrentGps.addEventListener("click", () => {
+        this.btnPlaceUseCurrentGps.classList.add("spinning");
+        if (this.placeMapInput) this.placeMapInput.placeholder = "Đang lấy toạ độ...";
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude.toFixed(6);
+            const lng = pos.coords.longitude.toFixed(6);
+            if (this.placeMapInput) {
+              this.placeMapInput.value = `https://www.google.com/maps?q=${lat},${lng}`;
+            }
+            this.btnPlaceUseCurrentGps.classList.remove("spinning");
+            this.showToast("📍 Đã lấy toạ độ vị trí hiện tại!");
+          },
+          (err) => {
+            console.warn("Lỗi GPS:", err);
+            this.btnPlaceUseCurrentGps.classList.remove("spinning");
+            if (this.placeMapInput && !this.placeMapInput.value) {
+              this.placeMapInput.placeholder = "Dán link Google Maps hoặc toạ độ...";
+            }
+            this.showToast("Không lấy được GPS. Bé dán link Google Maps nhé!", 3500);
+          },
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 }
+        );
+      });
+    }
+
+    // 6. Xử lý lưu địa điểm mới
+    if (this.placeForm) {
+      this.placeForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (!this.isAuthenticated) {
+          this.showToast("Chế độ chỉ xem: Không thể thêm địa điểm!");
+          return;
+        }
+
+        const name = (this.placeNameInput ? this.placeNameInput.value : "").trim();
+        const mapUrl = (this.placeMapInput ? this.placeMapInput.value : "").trim();
+        const tiktokUrl = (this.placeTiktokInput ? this.placeTiktokInput.value : "").trim();
+        const notes = (this.placeNotesInput ? this.placeNotesInput.value : "").trim();
+
+        if (!name) {
+          this.showToast("Bé vui lòng nhập tên địa điểm nhé! 🌸");
+          return;
+        }
+
+        // Trích xuất toạ độ (lat, lng) siêu nhanh từ link hoặc chuỗi nhập
+        const coords = this.extractCoordinates(mapUrl);
+
+        const newPlace = {
+          id: "place-" + Date.now(),
+          name: name,
+          mapUrl: mapUrl,
+          tiktokUrl: tiktokUrl,
+          lat: coords ? coords.lat : null,
+          lng: coords ? coords.lng : null,
+          notes: notes,
+          visited: false,
+          createdAt: new Date().toISOString()
+        };
+
+        // Nếu đã có toạ độ người dùng trước đó, tính khoảng cách ngay
+        if (this.lastUserPosition && coords) {
+          const d = this.calculateDistanceKm(this.lastUserPosition.lat, this.lastUserPosition.lng, coords.lat, coords.lng);
+          this.placeDistances.set(newPlace.id, d);
+        }
+
+        this.places.unshift(newPlace);
+        this.saveData("journey_places_v2", this.places);
+        this.sendToBackend({ type: "place", ...newPlace });
+        this.renderPlaces();
+
+        if (this.placeModal) this.placeModal.close();
+        this.showToast("Đã lưu địa điểm mới vào danh sách hẹn hò 💕");
+        this.spawnHeartConfetti();
+      });
+    }
+
+    // 7. Nhảy nhanh đến mục địa điểm từ dropdown navigation
+    if (this.navPlacesBtn) {
+      this.navPlacesBtn.addEventListener("click", () => {
+        if (this.navDropdownWrap) this.navDropdownWrap.classList.remove("open");
+        const placesSec = document.getElementById("places");
+        if (placesSec) {
+          placesSec.scrollIntoView({ behavior: "smooth" });
+        }
+      });
+    }
+  }
+
+  // Trích xuất toạ độ vĩ độ, kinh độ từ chuỗi nhập hoặc link Google Maps
+  extractCoordinates(str) {
+    if (!str) return null;
+    const clean = String(str).trim();
+
+    // Dạng toạ độ trực tiếp: 10.776889, 106.695444
+    const directMatch = clean.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+    if (directMatch) {
+      return { lat: parseFloat(directMatch[1]), lng: parseFloat(directMatch[2]) };
+    }
+
+    // Dạng link Google Maps có @lat,lng: /@10.776889,106.695444
+    const atMatch = clean.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (atMatch) {
+      return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
+    }
+
+    // Dạng link query ?q=lat,lng hoặc &q=lat,lng
+    const qMatch = clean.match(/[?&](?:q|ll|query)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (qMatch) {
+      return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
+    }
+
+    return null;
+  }
+
+  // Công thức Haversine tính khoảng cách theo đường chim bay giữa 2 toạ độ (chạy trong < 0.005ms)
+  calculateDistanceKm(lat1, lon1, lat2, lon2) {
+    if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+    const R = 6371; // Bán kính Trái Đất theo km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  formatDistance(km) {
+    if (km == null || isNaN(km)) return "";
+    if (km < 1) {
+      return `${Math.round(km * 1000)} m`;
+    }
+    return `${km.toFixed(1)} km`;
+  }
+
+  // Lấy vị trí GPS hiện tại và sắp xếp danh sách nơi gần nhất từ trên xuống dưới
+  reloadPlacesByGps() {
+    if (this.reloadPlacesGpsBtn) {
+      this.reloadPlacesGpsBtn.classList.add("spinning");
+    }
+
+    const sortWithPosition = (userLat, userLng) => {
+      this.lastUserPosition = { lat: userLat, lng: userLng, timestamp: Date.now() };
+
+      // 1. Tính toán khoảng cách siêu tốc (<1ms) cho tất cả địa điểm có toạ độ
+      this.places.forEach(p => {
+        if (p.lat != null && p.lng != null) {
+          const d = this.calculateDistanceKm(userLat, userLng, p.lat, p.lng);
+          this.placeDistances.set(p.id, d);
+        } else {
+          this.placeDistances.delete(p.id);
+        }
+      });
+
+      // 2. Sắp xếp: Nơi gần nhất lên đầu tiên, địa điểm chưa có toạ độ xuống cuối
+      this.places.sort((a, b) => {
+        const distA = this.placeDistances.has(a.id) ? this.placeDistances.get(a.id) : 999999;
+        const distB = this.placeDistances.has(b.id) ? this.placeDistances.get(b.id) : 999999;
+        return distA - distB;
+      });
+
+      this.saveData("journey_places_v2", this.places);
+      this.renderPlaces(true);
+
+      if (this.reloadPlacesGpsBtn) {
+        this.reloadPlacesGpsBtn.classList.remove("spinning");
+      }
+      this.showToast("📍 Đã sắp xếp lại theo nơi gần bạn nhất từ trên xuống!", 2800);
+    };
+
+    // TỐI ƯU TỐC ĐỘ: Nếu đã có toạ độ vừa lấy trong 2 phút gần đây, sort ngay lập tức (0ms)
+    if (this.lastUserPosition && (Date.now() - this.lastUserPosition.timestamp < 120000)) {
+      sortWithPosition(this.lastUserPosition.lat, this.lastUserPosition.lng);
+      return;
+    }
+
+    if (!navigator.geolocation) {
+      if (this.reloadPlacesGpsBtn) this.reloadPlacesGpsBtn.classList.remove("spinning");
+      this.showToast("Trình duyệt không hỗ trợ định vị GPS.", 3000);
+      return;
+    }
+
+    // Cơ chế 2 tầng: GPS độ chính xác cao -> fallback toạ độ mạng/wifi (rất nhạy trên mobile)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        sortWithPosition(pos.coords.latitude, pos.coords.longitude);
+      },
+      (err) => {
+        if (err && err.code === 1) {
+          if (this.reloadPlacesGpsBtn) this.reloadPlacesGpsBtn.classList.remove("spinning");
+          this.showToast("Cần bật quyền Vị trí cho Chrome trong Cài đặt iPhone để tìm nơi gần nhất 💕", 4500);
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            sortWithPosition(pos.coords.latitude, pos.coords.longitude);
+          },
+          (errFallback) => {
+            console.warn("Lỗi định vị:", errFallback);
+            if (this.reloadPlacesGpsBtn) this.reloadPlacesGpsBtn.classList.remove("spinning");
+            this.showToast("Không nhận được GPS. Bé kiểm tra lại cài đặt định vị máy nhé!", 3500);
+          },
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+        );
+      },
+      { enableHighAccuracy: true, timeout: 4500, maximumAge: 60000 }
+    );
+  }
+
+  // Đánh dấu đã đi / muốn đi
+  togglePlaceVisited(id) {
+    if (!this.isAuthenticated) {
+      this.showToast("Chỉ Kim & Thư mới có quyền đánh dấu đã đi 💕");
+      this.openAuthModal();
+      return;
+    }
+
+    const place = this.places.find(p => String(p.id) === String(id));
+    if (!place) return;
+
+    place.visited = !place.visited;
+    this.saveData("journey_places_v2", this.places);
+    this.sendToBackend({ type: "toggle_place", id: place.id, visited: place.visited });
+    this.renderPlaces();
+    this.showToast(place.visited ? "🌸 Đã đánh dấu ghé thăm địa điểm này!" : "✨ Đã chuyển về danh sách muốn đi!");
+  }
+
+  // Xóa địa điểm khỏi danh sách
+  deletePlace(id) {
+    if (!this.isAuthenticated) {
+      this.showToast("Chỉ Kim & Thư mới có quyền xóa địa điểm 💕");
+      this.openAuthModal();
+      return;
+    }
+
+    const target = this.places.find(p => String(p.id) === String(id));
+    if (!target) return;
+
+    if (confirm(`Em/anh có muốn xóa địa điểm "${target.name}" khỏi danh sách không?`)) {
+      const pid = String(id);
+      this.places = this.places.filter(p => String(p.id) !== pid);
+      if (!this.deletedPlaceIds.includes(pid)) {
+        this.deletedPlaceIds.push(pid);
+        this.saveData("journey_deleted_place_ids", this.deletedPlaceIds);
+      }
+      this.saveData("journey_places_v2", this.places);
+      this.sendToBackend({ type: "delete_place", id: pid });
+      this.renderPlaces();
+      this.showToast("Đã xóa địa điểm khỏi danh sách.");
+    }
+  }
+
+  // Hiển thị danh sách địa điểm ra màn hình
+  renderPlaces(hasJustSorted = false) {
+    if (!this.placesListContainer) return;
+
+    // Cập nhật số lượng đếm trên tab
+    const totalCount = this.places.length;
+    const unvisitedCount = this.places.filter(p => !p.visited).length;
+    const visitedCount = this.places.filter(p => p.visited).length;
+
+    if (this.countPlacesAll) this.countPlacesAll.textContent = totalCount;
+    if (this.countPlacesUnvisited) this.countPlacesUnvisited.textContent = unvisitedCount;
+    if (this.countPlacesVisited) this.countPlacesVisited.textContent = visitedCount;
+
+    // Lọc theo tab hiện tại
+    let filtered = this.places;
+    if (this.placesFilter === "unvisited") {
+      filtered = this.places.filter(p => !p.visited);
+    } else if (this.placesFilter === "visited") {
+      filtered = this.places.filter(p => p.visited);
+    }
+
+    if (filtered.length === 0) {
+      this.placesListContainer.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 36px 16px; background: rgba(255,255,255,0.7); border-radius: 18px; border: 1px dashed var(--pink-soft); color: var(--text-muted);">
+          <p style="font-size: 1.05rem; margin-bottom: 6px;">Chưa có địa điểm nào trong mục này.</p>
+          <small>Bấm "Thêm địa điểm" ở trên để lưu lại quán cafe, điểm hẹn hò hay ho nhé!</small>
+        </div>
+      `;
+      return;
+    }
+
+    this.placesListContainer.innerHTML = filtered.map((place, idx) => {
+      const hasDistance = this.placeDistances.has(place.id);
+      const distKm = hasDistance ? this.placeDistances.get(place.id) : null;
+      const distText = this.formatDistance(distKm);
+      const isNearest = hasJustSorted && idx === 0 && hasDistance;
+
+      // Link Google Maps
+      const mapsUrl = place.mapUrl || (place.lat && place.lng ? `https://www.google.com/maps?q=${place.lat},${place.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}`);
+
+      return `
+        <article class="place-card ${place.visited ? "is-visited" : ""}" data-id="${place.id}">
+          <div>
+            <div class="place-card-top">
+              <h3 class="place-title">${this.escapeHTML(place.name)}</h3>
+              ${this.isAuthenticated ? `<button class="place-delete-btn couple-only" data-id="${place.id}" title="Xóa địa điểm này" aria-label="Xóa địa điểm">&times;</button>` : ""}
+            </div>
+
+            <div class="place-meta-row">
+              ${place.visited 
+                ? '<span class="place-status-tag visited">🌸 Đã ghé thăm</span>' 
+                : '<span class="place-status-tag unvisited">✨ Muốn đi</span>'}
+              ${distText ? `<span class="place-distance-tag ${isNearest ? 'nearest' : ''}">📍 Cách ${distText}</span>` : ""}
+            </div>
+
+            ${place.notes ? `<p class="place-notes">"${this.escapeHTML(place.notes)}"</p>` : ""}
+          </div>
+
+          <div class="place-actions-row">
+            <div class="place-links-group">
+              <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-maps" title="Mở chỉ đường trên Google Maps">
+                🗺️ Google Maps
+              </a>
+              ${place.tiktokUrl ? `
+                <a href="${place.tiktokUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-tiktok" title="Xem video review trên TikTok">
+                  🎵 TikTok ↗
+                </a>
+              ` : ""}
+            </div>
+
+            <button class="btn-place-toggle-visited couple-only" data-id="${place.id}" title="${place.visited ? "Đánh dấu muốn đi lại" : "Đánh dấu đã đến cùng nhau"}">
+              ${place.visited ? "Đã đến ✓" : "Đánh dấu đã đi 💕"}
+            </button>
+          </div>
+        </article>
+      `;
+    }).join("");
+
+    // Gắn sự kiện đánh dấu đã đi
+    this.placesListContainer.querySelectorAll(".btn-place-toggle-visited").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.togglePlaceVisited(btn.dataset.id);
+      });
+    });
+
+    // Gắn sự kiện xóa địa điểm
+    this.placesListContainer.querySelectorAll(".place-delete-btn").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.deletePlace(btn.dataset.id);
+      });
+    });
+  }
+
+  // ==========================================
   // HIỆU ỨNG CÁNH HOA RƠI (CANVAS PETALS)
   // ==========================================
   initPetalsCanvas() {
@@ -1722,8 +2189,51 @@ class JourneyApp {
             }
           }
         }
+        if (data.places && Array.isArray(data.places)) {
+          this.syncPlaces(data.places);
+        }
       })
       .catch(e => console.warn("Chưa đồng bộ được từ Google Drive:", e));
+  }
+
+  syncPlaces(serverPlaces) {
+    if (!Array.isArray(serverPlaces)) return;
+
+    // 1. Lọc bỏ các địa điểm mà người dùng đã bấm xóa trên thiết bị này
+    const validServer = serverPlaces.filter(sp => !this.deletedPlaceIds.includes(String(sp.id)));
+
+    // 2. Giữ lại địa điểm mặc định nếu chưa bị xóa
+    const defaultPlaces = DEFAULT_PLACES.filter(dp =>
+      !this.deletedPlaceIds.includes(String(dp.id)) &&
+      !validServer.some(sp => String(sp.id) === String(dp.id))
+    );
+
+    // 3. Giữ lại các địa điểm cục bộ vừa tạo trong vòng 60 giây
+    const now = Date.now();
+    const pendingLocal = this.places.filter(p => {
+      const pid = String(p.id);
+      if (this.deletedPlaceIds.includes(pid)) return false;
+      if (validServer.some(sp => String(sp.id) === pid)) return false;
+      if (["place-1", "place-2", "place-3"].includes(pid)) return false;
+      const rawNum = parseInt(pid.replace(/\D/g, "")) || 0;
+      return (now - rawNum) < 60000;
+    });
+
+    const combinedMap = new Map();
+    validServer.forEach(p => combinedMap.set(String(p.id), p));
+    pendingLocal.forEach(p => {
+      if (!combinedMap.has(String(p.id))) combinedMap.set(String(p.id), p);
+    });
+    defaultPlaces.forEach(p => {
+      if (!combinedMap.has(String(p.id))) combinedMap.set(String(p.id), p);
+    });
+
+    const mergedPlaces = Array.from(combinedMap.values());
+    if (JSON.stringify(mergedPlaces) !== JSON.stringify(this.places)) {
+      this.places = mergedPlaces;
+      this.saveData("journey_places_v2", this.places);
+      this.renderPlaces();
+    }
   }
 
   syncMemories(serverMemories) {

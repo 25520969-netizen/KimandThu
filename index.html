@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,600&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=3.3">
+  <link rel="stylesheet" href="styles.css?v=3.4">
 </head>
 <body>
   <!-- Ambient Floating Petals Background Canvas -->
@@ -50,6 +50,10 @@
             <button id="music-toggle-btn" class="dropdown-item" role="menuitem">
               <span class="dropdown-icon">🎵</span>
               <span class="dropdown-text" id="music-status">Bật Nhạc</span>
+            </button>
+            <button id="nav-places-btn" class="dropdown-item" role="menuitem">
+              <span class="dropdown-icon">📍</span>
+              <span class="dropdown-text">Nơi Muốn Đi</span>
             </button>
             <button id="period-nav-btn" class="dropdown-item couple-only" role="menuitem">
               <span class="dropdown-icon">🍓</span>
@@ -134,6 +138,45 @@
         <div class="locket-list" id="timeline-list-container">
           <!-- Rendered dynamically via JS -->
         </div>
+      </div>
+    </section>
+
+    <!-- SECTION: PLACES WISHLIST (Những nơi chúng mình muốn đi) -->
+    <section id="places" class="section-container places-section">
+      <div class="section-header">
+        <div class="pill-tag">Đi Cùng Nhau</div>
+        <h2 class="section-title">Những Nơi Muốn Đi Cùng Em 💕</h2>
+        <p class="section-desc">Lưu lại những quán xinh, điểm hẹn hò hay ho từ TikTok & Google Maps.</p>
+
+        <!-- Thanh điều khiển: Lọc & Sắp xếp gần nhất & Thêm mới -->
+        <div class="places-controls-bar">
+          <div class="places-filter-tabs" role="tablist">
+            <button class="place-tab active" data-filter="all">Tất cả (<span id="count-places-all">0</span>)</button>
+            <button class="place-tab" data-filter="unvisited">Muốn đi (<span id="count-places-unvisited">0</span>)</button>
+            <button class="place-tab" data-filter="visited">Đã đến (<span id="count-places-visited">0</span>)</button>
+          </div>
+
+          <div class="places-action-btns">
+            <button id="reload-places-gps-btn" class="btn btn-reload-places" title="Lấy vị trí GPS và sắp xếp nơi gần bạn nhất từ trên xuống">
+              <svg class="reload-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+              </svg>
+              <span>Nơi gần nhất</span>
+            </button>
+            <button id="open-add-place-modal-btn" class="btn btn-add-place couple-only" title="Thêm địa điểm muốn đi mới">
+              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+              <span>Thêm địa điểm</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grid danh sách các địa điểm -->
+      <div class="places-grid" id="places-list-container">
+        <!-- Rendered dynamically via JS -->
       </div>
     </section>
 
@@ -232,6 +275,53 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" id="cancel-memory-btn">Hủy</button>
           <button type="submit" class="btn btn-primary">Lưu khoảnh khắc</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL: THÊM NƠI MUỐN ĐI MỚI -->
+  <dialog id="place-modal" class="custom-modal place-modal" aria-labelledby="place-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="place-modal-title">Thêm địa điểm muốn đi</h3>
+        <button class="modal-close-btn" id="close-place-modal-btn" aria-label="Đóng">&times;</button>
+      </div>
+
+      <form id="place-form" class="modal-form">
+        <div class="form-group">
+          <label for="place-name-input">Tên địa điểm *</label>
+          <input type="text" id="place-name-input" placeholder="Ví dụ: Cà phê Sunset hoàng hôn, Haidilao..." required>
+        </div>
+
+        <div class="form-group">
+          <div class="label-with-action">
+            <label for="place-map-input">Link Google Maps hoặc Toạ độ *</label>
+            <button type="button" class="btn-circular-reset" id="btn-place-use-current-gps" title="Tự động lấy toạ độ GPS hiện tại" aria-label="Lấy toạ độ GPS">
+              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+            </button>
+          </div>
+          <input type="text" id="place-map-input" placeholder="Dán link Google Maps hoặc toạ độ..." required>
+          <small class="field-hint">Mẹo: Dán link từ Google Maps hoặc chạm nút tròn hồng để lấy toạ độ nơi đang đứng.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="place-tiktok-input">Link video TikTok (nếu có)</label>
+          <input type="url" id="place-tiktok-input" placeholder="https://www.tiktok.com/@.../video/... hoặc https://vt.tiktok.com/...">
+          <small class="field-hint">Dán link review TikTok để bấm mở xem ngay khi cần.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="place-notes-input">Ghi chú (tuỳ chọn)</label>
+          <textarea id="place-notes-input" rows="2" placeholder="Món ngon nên gọi, góc chụp hình sống ảo cho bé..."></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="cancel-place-btn">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="save-place-btn">Lưu địa điểm 💕</button>
         </div>
       </form>
     </div>
@@ -465,6 +555,6 @@
     </form>
   </div>
 
-  <script src="app.js?v=3.3"></script>
+  <script src="app.js?v=3.4"></script>
 </body>
 </html>
