@@ -1266,18 +1266,39 @@ body {
   gap: 4px;
   font-size: 0.74rem;
   font-weight: 700;
-  padding: 3px 10px;
+  padding: 3.5px 11px;
   border-radius: var(--radius-pill);
   background: linear-gradient(135deg, #fff3bf 0%, #ffe066 100%);
   color: #d9480f;
-  border: 1px solid rgba(255, 212, 59, 0.8);
+  border: 1px solid rgba(255, 212, 59, 0.85);
+  box-shadow: 0 2px 6px rgba(217, 72, 15, 0.08);
+  transition: var(--transition-smooth);
+}
+
+.place-distance-tag.driving-route {
+  background: linear-gradient(135deg, #eef9ff 0%, #d8f0ff 100%);
+  color: #1971c2;
+  border: 1px solid rgba(116, 192, 252, 0.9);
+  box-shadow: 0 2px 6px rgba(25, 113, 194, 0.1);
 }
 
 .place-distance-tag.nearest {
-  background: linear-gradient(135deg, #ffe0e9 0%, #ffd1dc 100%);
-  color: var(--pink-deep);
-  border-color: var(--pink-soft);
-  box-shadow: 0 0 10px rgba(255, 117, 143, 0.35);
+  background: linear-gradient(135deg, #ffe0e9 0%, #ffd1dc 100%) !important;
+  color: var(--pink-deep) !important;
+  border-color: var(--pink-soft) !important;
+  box-shadow: 0 0 12px rgba(255, 117, 143, 0.4) !important;
+}
+
+.place-distance-tag.resolving {
+  background: rgba(255, 240, 244, 0.9);
+  color: var(--text-muted);
+  border: 1px dashed rgba(255, 184, 201, 0.9);
+  animation: pulseDistance 1.4s ease-in-out infinite;
+}
+
+@keyframes pulseDistance {
+  0%, 100% { opacity: 0.7; transform: scale(0.98); }
+  50% { opacity: 1; transform: scale(1); }
 }
 
 .place-notes {
@@ -1319,15 +1340,19 @@ body {
 }
 
 .btn-place-maps {
-  background: #fff0f4;
+  background: linear-gradient(135deg, #fff0f4 0%, #ffe3ec 100%);
   color: var(--pink-deep);
-  border: 1px solid rgba(255, 184, 201, 0.8);
+  border: 1px solid rgba(255, 184, 201, 0.9);
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(255, 117, 143, 0.12);
 }
 
 .btn-place-maps:hover {
-  background: var(--pink-primary);
+  background: linear-gradient(135deg, var(--pink-primary) 0%, #ff5277 100%);
   color: #ffffff;
   border-color: var(--pink-primary);
+  box-shadow: 0 4px 14px rgba(255, 117, 143, 0.35);
+  transform: translateY(-1px);
 }
 
 .btn-place-tiktok {

@@ -117,8 +117,10 @@ class JourneyApp {
     this.places = this.loadData("journey_places_v2", DEFAULT_PLACES);
     this.deletedPlaceIds = this.loadData("journey_deleted_place_ids", []);
     this.placesFilter = "all";
-    this.lastUserPosition = null;
+    this.lastUserPosition = this.loadData("journey_last_user_pos", null);
     this.placeDistances = new Map();
+    this.placeRoutes = new Map();
+    this.routingCache = new Map();
     this.period = this.loadData("journey_period_v1", DEFAULT_PERIOD);
     this.chatMessages = this.loadData("journey_chat_messages_v1", DEFAULT_CHAT_MESSAGES);
     this.currentSender = this.loadData("journey_chat_sender_v1", "Kim");
@@ -1374,14 +1376,14 @@ class JourneyApp {
       });
     });
 
-    // 2. Nút reload vị trí và sắp xếp nơi gần nhất từ trên xuống
+    // 2. Nút reload vị trí và sắp xếp nơi gần nhất từ trên xuống (tính đường ngắn nhất)
     if (this.reloadPlacesGpsBtn) {
       this.reloadPlacesGpsBtn.addEventListener("click", () => {
         this.reloadPlacesByGps();
       });
     }
 
-    // 3. Mở modal thêm địa điểm mới
+    // 3. Mở modal thêm địa điểm mới (kích hoạt sẵn GPS ngầm để chuẩn bị tính khoảng cách)
     if (this.openAddPlaceModalBtn) {
       this.openAddPlaceModalBtn.addEventListener("click", () => {
         if (!this.isAuthenticated) {
@@ -1392,6 +1394,9 @@ class JourneyApp {
         if (this.placeForm) this.placeForm.reset();
         if (this.placeModal) this.placeModal.showModal();
         if (this.placeNameInput) this.placeNameInput.focus();
+
+        // Kích hoạt ngầm định vị để có toạ độ người dùng trước khi bấm lưu
+        this.getUserPosition();
       });
     }
 
@@ -1413,10 +1418,10 @@ class JourneyApp {
         this.btnPlaceUseCurrentGps.classList.add("spinning");
         if (this.placeMapInput) this.placeMapInput.placeholder = "Đang lấy toạ độ...";
 
-        navigator.geolocation.getCurrentPosition(
+        this.getUserPosition(
           (pos) => {
-            const lat = pos.coords.latitude.toFixed(6);
-            const lng = pos.coords.longitude.toFixed(6);
+            const lat = Number(pos.lat).toFixed(6);
+            const lng = Number(pos.lng).toFixed(6);
             if (this.placeMapInput) {
               this.placeMapInput.value = `https://www.google.com/maps?q=${lat},${lng}`;
             }
@@ -1427,11 +1432,11 @@ class JourneyApp {
             console.warn("Lỗi GPS:", err);
             this.btnPlaceUseCurrentGps.classList.remove("spinning");
             if (this.placeMapInput && !this.placeMapInput.value) {
-              this.placeMapInput.placeholder = "Dán link Google Maps hoặc toạ độ...";
+              this.placeMapInput.placeholder = "Dán link Google Maps, toạ độ hoặc để trống...";
             }
-            this.showToast("Không lấy được GPS. Bé dán link Google Maps nhé!", 3500);
+            this.showToast("Không lấy được GPS. Bé dán link Google Maps hoặc tên quán nhé!", 3500);
           },
-          { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 }
+          { enableHighAccuracy: true, timeout: 8000 }
         );
       });
     }
@@ -1455,35 +1460,93 @@ class JourneyApp {
           return;
         }
 
-        // Trích xuất toạ độ (lat, lng) siêu nhanh từ link hoặc chuỗi nhập
-        const coords = this.extractCoordinates(mapUrl);
+        // 1. Trích xuất toạ độ siêu tốc từ mapUrl hoặc tên nếu có sẵn
+        const directCoords = this.extractCoordinates(mapUrl) || this.extractCoordinates(name);
 
         const newPlace = {
           id: "place-" + Date.now(),
           name: name,
           mapUrl: mapUrl,
           tiktokUrl: tiktokUrl,
-          lat: coords ? coords.lat : null,
-          lng: coords ? coords.lng : null,
+          lat: directCoords ? directCoords.lat : null,
+          lng: directCoords ? directCoords.lng : null,
           notes: notes,
           visited: false,
           createdAt: new Date().toISOString()
         };
 
-        // Nếu đã có toạ độ người dùng trước đó, tính khoảng cách ngay
-        if (this.lastUserPosition && coords) {
-          const d = this.calculateDistanceKm(this.lastUserPosition.lat, this.lastUserPosition.lng, coords.lat, coords.lng);
-          this.placeDistances.set(newPlace.id, d);
-        }
-
+        // Đưa ngay vào đầu danh sách để phản hồi UI tức thì (0ms)
         this.places.unshift(newPlace);
         this.saveData("journey_places_v2", this.places);
         this.sendToBackend({ type: "place", ...newPlace });
-        this.renderPlaces();
 
         if (this.placeModal) this.placeModal.close();
-        this.showToast("Đã lưu địa điểm mới vào danh sách hẹn hò 💕");
         this.spawnHeartConfetti();
+
+        // 2. Hàm tính khoảng cách và đường đi xe ngắn nhất
+        const calculateForPlace = (placeObj) => {
+          if (!this.lastUserPosition || placeObj.lat == null || placeObj.lng == null) return;
+          const straightKm = this.calculateDistanceKm(
+            this.lastUserPosition.lat,
+            this.lastUserPosition.lng,
+            placeObj.lat,
+            placeObj.lng
+          );
+          this.placeDistances.set(placeObj.id, straightKm);
+          this.renderPlaces();
+
+          // Gọi API tính quãng đường đi xe ngắn nhất & thời gian di chuyển
+          this.fetchDrivingRoute(
+            this.lastUserPosition.lat,
+            this.lastUserPosition.lng,
+            placeObj.lat,
+            placeObj.lng
+          ).then(route => {
+            if (route) {
+              this.placeRoutes.set(placeObj.id, route);
+              this.renderPlaces();
+            }
+          });
+        };
+
+        // 3. Nếu đã trích xuất được toạ độ:
+        if (directCoords) {
+          this.showToast("Đã lưu địa điểm mới & đang tính đường đi ngắn nhất 💕");
+          if (this.lastUserPosition) {
+            calculateForPlace(newPlace);
+          } else {
+            this.getUserPosition(() => {
+              calculateForPlace(newPlace);
+            });
+          }
+        } else {
+          // Chưa có toạ độ (do dán link rút gọn maps.app.goo.gl hoặc chỉ nhập tên quán)
+          newPlace.isResolving = true;
+          this.renderPlaces();
+          this.showToast("Đã lưu địa điểm! Đang tự động tìm toạ độ & tính đường đi...", 3000);
+
+          this.resolveCoordinatesAsync(mapUrl, name).then(resolved => {
+            newPlace.isResolving = false;
+            if (resolved) {
+              newPlace.lat = resolved.lat;
+              newPlace.lng = resolved.lng;
+              this.saveData("journey_places_v2", this.places);
+              this.sendToBackend({ type: "place", ...newPlace });
+
+              if (this.lastUserPosition) {
+                calculateForPlace(newPlace);
+              } else {
+                this.getUserPosition(() => {
+                  calculateForPlace(newPlace);
+                });
+              }
+            } else {
+              this.renderPlaces();
+            }
+          });
+        }
+
+        this.renderPlaces();
       });
     }
 
@@ -1497,32 +1560,194 @@ class JourneyApp {
         }
       });
     }
+
+    // 8. Tự động kiểm tra và phân giải toạ độ cho các địa điểm còn thiếu (chạy ngầm)
+    this.autoResolveMissingPlaceCoordinates();
+
+    // 9. Tự động lấy vị trí hiện tại của thiết bị trong nền để sẵn sàng tính khoảng cách
+    this.getUserPosition(
+      () => {
+        this.calculateAllDistancesAndRoutes(false);
+      },
+      () => {},
+      { timeout: 7000 }
+    );
   }
 
-  // Trích xuất toạ độ vĩ độ, kinh độ từ chuỗi nhập hoặc link Google Maps
+  // ==========================================
+  // XỬ LÝ ĐỊNH VỊ GPS VÀ TÍNH TOÁN ĐƯỜNG ĐI
+  // ==========================================
+
+  // Lấy vị trí GPS của thiết bị với cơ chế fallback 2 tầng và cache
+  getUserPosition(successCb, errorCb, options = {}) {
+    if (!navigator.geolocation) {
+      if (errorCb) errorCb(new Error("Trình duyệt không hỗ trợ Geolocation"));
+      return;
+    }
+
+    // Nếu vừa lấy vị trí trong vòng 60 giây, tái sử dụng tức thì
+    if (this.lastUserPosition && (Date.now() - (this.lastUserPosition.timestamp || 0) < 60000)) {
+      if (successCb) successCb(this.lastUserPosition);
+      return;
+    }
+
+    const defaultOpts = { enableHighAccuracy: true, timeout: 6500, maximumAge: 120000 };
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        this.lastUserPosition = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          timestamp: Date.now()
+        };
+        this.saveData("journey_last_user_pos", this.lastUserPosition);
+        if (successCb) successCb(this.lastUserPosition);
+      },
+      (err) => {
+        // Fallback định vị mạng / WiFi (độ nhạy cao trên iPhone)
+        navigator.geolocation.getCurrentPosition(
+          (posFallback) => {
+            this.lastUserPosition = {
+              lat: posFallback.coords.latitude,
+              lng: posFallback.coords.longitude,
+              accuracy: posFallback.coords.accuracy,
+              timestamp: Date.now()
+            };
+            this.saveData("journey_last_user_pos", this.lastUserPosition);
+            if (successCb) successCb(this.lastUserPosition);
+          },
+          (errFallback) => {
+            console.warn("Lỗi Geolocation:", errFallback);
+            if (errorCb) errorCb(errFallback);
+          },
+          { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 }
+        );
+      },
+      { ...defaultOpts, ...options }
+    );
+  }
+
+  // Trích xuất toạ độ vĩ độ, kinh độ từ chuỗi nhập hoặc link Google Maps / Apple Maps
   extractCoordinates(str) {
     if (!str) return null;
     const clean = String(str).trim();
 
-    // Dạng toạ độ trực tiếp: 10.776889, 106.695444
-    const directMatch = clean.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
-    if (directMatch) {
-      return { lat: parseFloat(directMatch[1]), lng: parseFloat(directMatch[2]) };
+    // 1. Link Google Maps URL protobuf (!3d<lat>!4d<lng>)
+    const protoMatch = clean.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    if (protoMatch) {
+      return { lat: parseFloat(protoMatch[1]), lng: parseFloat(protoMatch[2]) };
     }
 
-    // Dạng link Google Maps có @lat,lng: /@10.776889,106.695444
+    // 2. Link Google Maps có @lat,lng: /@10.776889,106.695444
     const atMatch = clean.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (atMatch) {
       return { lat: parseFloat(atMatch[1]), lng: parseFloat(atMatch[2]) };
     }
 
-    // Dạng link query ?q=lat,lng hoặc &q=lat,lng
-    const qMatch = clean.match(/[?&](?:q|ll|query)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    // 3. Link query ?q=lat,lng hoặc &ll=lat,lng hoặc destination=lat,lng hoặc daddr=lat,lng
+    const qMatch = clean.match(/[?&](?:q|ll|query|destination|daddr)=(-?\d+\.\d+)[,+](-?\d+\.\d+)/);
     if (qMatch) {
       return { lat: parseFloat(qMatch[1]), lng: parseFloat(qMatch[2]) };
     }
 
+    // 4. Link Apple Maps hoặc query dạng lat=...&lon=...
+    const latLonMatch = clean.match(/[?&]lat=(-?\d+\.\d+)&[?&](?:lon|lng)=(-?\d+\.\d+)/);
+    if (latLonMatch) {
+      return { lat: parseFloat(latLonMatch[1]), lng: parseFloat(latLonMatch[2]) };
+    }
+
+    // 5. Toạ độ trực tiếp: 10.776889, 106.695444 hoặc 10.776889 106.695444
+    const directMatch = clean.match(/(-?\d+\.\d+)[,\s]+(-?\d+\.\d+)/);
+    if (directMatch) {
+      const lat = parseFloat(directMatch[1]);
+      const lng = parseFloat(directMatch[2]);
+      if (lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        return { lat, lng };
+      }
+    }
+
     return null;
+  }
+
+  // Tự động tìm toạ độ qua API Geocoding (Nominatim & Photon) khi link không có toạ độ
+  async resolveCoordinatesAsync(mapUrl, name) {
+    // 1. Thử regex từ link và tên
+    let coords = this.extractCoordinates(mapUrl) || this.extractCoordinates(name);
+    if (coords) return coords;
+
+    // 2. Trích xuất tên địa điểm trong URL nếu là link Google Maps dạng /place/Ten+Dia+Diem
+    let searchQuery = (name || "").trim();
+    if (mapUrl && mapUrl.includes("/place/")) {
+      const m = mapUrl.match(/\/place\/([^/@?]+)/);
+      if (m && m[1]) {
+        try {
+          const decoded = decodeURIComponent(m[1].replace(/\+/g, " "));
+          if (decoded && decoded.length > 2) searchQuery = decoded;
+        } catch (e) {}
+      }
+    }
+
+    if (!searchQuery) return null;
+
+    const userLat = this.lastUserPosition ? this.lastUserPosition.lat : 10.776;
+    const userLng = this.lastUserPosition ? this.lastUserPosition.lng : 106.700;
+
+    // 3. Gọi OpenStreetMap Nominatim API (tìm chính xác tại Việt Nam)
+    try {
+      const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&countrycodes=vn&limit=1`;
+      const nomRes = await fetch(nomUrl, { headers: { "Accept-Language": "vi,en" } });
+      if (nomRes.ok) {
+        const nomData = await nomRes.json();
+        if (nomData && nomData.length > 0) {
+          return {
+            lat: parseFloat(nomData[0].lat),
+            lng: parseFloat(nomData[0].lon)
+          };
+        }
+      }
+    } catch (e) {
+      console.warn("Lỗi tìm kiếm Nominatim:", e);
+    }
+
+    // 4. Fallback qua Photon Komoot API với bias toạ độ khu vực
+    try {
+      const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery)}&lat=${userLat}&lon=${userLng}&limit=1`;
+      const pRes = await fetch(photonUrl);
+      if (pRes.ok) {
+        const pData = await pRes.json();
+        if (pData.features && pData.features.length > 0) {
+          const pt = pData.features[0].geometry.coordinates; // [lon, lat]
+          return { lat: pt[1], lng: pt[0] };
+        }
+      }
+    } catch (e) {
+      console.warn("Lỗi tìm kiếm Photon:", e);
+    }
+
+    return null;
+  }
+
+  // Tự động phân giải các địa điểm trước đó chưa có toạ độ
+  async autoResolveMissingPlaceCoordinates() {
+    let hasUpdated = false;
+    for (const place of this.places) {
+      if ((place.lat == null || place.lng == null) && (place.name || place.mapUrl)) {
+        const coords = await this.resolveCoordinatesAsync(place.mapUrl, place.name);
+        if (coords) {
+          place.lat = coords.lat;
+          place.lng = coords.lng;
+          hasUpdated = true;
+          if (this.lastUserPosition) {
+            const d = this.calculateDistanceKm(this.lastUserPosition.lat, this.lastUserPosition.lng, coords.lat, coords.lng);
+            this.placeDistances.set(place.id, d);
+          }
+        }
+      }
+    }
+    if (hasUpdated) {
+      this.saveData("journey_places_v2", this.places);
+      this.renderPlaces();
+    }
   }
 
   // Công thức Haversine tính khoảng cách theo đường chim bay giữa 2 toạ độ (chạy trong < 0.005ms)
@@ -1539,6 +1764,71 @@ class JourneyApp {
     return R * c;
   }
 
+  // Gọi API định tuyến để tính đường đi xe ngắn nhất và thời gian di chuyển
+  async fetchDrivingRoute(userLat, userLng, destLat, destLng) {
+    if (userLat == null || userLng == null || destLat == null || destLng == null) return null;
+
+    const cacheKey = `${Number(userLat).toFixed(4)},${Number(userLng).toFixed(4)}_${Number(destLat).toFixed(4)},${Number(destLng).toFixed(4)}`;
+    if (this.routingCache && this.routingCache.has(cacheKey)) {
+      return this.routingCache.get(cacheKey);
+    }
+
+    try {
+      // Gọi OSRM Routing Machine tính quãng đường đi xe ngắn nhất
+      const url = `https://router.project-osrm.org/route/v1/driving/${destLng},${destLat};${userLng},${userLat}?overview=false`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.code === "Ok" && data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const distanceKm = Number((route.distance / 1000).toFixed(1));
+          const durationMin = Math.max(1, Math.round(route.duration / 60));
+          const result = {
+            distanceKm,
+            durationMin,
+            isDrivingRoute: true
+          };
+          if (!this.routingCache) this.routingCache = new Map();
+          this.routingCache.set(cacheKey, result);
+          return result;
+        }
+      }
+    } catch (e) {
+      console.warn("OSRM routing API error, fallback to straight line:", e);
+    }
+
+    // Fallback: Haversine với hệ số uốn lượn đô thị (~1.3x)
+    const straight = this.calculateDistanceKm(userLat, userLng, destLat, destLng);
+    if (straight != null) {
+      const estKm = Number((straight * 1.3).toFixed(1));
+      const estMin = Math.max(1, Math.round((estKm / 25) * 60));
+      return {
+        distanceKm: estKm,
+        durationMin: estMin,
+        isDrivingRoute: false
+      };
+    }
+
+    return null;
+  }
+
+  // Tạo Universal URL gọi API Google Maps của thiết bị và điều hướng đường ngắn nhất
+  getDeviceGoogleMapsUrl(place) {
+    const hasCoords = place.lat != null && place.lng != null && !isNaN(place.lat) && !isNaN(place.lng);
+    const destination = hasCoords 
+      ? `${place.lat},${place.lng}` 
+      : encodeURIComponent(place.name + " " + (place.address || ""));
+
+    // Nếu đã có toạ độ hiện tại của người dùng, gọi Google Maps Directions API đường ngắn nhất
+    if (this.lastUserPosition && this.lastUserPosition.lat != null && this.lastUserPosition.lng != null) {
+      const origin = `${this.lastUserPosition.lat},${this.lastUserPosition.lng}`;
+      return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+    }
+
+    // Nếu chưa có toạ độ người dùng, để origin tự do (Google Maps sẽ dùng Vị trí hiện tại của thiết bị)
+    return `https://www.google.com/maps/dir/?api=1&destination=${destination}&travelmode=driving`;
+  }
+
   formatDistance(km) {
     if (km == null || isNaN(km)) return "";
     if (km < 1) {
@@ -1547,78 +1837,77 @@ class JourneyApp {
     return `${km.toFixed(1)} km`;
   }
 
+  // Tính toán khoảng cách và gọi API đường ngắn nhất cho toàn bộ địa điểm
+  calculateAllDistancesAndRoutes(forceSort = false) {
+    if (!this.lastUserPosition) return;
+    const uLat = this.lastUserPosition.lat;
+    const uLng = this.lastUserPosition.lng;
+
+    // 1. Tính khoảng cách thẳng tức thì (<1ms)
+    this.places.forEach(p => {
+      if (p.lat != null && p.lng != null) {
+        const d = this.calculateDistanceKm(uLat, uLng, p.lat, p.lng);
+        this.placeDistances.set(p.id, d);
+      }
+    });
+
+    if (forceSort) {
+      this.sortPlacesByDistance();
+    }
+    this.renderPlaces(forceSort);
+
+    // 2. Tính toán đường đi xe ngắn nhất không đồng bộ
+    this.places.forEach(p => {
+      if (p.lat != null && p.lng != null) {
+        this.fetchDrivingRoute(uLat, uLng, p.lat, p.lng).then(route => {
+          if (route) {
+            this.placeRoutes.set(p.id, route);
+            if (forceSort) {
+              this.sortPlacesByDistance();
+            }
+            this.renderPlaces(forceSort);
+          }
+        });
+      }
+    });
+  }
+
+  sortPlacesByDistance() {
+    this.places.sort((a, b) => {
+      const routeA = this.placeRoutes.get(a.id);
+      const routeB = this.placeRoutes.get(b.id);
+      const distA = routeA ? routeA.distanceKm : (this.placeDistances.has(a.id) ? this.placeDistances.get(a.id) : 999999);
+      const distB = routeB ? routeB.distanceKm : (this.placeDistances.has(b.id) ? this.placeDistances.get(b.id) : 999999);
+      return distA - distB;
+    });
+    this.saveData("journey_places_v2", this.places);
+  }
+
   // Lấy vị trí GPS hiện tại và sắp xếp danh sách nơi gần nhất từ trên xuống dưới
   reloadPlacesByGps() {
     if (this.reloadPlacesGpsBtn) {
       this.reloadPlacesGpsBtn.classList.add("spinning");
     }
 
-    const sortWithPosition = (userLat, userLng) => {
-      this.lastUserPosition = { lat: userLat, lng: userLng, timestamp: Date.now() };
-
-      // 1. Tính toán khoảng cách siêu tốc (<1ms) cho tất cả địa điểm có toạ độ
-      this.places.forEach(p => {
-        if (p.lat != null && p.lng != null) {
-          const d = this.calculateDistanceKm(userLat, userLng, p.lat, p.lng);
-          this.placeDistances.set(p.id, d);
-        } else {
-          this.placeDistances.delete(p.id);
-        }
-      });
-
-      // 2. Sắp xếp: Nơi gần nhất lên đầu tiên, địa điểm chưa có toạ độ xuống cuối
-      this.places.sort((a, b) => {
-        const distA = this.placeDistances.has(a.id) ? this.placeDistances.get(a.id) : 999999;
-        const distB = this.placeDistances.has(b.id) ? this.placeDistances.get(b.id) : 999999;
-        return distA - distB;
-      });
-
-      this.saveData("journey_places_v2", this.places);
-      this.renderPlaces(true);
-
+    const onGotLocation = () => {
+      this.calculateAllDistancesAndRoutes(true);
       if (this.reloadPlacesGpsBtn) {
         this.reloadPlacesGpsBtn.classList.remove("spinning");
       }
-      this.showToast("📍 Đã sắp xếp lại theo nơi gần bạn nhất từ trên xuống!", 2800);
+      this.showToast("📍 Đã tính đường đi ngắn nhất & sắp xếp nơi gần bạn nhất từ trên xuống!", 3000);
     };
 
-    // TỐI ƯU TỐC ĐỘ: Nếu đã có toạ độ vừa lấy trong 2 phút gần đây, sort ngay lập tức (0ms)
-    if (this.lastUserPosition && (Date.now() - this.lastUserPosition.timestamp < 120000)) {
-      sortWithPosition(this.lastUserPosition.lat, this.lastUserPosition.lng);
-      return;
-    }
-
-    if (!navigator.geolocation) {
-      if (this.reloadPlacesGpsBtn) this.reloadPlacesGpsBtn.classList.remove("spinning");
-      this.showToast("Trình duyệt không hỗ trợ định vị GPS.", 3000);
-      return;
-    }
-
-    // Cơ chế 2 tầng: GPS độ chính xác cao -> fallback toạ độ mạng/wifi (rất nhạy trên mobile)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        sortWithPosition(pos.coords.latitude, pos.coords.longitude);
-      },
+    this.getUserPosition(
+      () => onGotLocation(),
       (err) => {
+        if (this.reloadPlacesGpsBtn) this.reloadPlacesGpsBtn.classList.remove("spinning");
         if (err && err.code === 1) {
-          if (this.reloadPlacesGpsBtn) this.reloadPlacesGpsBtn.classList.remove("spinning");
-          this.showToast("Cần bật quyền Vị trí cho Chrome trong Cài đặt iPhone để tìm nơi gần nhất 💕", 4500);
-          return;
+          this.showToast("Cần bật quyền Vị trí cho trình duyệt trong Cài đặt iPhone để tìm nơi gần nhất 💕", 4500);
+        } else {
+          this.showToast("Không nhận được GPS. Bé kiểm tra lại cài đặt định vị máy nhé!", 3500);
         }
-
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            sortWithPosition(pos.coords.latitude, pos.coords.longitude);
-          },
-          (errFallback) => {
-            console.warn("Lỗi định vị:", errFallback);
-            if (this.reloadPlacesGpsBtn) this.reloadPlacesGpsBtn.classList.remove("spinning");
-            this.showToast("Không nhận được GPS. Bé kiểm tra lại cài đặt định vị máy nhé!", 3500);
-          },
-          { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
-        );
       },
-      { enableHighAccuracy: true, timeout: 4500, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 6000 }
     );
   }
 
@@ -1697,13 +1986,32 @@ class JourneyApp {
     }
 
     this.placesListContainer.innerHTML = filtered.map((place, idx) => {
+      const route = this.placeRoutes.get(place.id);
       const hasDistance = this.placeDistances.has(place.id);
       const distKm = hasDistance ? this.placeDistances.get(place.id) : null;
-      const distText = this.formatDistance(distKm);
-      const isNearest = hasJustSorted && idx === 0 && hasDistance;
+      const isNearest = hasJustSorted && idx === 0 && (route || hasDistance);
 
-      // Link Google Maps
-      const mapsUrl = place.mapUrl || (place.lat && place.lng ? `https://www.google.com/maps?q=${place.lat},${place.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}`);
+      let distanceBadgeHtml = "";
+      if (route) {
+        const durText = route.durationMin ? ` (${route.durationMin} phút)` : "";
+        distanceBadgeHtml = `
+          <span class="place-distance-tag driving-route ${isNearest ? 'nearest' : ''}" title="Đường đi ngắn nhất: ${route.distanceKm} km ~${route.durationMin} phút di chuyển">
+            🚗 ${route.distanceKm} km${durText}${isNearest ? ' • Gần nhất' : ''}
+          </span>
+        `;
+      } else if (distKm != null) {
+        const distText = this.formatDistance(distKm);
+        distanceBadgeHtml = `
+          <span class="place-distance-tag ${isNearest ? 'nearest' : ''}">
+            📍 Cách ${distText}${isNearest ? ' • Gần nhất' : ''}
+          </span>
+        `;
+      } else if (place.isResolving) {
+        distanceBadgeHtml = `<span class="place-distance-tag resolving">⏳ Đang tìm toạ độ...</span>`;
+      }
+
+      // Link gọi API Google Maps của thiết bị và điều hướng đường ngắn nhất
+      const deviceMapsUrl = this.getDeviceGoogleMapsUrl(place);
 
       return `
         <article class="place-card ${place.visited ? "is-visited" : ""}" data-id="${place.id}">
@@ -1717,7 +2025,7 @@ class JourneyApp {
               ${place.visited 
                 ? '<span class="place-status-tag visited">🌸 Đã ghé thăm</span>' 
                 : '<span class="place-status-tag unvisited">✨ Muốn đi</span>'}
-              ${distText ? `<span class="place-distance-tag ${isNearest ? 'nearest' : ''}">📍 Cách ${distText}</span>` : ""}
+              ${distanceBadgeHtml}
             </div>
 
             ${place.notes ? `<p class="place-notes">"${this.escapeHTML(place.notes)}"</p>` : ""}
@@ -1725,8 +2033,8 @@ class JourneyApp {
 
           <div class="place-actions-row">
             <div class="place-links-group">
-              <a href="${mapsUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-maps" title="Mở chỉ đường trên Google Maps">
-                🗺️ Google Maps
+              <a href="${deviceMapsUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-maps" title="Mở ứng dụng Google Maps của thiết bị và dẫn đường ngắn nhất">
+                🗺️ Chỉ đường (Maps)
               </a>
               ${place.tiktokUrl ? `
                 <a href="${place.tiktokUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-tiktok" title="Xem video review trên TikTok">
@@ -2220,7 +2528,18 @@ class JourneyApp {
     });
 
     const combinedMap = new Map();
-    validServer.forEach(p => combinedMap.set(String(p.id), p));
+    validServer.forEach(p => {
+      if (p.lat != null && p.lat !== "") p.lat = parseFloat(p.lat);
+      if (p.lng != null && p.lng !== "") p.lng = parseFloat(p.lng);
+      if ((p.lat == null || isNaN(p.lat)) && p.mapUrl) {
+        const coords = this.extractCoordinates(p.mapUrl);
+        if (coords) {
+          p.lat = coords.lat;
+          p.lng = coords.lng;
+        }
+      }
+      combinedMap.set(String(p.id), p);
+    });
     pendingLocal.forEach(p => {
       if (!combinedMap.has(String(p.id))) combinedMap.set(String(p.id), p);
     });
@@ -2232,7 +2551,8 @@ class JourneyApp {
     if (JSON.stringify(mergedPlaces) !== JSON.stringify(this.places)) {
       this.places = mergedPlaces;
       this.saveData("journey_places_v2", this.places);
-      this.renderPlaces();
+      this.calculateAllDistancesAndRoutes(false);
+      this.autoResolveMissingPlaceCoordinates();
     }
   }
 
