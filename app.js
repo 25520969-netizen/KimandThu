@@ -453,7 +453,7 @@ class JourneyApp {
     if (this.btnRefreshGps) {
       this.btnRefreshGps.addEventListener("click", (e) => {
         e.preventDefault();
-        this.autoFetchGpsLocation();
+        this.autoFetchGpsLocation(true);
       });
     }
   }
@@ -533,7 +533,7 @@ class JourneyApp {
     this.autoFetchGpsLocation();
   }
 
-  autoFetchGpsLocation() {
+  autoFetchGpsLocation(isUserInitiated = false) {
     const locInput = this.memoryLocationInput || document.getElementById("memory-location-input");
     const refreshBtn = this.btnRefreshGps || document.getElementById("btn-refresh-gps");
 
@@ -544,43 +544,87 @@ class JourneyApp {
 
     if (!navigator.geolocation) {
       if (refreshBtn) refreshBtn.classList.remove("spinning");
-      if (locInput && !locInput.value) locInput.placeholder = "Vị trí...";
+      if (locInput && !locInput.value) locInput.placeholder = "Trình duyệt không hỗ trợ GPS";
+      if (isUserInitiated) this.showToast("Trình duyệt không hỗ trợ định vị GPS", 3000);
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const lat = pos.coords.latitude.toFixed(6);
-        const lng = pos.coords.longitude.toFixed(6);
-        const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+    const onPositionSuccess = (pos) => {
+      if (!pos || !pos.coords) return;
+      const lat = pos.coords.latitude.toFixed(6);
+      const lng = pos.coords.longitude.toFixed(6);
+      const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
-        let placeName = "";
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&accept-language=vi`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.address) {
-              const a = data.address;
-              const parts = [
-                a.road || a.suburb || a.neighbourhood || "",
-                a.city_district || a.district || a.county || "",
-                a.city || a.state || ""
-              ].filter(Boolean);
-              if (parts.length > 0) placeName = parts.join(", ");
+      // Gán toạ độ Google Maps ngay tức thì vào ô nhập vị trí
+      if (locInput) locInput.value = mapsUrl;
+      if (refreshBtn) refreshBtn.classList.remove("spinning");
+      if (isUserInitiated) this.showToast("📍 Đã định vị toạ độ thành công!", 2500);
+
+      // Tra cứu địa chỉ đường phố/phường xã ở chế độ nền (không làm trễ toạ độ)
+      const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+      const timer = controller ? setTimeout(() => controller.abort(), 4000) : null;
+
+      fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16&accept-language=vi`, {
+        signal: controller ? controller.signal : undefined
+      })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (timer) clearTimeout(timer);
+          if (data && data.address) {
+            const a = data.address;
+            const parts = [
+              a.road || a.suburb || a.neighbourhood || "",
+              a.city_district || a.district || a.county || "",
+              a.city || a.state || ""
+            ].filter(Boolean);
+            if (parts.length > 0 && locInput && (locInput.value === mapsUrl || locInput.value.includes(mapsUrl))) {
+              locInput.value = `${parts.join(", ")} (${mapsUrl})`;
             }
           }
-        } catch(e) {}
+        })
+        .catch(() => {
+          if (timer) clearTimeout(timer);
+        });
+    };
 
-        const fullLocString = placeName ? `${placeName} (${mapsUrl})` : mapsUrl;
-        if (locInput) locInput.value = fullLocString;
-        if (refreshBtn) refreshBtn.classList.remove("spinning");
-      },
+    const onPositionFail = (err) => {
+      console.warn("GPS error:", err);
+      if (refreshBtn) refreshBtn.classList.remove("spinning");
+
+      // Mã 1: PERMISSION_DENIED (Người dùng hoặc Chrome iPhone chưa cấp quyền)
+      if (err && err.code === 1) {
+        if (locInput && !locInput.value) {
+          locInput.placeholder = "Cần mở quyền Vị trí cho Chrome...";
+        }
+        this.showToast("Bé mở Cài đặt iPhone > Chrome > Cho phép Vị trí nhé 💕", 5000);
+      } else {
+        if (locInput && !locInput.value) {
+          locInput.placeholder = "Chưa nhận được GPS (chạm nút xoay để thử lại)";
+        }
+        if (isUserInitiated) {
+          this.showToast("Chưa bắt được GPS. Bé kiểm tra lại cài đặt vị trí máy nhé!", 3500);
+        }
+      }
+    };
+
+    // BƯỚC 1: Thử GPS độ chính xác cao trong 6 giây
+    navigator.geolocation.getCurrentPosition(
+      onPositionSuccess,
       (err) => {
-        console.warn("GPS error:", err);
-        if (refreshBtn) refreshBtn.classList.remove("spinning");
-        if (locInput && !locInput.value) locInput.placeholder = "Vị trí...";
+        // Nếu bị chặn quyền (PERMISSION_DENIED), thông báo hướng dẫn mở quyền ngay
+        if (err && err.code === 1) {
+          onPositionFail(err);
+          return;
+        }
+
+        // BƯỚC 2: Tự động fallback sang định vị mạng/wifi (cực nhanh và ổn định trên iPhone khi ở trong nhà)
+        navigator.geolocation.getCurrentPosition(
+          onPositionSuccess,
+          onPositionFail,
+          { enableHighAccuracy: false, timeout: 12000, maximumAge: 300000 }
+        );
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+      { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
     );
   }
 
@@ -1114,8 +1158,8 @@ class JourneyApp {
     // Luôn sắp xếp từ sự kiện gần nhất trở về trước (mới nhất ở trên cùng)
     this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // Hiển thị gọn gàng (mặc định 4 sự kiện mới nhất, có nút xem thêm nếu nhiều hơn)
-    const visibleMemories = this.showAllMemories ? this.memories : this.memories.slice(0, 4);
+    // Hiển thị gọn gàng (mặc định 6 sự kiện mới nhất, có nút xem thêm nếu nhiều hơn)
+    const visibleMemories = this.showAllMemories ? this.memories : this.memories.slice(0, 6);
 
     this.timelineContainer.innerHTML = visibleMemories.map((mem) => {
       const dateFormatted = this.formatMemoryDate(mem.date);
@@ -1163,13 +1207,13 @@ class JourneyApp {
       `;
     }).join("");
 
-    // Nút mở rộng nếu có nhiều hơn 4 kỷ niệm để trang không bị quá dài
-    if (this.memories.length > 4) {
+    // Nút mở rộng nếu có nhiều hơn 6 kỷ niệm để trang không bị quá dài
+    if (this.memories.length > 6) {
       const toggleWrap = document.createElement("div");
       toggleWrap.className = "timeline-toggle-wrapper";
       toggleWrap.innerHTML = `
         <button id="toggle-timeline-len-btn" class="btn btn-secondary btn-sm">
-          ${this.showAllMemories ? "Thu gọn bớt ✨" : `Xem thêm kỷ niệm trước đó (${this.memories.length - 4}) 🌸`}
+          ${this.showAllMemories ? "Thu gọn bớt ✨" : `Xem thêm kỷ niệm trước đó (${this.memories.length - 6}) 🌸`}
         </button>
       `;
       this.timelineContainer.appendChild(toggleWrap);
