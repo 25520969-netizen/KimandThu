@@ -289,6 +289,38 @@ class JourneyApp {
     this.countPlacesUnvisited = document.getElementById("count-places-unvisited");
     this.countPlacesVisited = document.getElementById("count-places-visited");
 
+    // Nút Kiểm tra đã đến chưa & Thêm nơi đang đứng
+    this.checkVisitedGpsBtn = document.getElementById("check-visited-gps-btn");
+    this.addCurrentLocationBtn = document.getElementById("add-current-location-btn");
+
+    // Modal: Kết quả quét vị trí
+    this.checkResultModal = document.getElementById("check-location-result-modal");
+    this.closeCheckResultBtn = document.getElementById("close-check-result-btn");
+    this.checkResultCloseActionBtn = document.getElementById("check-result-close-action-btn");
+    this.checkResultPrimaryBtn = document.getElementById("check-result-primary-btn");
+    this.checkResultPrimaryText = document.getElementById("check-result-primary-text");
+    this.checkResultIcon = document.getElementById("check-result-icon");
+    this.checkResultStatusTag = document.getElementById("check-result-status-tag");
+    this.checkResultTitle = document.getElementById("check-result-title");
+    this.checkResultDesc = document.getElementById("check-result-desc");
+    this.checkResultPlaceCard = document.getElementById("check-result-place-card");
+    this.checkMatchTag = document.getElementById("check-match-tag");
+    this.checkMatchDistance = document.getElementById("check-match-distance");
+    this.checkMatchName = document.getElementById("check-match-name");
+    this.checkMatchNotes = document.getElementById("check-match-notes");
+
+    // Modal: Thêm vị trí đang đứng vào Đã Đến
+    this.addCurrentLocModal = document.getElementById("add-current-location-modal");
+    this.closeAddCurrentLocBtn = document.getElementById("close-current-loc-modal-btn");
+    this.cancelAddCurrentLocBtn = document.getElementById("cancel-current-loc-btn");
+    this.addCurrentLocForm = document.getElementById("add-current-loc-form");
+    this.currentLocCoordsDisplay = document.getElementById("current-loc-coords-display");
+    this.currentLocNameInput = document.getElementById("current-loc-name-input");
+    this.currentLocNotesInput = document.getElementById("current-loc-notes-input");
+    this.currentLocTiktokInput = document.getElementById("current-loc-tiktok-input");
+    this.currentLocHint = document.getElementById("current-loc-hint");
+    this.tempCurrentLocData = null;
+
     // SPA Views & Navigation
     this.viewMoments = document.getElementById("view-moments");
     this.viewPlaces = document.getElementById("view-places");
@@ -1593,7 +1625,58 @@ class JourneyApp {
     const initialView = window.location.hash === "#places" ? "places" : "moments";
     this.switchView(initialView, false);
 
-    // 8. Tự động kiểm tra và phân giải toạ độ cho các địa điểm còn thiếu (chạy ngầm)
+    // 8. Nút Kiểm tra xem nơi đang đứng đã từng đi đến chưa
+    if (this.checkVisitedGpsBtn) {
+      this.checkVisitedGpsBtn.addEventListener("click", () => {
+        this.checkIfCurrentLocationVisited();
+      });
+    }
+
+    // Đóng modal kết quả kiểm tra
+    if (this.closeCheckResultBtn) {
+      this.closeCheckResultBtn.addEventListener("click", () => {
+        if (this.checkResultModal) this.checkResultModal.close();
+      });
+    }
+    if (this.checkResultCloseActionBtn) {
+      this.checkResultCloseActionBtn.addEventListener("click", () => {
+        if (this.checkResultModal) this.checkResultModal.close();
+      });
+    }
+
+    // 9. Nút Thêm vị trí tôi đang đứng vào danh sách đã đến luôn
+    if (this.addCurrentLocationBtn) {
+      this.addCurrentLocationBtn.addEventListener("click", () => {
+        if (!this.isAuthenticated) {
+          this.showToast("Chỉ Kim & Thư mới có quyền thêm địa điểm 💕");
+          this.openAuthModal();
+          return;
+        }
+        this.openAddCurrentLocationModal();
+      });
+    }
+
+    // Đóng modal Thêm vị trí đang đứng
+    if (this.closeAddCurrentLocBtn) {
+      this.closeAddCurrentLocBtn.addEventListener("click", () => {
+        if (this.addCurrentLocModal) this.addCurrentLocModal.close();
+      });
+    }
+    if (this.cancelAddCurrentLocBtn) {
+      this.cancelAddCurrentLocBtn.addEventListener("click", () => {
+        if (this.addCurrentLocModal) this.addCurrentLocModal.close();
+      });
+    }
+
+    // Form submit: Thêm vị trí đang đứng vào danh sách ĐÃ ĐẾN
+    if (this.addCurrentLocForm) {
+      this.addCurrentLocForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        this.saveCurrentLocationAsVisited();
+      });
+    }
+
+    // 10. Tự động kiểm tra và phân giải toạ độ cho các địa điểm còn thiếu (chạy ngầm)
     this.autoResolveMissingPlaceCoordinates();
 
     // 9. Tự động lấy vị trí hiện tại của thiết bị trong nền để sẵn sàng tính khoảng cách
@@ -2005,6 +2088,349 @@ class JourneyApp {
       },
       { enableHighAccuracy: true, timeout: 6000 }
     );
+  }
+
+  // ==========================================
+  // TRA CỨU ĐỊA CHỈ NGƯỢC (REVERSE GEOCODING TỪ TOẠ ĐỘ GPS)
+  // ==========================================
+  async reverseGeocode(lat, lng) {
+    if (lat == null || lng == null) return null;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4000);
+      const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=vi,en`;
+      const res = await fetch(url, { signal: controller.signal, headers: { "Accept-Language": "vi,en" } });
+      clearTimeout(timer);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.address) {
+          const a = data.address;
+          const specific = a.amenity || a.shop || a.tourism || a.leisure || a.cafe || a.restaurant || a.historic;
+          const street = a.road || a.pedestrian || a.suburb;
+          const district = a.city_district || a.district || a.suburb;
+          const city = a.city || a.town || a.province || "";
+
+          if (specific && street) return `${specific} - ${street}`;
+          if (specific) return specific;
+          if (street && district) return `${street}, ${district}`;
+          if (street) return `${street}${city ? ", " + city : ""}`;
+          if (data.display_name) {
+            const parts = data.display_name.split(",").map(p => p.trim());
+            return parts.slice(0, 2).join(", ");
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Reverse geocode timeout/lỗi:", e);
+    }
+    return null;
+  }
+
+  // ==========================================
+  // KIỂM TRA XEM NƠI ĐANG ĐỨNG ĐÃ TỪNG ĐẾN CHƯA
+  // ==========================================
+  checkIfCurrentLocationVisited() {
+    if (this.checkVisitedGpsBtn) {
+      this.checkVisitedGpsBtn.classList.add("spinning");
+    }
+    this.showToast("Đang quét vị trí của bạn... 🛰️", 2500);
+
+    this.getUserPosition(
+      async (pos) => {
+        if (this.checkVisitedGpsBtn) {
+          this.checkVisitedGpsBtn.classList.remove("spinning");
+        }
+        const uLat = pos.lat;
+        const uLng = pos.lng;
+
+        // Quét qua danh sách các địa điểm
+        const visitedPlaces = this.places.filter(p => p.visited);
+        const unvisitedPlaces = this.places.filter(p => !p.visited);
+
+        // Tính khoảng cách tới tất cả địa điểm đã đến
+        const visitedWithDist = visitedPlaces
+          .filter(p => p.lat != null && p.lng != null && !isNaN(p.lat) && !isNaN(p.lng))
+          .map(p => {
+            const distKm = this.calculateDistanceKm(uLat, uLng, p.lat, p.lng);
+            return { place: p, distKm, distM: Math.round(distKm * 1000) };
+          })
+          .sort((a, b) => a.distKm - b.distKm);
+
+        // Tính khoảng cách tới các địa điểm "Muốn đi"
+        const unvisitedWithDist = unvisitedPlaces
+          .filter(p => p.lat != null && p.lng != null && !isNaN(p.lat) && !isNaN(p.lng))
+          .map(p => {
+            const distKm = this.calculateDistanceKm(uLat, uLng, p.lat, p.lng);
+            return { place: p, distKm, distM: Math.round(distKm * 1000) };
+          })
+          .sort((a, b) => a.distKm - b.distKm);
+
+        const THRESHOLD_METERS = 200; // Bán kính 200 mét tính là đang ở tại địa điểm đó
+
+        // 1. Trường hợp: Trùng khớp với địa điểm ĐÃ TỪNG ĐẾN (<= 200m)
+        if (visitedWithDist.length > 0 && visitedWithDist[0].distM <= THRESHOLD_METERS) {
+          const match = visitedWithDist[0];
+          this.spawnHeartConfetti();
+          this.showCheckLocationResult({
+            icon: "🎉",
+            badgeText: "🌸 ĐÃ GHÉ THĂM RỒI",
+            badgeClass: "success",
+            title: "Hai Bạn Đang Ở Nơi Đã Từng Đến! 💕",
+            desc: `Vị trí bạn đang đứng trùng khớp với địa điểm đã lưu trong danh sách "Đã Đến".`,
+            place: match.place,
+            distM: match.distM,
+            primaryText: "Xem địa điểm trong danh sách",
+            onPrimary: () => {
+              if (this.checkResultModal) this.checkResultModal.close();
+              this.highlightPlaceInList(match.place.id, "visited");
+            }
+          });
+          return;
+        }
+
+        // 2. Trường hợp: Trùng khớp với một địa điểm đang trong mục "MUỐN ĐI" (<= 200m)
+        if (unvisitedWithDist.length > 0 && unvisitedWithDist[0].distM <= THRESHOLD_METERS) {
+          const match = unvisitedWithDist[0];
+          this.showCheckLocationResult({
+            icon: "📍",
+            badgeText: "✨ ĐANG TRONG MỤC MUỐN ĐI",
+            badgeClass: "warning",
+            title: "Đang Ở Địa Điểm Trong Mục Muốn Đi!",
+            desc: `Hai bạn đang đứng ngay tại nơi muốn đi! Bạn có muốn đánh dấu là ĐÃ ĐẾN luôn không?`,
+            place: match.place,
+            distM: match.distM,
+            primaryText: "Đánh dấu Đã Đến ngay 💕",
+            onPrimary: () => {
+              if (this.checkResultModal) this.checkResultModal.close();
+              this.togglePlaceVisited(match.place.id);
+              this.highlightPlaceInList(match.place.id, "visited");
+            }
+          });
+          return;
+        }
+
+        // 3. Trường hợp: CHƯA TỪNG ĐẾN NƠI NÀY
+        let nearestInfo = "";
+        let nearestPlace = null;
+        let nearestDistM = 0;
+        if (visitedWithDist.length > 0) {
+          nearestPlace = visitedWithDist[0].place;
+          nearestDistM = visitedWithDist[0].distM;
+          const dStr = nearestDistM < 1000 ? `${nearestDistM}m` : `${(nearestDistM / 1000).toFixed(1)}km`;
+          nearestInfo = `Địa điểm đã đến gần bạn nhất là "${nearestPlace.name}" (cách ~${dStr}).`;
+        } else {
+          nearestInfo = "Danh sách 'Đã đến' của hai bạn hiện chưa có địa điểm nào.";
+        }
+
+        // Tra cứu địa chỉ hiện tại để sẵn sàng cho nút thêm nhanh
+        const detectedAddress = await this.reverseGeocode(uLat, uLng);
+
+        this.showCheckLocationResult({
+          icon: "🧭",
+          badgeText: "🌿 CHƯA TỪNG ĐẾN",
+          badgeClass: "neutral",
+          title: "Nơi Này Chưa Có Trong Danh Sách Đã Đến! 🌿",
+          desc: `Vị trí bạn đang đứng là một địa điểm mới toanh. ${nearestInfo}`,
+          place: nearestPlace,
+          distM: nearestDistM,
+          primaryText: "Thêm nơi này vào Đã Đến ngay 📍",
+          onPrimary: () => {
+            if (this.checkResultModal) this.checkResultModal.close();
+            this.openAddCurrentLocationModal(uLat, uLng, detectedAddress);
+          }
+        });
+      },
+      (err) => {
+        if (this.checkVisitedGpsBtn) {
+          this.checkVisitedGpsBtn.classList.remove("spinning");
+        }
+        if (err && err.code === 1) {
+          this.showToast("Cần cấp quyền Vị trí trên trình duyệt trong Cài đặt iPhone để quét toạ độ nhé 💕", 4500);
+        } else {
+          this.showToast("Không nhận được GPS. Bé kiểm tra lại định vị máy nhé!", 3500);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 7000 }
+    );
+  }
+
+  showCheckLocationResult(cfg) {
+    if (!this.checkResultModal) return;
+
+    if (this.checkResultIcon) this.checkResultIcon.textContent = cfg.icon || "📍";
+    if (this.checkResultStatusTag) {
+      this.checkResultStatusTag.textContent = cfg.badgeText || "Kết Quả Quét";
+      this.checkResultStatusTag.className = `check-result-status-tag ${cfg.badgeClass || 'neutral'}`;
+    }
+    if (this.checkResultTitle) this.checkResultTitle.textContent = cfg.title || "Kết quả kiểm tra";
+    if (this.checkResultDesc) this.checkResultDesc.textContent = cfg.desc || "";
+
+    if (this.checkResultPlaceCard) {
+      if (cfg.place) {
+        this.checkResultPlaceCard.style.display = "block";
+        if (this.checkMatchTag) {
+          this.checkMatchTag.textContent = cfg.place.visited ? "🌸 Đã ghé thăm" : "✨ Muốn đi";
+        }
+        if (this.checkMatchDistance) {
+          const dText = cfg.distM < 1000 ? `Cách ~${cfg.distM}m` : `Cách ~${(cfg.distM / 1000).toFixed(1)}km`;
+          this.checkMatchDistance.textContent = dText;
+        }
+        if (this.checkMatchName) this.checkMatchName.textContent = cfg.place.name || "";
+        if (this.checkMatchNotes) {
+          this.checkMatchNotes.textContent = cfg.place.notes ? `"${cfg.place.notes}"` : "";
+          this.checkMatchNotes.style.display = cfg.place.notes ? "block" : "none";
+        }
+      } else {
+        this.checkResultPlaceCard.style.display = "none";
+      }
+    }
+
+    if (this.checkResultPrimaryBtn) {
+      if (cfg.primaryText && cfg.onPrimary) {
+        this.checkResultPrimaryBtn.style.display = "inline-flex";
+        if (this.checkResultPrimaryText) this.checkResultPrimaryText.textContent = cfg.primaryText;
+        this.checkResultPrimaryBtn.onclick = (e) => {
+          e.preventDefault();
+          cfg.onPrimary();
+        };
+      } else {
+        this.checkResultPrimaryBtn.style.display = "none";
+      }
+    }
+
+    this.checkResultModal.showModal();
+  }
+
+  // ==========================================
+  // THÊM VỊ TRÍ ĐANG ĐỨNG VÀO DANH SÁCH ĐÃ ĐẾN
+  // ==========================================
+  openAddCurrentLocationModal(fixedLat = null, fixedLng = null, fixedName = null) {
+    if (!this.isAuthenticated) {
+      this.showToast("Chỉ Kim & Thư mới có quyền thêm địa điểm 💕");
+      this.openAuthModal();
+      return;
+    }
+
+    const showModalWithCoords = (lat, lng, suggestedName) => {
+      this.tempCurrentLocData = { lat, lng };
+      if (this.addCurrentLocForm) this.addCurrentLocForm.reset();
+
+      if (this.currentLocCoordsDisplay) {
+        this.currentLocCoordsDisplay.textContent = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      }
+      if (this.currentLocNameInput) {
+        this.currentLocNameInput.value = suggestedName || "";
+        if (!suggestedName) {
+          this.currentLocNameInput.placeholder = "Ví dụ: Quán cafe Xinh, Phố đi bộ...";
+        }
+      }
+      if (this.currentLocNotesInput) {
+        const today = new Date();
+        const dateStr = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
+        this.currentLocNotesInput.placeholder = `Ghé thăm cùng em ngày ${dateStr} 💕`;
+      }
+
+      if (this.addCurrentLocModal) this.addCurrentLocModal.showModal();
+      if (this.currentLocNameInput) this.currentLocNameInput.focus();
+    };
+
+    if (fixedLat != null && fixedLng != null) {
+      showModalWithCoords(fixedLat, fixedLng, fixedName);
+      return;
+    }
+
+    if (this.addCurrentLocationBtn) {
+      this.addCurrentLocationBtn.classList.add("spinning");
+    }
+    this.showToast("Đang lấy toạ độ vị trí hiện tại của bạn... 🛰️", 2500);
+
+    this.getUserPosition(
+      async (pos) => {
+        if (this.addCurrentLocationBtn) {
+          this.addCurrentLocationBtn.classList.remove("spinning");
+        }
+        const lat = pos.lat;
+        const lng = pos.lng;
+        const suggested = await this.reverseGeocode(lat, lng);
+        showModalWithCoords(lat, lng, suggested);
+      },
+      (err) => {
+        if (this.addCurrentLocationBtn) {
+          this.addCurrentLocationBtn.classList.remove("spinning");
+        }
+        if (err && err.code === 1) {
+          this.showToast("Cần bật quyền Vị trí cho trình duyệt trong Cài đặt máy nhé 💕", 4500);
+        } else {
+          this.showToast("Không lấy được GPS. Bé kiểm tra lại định vị máy nhé!", 3500);
+        }
+      },
+      { enableHighAccuracy: true, timeout: 7000 }
+    );
+  }
+
+  saveCurrentLocationAsVisited() {
+    if (!this.tempCurrentLocData) {
+      this.showToast("Không tìm thấy toạ độ vị trí hiện tại!");
+      return;
+    }
+
+    const name = (this.currentLocNameInput ? this.currentLocNameInput.value : "").trim();
+    const notes = (this.currentLocNotesInput ? this.currentLocNotesInput.value : "").trim();
+    const tiktokUrl = (this.currentLocTiktokInput ? this.currentLocTiktokInput.value : "").trim();
+
+    if (!name) {
+      this.showToast("Bé vui lòng nhập tên địa điểm nhé! 🌸");
+      return;
+    }
+
+    const lat = this.tempCurrentLocData.lat;
+    const lng = this.tempCurrentLocData.lng;
+
+    const newPlace = {
+      id: "place-" + Date.now(),
+      name: name,
+      mapUrl: `https://www.google.com/maps?q=${lat},${lng}`,
+      tiktokUrl: tiktokUrl,
+      lat: lat,
+      lng: lng,
+      notes: notes,
+      visited: true, // THÊM TRỰC TIẾP VÀO ĐÃ ĐẾN
+      createdAt: new Date().toISOString()
+    };
+
+    // Đưa vào đầu danh sách
+    this.places.unshift(newPlace);
+    this.saveData("journey_places_v2", this.places);
+    this.sendToBackend({ type: "place", ...newPlace });
+
+    if (this.addCurrentLocModal) this.addCurrentLocModal.close();
+    this.spawnHeartConfetti();
+    this.showToast("🌸 Đã thêm vị trí hiện tại vào danh sách Đã Đến!");
+
+    // Chuyển sang tab "Đã đến" và highlight thẻ vừa tạo
+    this.highlightPlaceInList(newPlace.id, "visited");
+  }
+
+  // Cuộn đến và làm sáng nổi bật thẻ địa điểm trong danh sách
+  highlightPlaceInList(placeId, targetFilter = "visited") {
+    // 1. Chuyển tab bộ lọc
+    this.placesFilter = targetFilter;
+    document.querySelectorAll(".place-tab").forEach(tab => {
+      tab.classList.toggle("active", tab.dataset.filter === targetFilter);
+    });
+
+    // 2. Render lại danh sách
+    this.renderPlaces();
+
+    // 3. Cuộn đến thẻ và thêm hiệu ứng nhấp nháy nổi bật
+    setTimeout(() => {
+      const card = document.querySelector(`.place-card[data-id="${placeId}"]`);
+      if (card) {
+        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        card.classList.add("pulse-highlight");
+        setTimeout(() => card.classList.remove("pulse-highlight"), 4500);
+      }
+    }, 150);
   }
 
   // Đánh dấu đã đi / muốn đi

@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,600&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=3.6">
+  <link rel="stylesheet" href="styles.css?v=3.7">
 </head>
 <body>
   <!-- Ambient Floating Petals Background Canvas -->
@@ -181,6 +181,20 @@
             </div>
 
             <div class="places-action-btns">
+              <button id="check-visited-gps-btn" class="btn btn-check-visited" title="Kiểm tra xem vị trí bạn đang đứng đã từng ghé thăm cùng nhau chưa">
+                <svg class="check-gps-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <path d="m9 12 2 2 4-4"></path>
+                </svg>
+                <span>Đã đến chưa?</span>
+              </button>
+              <button id="add-current-location-btn" class="btn btn-add-current-loc couple-only" title="Lấy toạ độ vị trí hiện tại và thêm trực tiếp vào danh sách đã đến">
+                <svg class="add-loc-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                  <circle cx="12" cy="10" r="3"></circle>
+                </svg>
+                <span>Thêm nơi đang đứng</span>
+              </button>
               <button id="reload-places-gps-btn" class="btn btn-reload-places" title="Lấy vị trí GPS và sắp xếp nơi gần bạn nhất từ trên xuống">
                 <svg class="reload-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
@@ -347,6 +361,83 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-outline" id="cancel-place-btn">Hủy</button>
           <button type="submit" class="btn btn-primary" id="save-place-btn">Lưu địa điểm 💕</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- MODAL: KẾT QUẢ KIỂM TRA VỊ TRÍ ĐÃ ĐẾN CHƯA -->
+  <dialog id="check-location-result-modal" class="custom-modal check-result-modal" aria-labelledby="check-result-title">
+    <div class="modal-card check-result-card">
+      <div class="modal-header">
+        <div class="check-result-badge-wrap">
+          <span class="check-result-icon" id="check-result-icon">📍</span>
+          <span class="check-result-status-tag" id="check-result-status-tag">Quét Vị Trí</span>
+        </div>
+        <button class="modal-close-btn" id="close-check-result-btn" aria-label="Đóng">&times;</button>
+      </div>
+
+      <div class="check-result-body">
+        <h3 id="check-result-title" class="check-result-title">Kết quả kiểm tra</h3>
+        <p id="check-result-desc" class="check-result-desc">Đang quét vị trí...</p>
+
+        <!-- Thẻ địa điểm tìm thấy -->
+        <div id="check-result-place-card" class="check-result-place-box" style="display: none;">
+          <div class="check-match-header">
+            <span class="check-match-tag" id="check-match-tag">🌸 Đã ghé thăm</span>
+            <span class="check-match-distance" id="check-match-distance">Cách bạn ~15m</span>
+          </div>
+          <h4 class="check-match-name" id="check-match-name">Tên địa điểm</h4>
+          <p class="check-match-notes" id="check-match-notes"></p>
+        </div>
+
+        <div class="check-result-actions" id="check-result-actions">
+          <button type="button" class="btn btn-outline" id="check-result-close-action-btn">Đóng</button>
+          <button type="button" class="btn btn-primary" id="check-result-primary-btn" style="display: none;">
+            <span id="check-result-primary-text">Thêm nơi này vào Đã Đến</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- MODAL: THÊM VỊ TRÍ ĐANG ĐỨNG VÀO DANH SÁCH ĐÃ ĐẾN -->
+  <dialog id="add-current-location-modal" class="custom-modal current-loc-modal" aria-labelledby="current-loc-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title-with-subtitle">
+          <h3 id="current-loc-modal-title">Thêm nơi đang đứng vào Đã Đến</h3>
+          <p class="modal-subtitle">Đánh dấu địa điểm hiện tại đã cùng nhau ghé thăm 💕</p>
+        </div>
+        <button class="modal-close-btn" id="close-current-loc-modal-btn" aria-label="Đóng">&times;</button>
+      </div>
+
+      <form id="add-current-loc-form" class="modal-form">
+        <!-- Badge hiển thị toạ độ GPS xác thực -->
+        <div class="current-loc-coords-pill">
+          <span class="coords-pill-dot"></span>
+          <span id="current-loc-coords-display">Đang lấy toạ độ vị trí...</span>
+        </div>
+
+        <div class="form-group">
+          <label for="current-loc-name-input">Tên quán / Địa điểm *</label>
+          <input type="text" id="current-loc-name-input" placeholder="Ví dụ: Cà phê Sunset, Phố đi bộ..." required>
+          <small class="field-hint" id="current-loc-hint">Tự động gợi ý địa chỉ/tên đường nơi bạn đang đứng.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="current-loc-notes-input">Ghi chú kỷ niệm (tuỳ chọn)</label>
+          <textarea id="current-loc-notes-input" rows="2" placeholder="Cảm nghĩ, món ngon hoặc khoảnh khắc nhớ nhất cùng em..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="current-loc-tiktok-input">Link video TikTok (nếu có)</label>
+          <input type="url" id="current-loc-tiktok-input" placeholder="https://www.tiktok.com/@...">
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="cancel-current-loc-btn">Hủy</button>
+          <button type="submit" class="btn btn-primary" id="save-current-loc-btn">Lưu vào danh sách Đã Đến 💕</button>
         </div>
       </form>
     </div>
@@ -580,6 +671,6 @@
     </form>
   </div>
 
-  <script src="app.js?v=3.6"></script>
+  <script src="app.js?v=3.7"></script>
 </body>
 </html>
