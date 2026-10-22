@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,600&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=3.5">
+  <link rel="stylesheet" href="styles.css?v=3.6">
 </head>
 <body>
   <!-- Ambient Floating Petals Background Canvas -->
@@ -29,7 +29,7 @@
   <!-- Top Navigation / Header Bar -->
   <nav class="nav-bar">
     <div class="nav-container">
-      <div class="logo">
+      <div class="logo" id="nav-logo-btn" role="button" tabindex="0" title="Về trang khoảnh khắc">
         <span class="logo-heart">💖</span>
         <span class="logo-text" id="nav-couple-names">Kim & Thư</span>
       </div>
@@ -43,6 +43,15 @@
           </button>
 
           <div class="nav-dropdown-menu" id="nav-dropdown-menu" role="menu" aria-hidden="true">
+            <button id="nav-moments-btn" class="dropdown-item active" role="menuitem">
+              <span class="dropdown-icon">📸</span>
+              <span class="dropdown-text">Khoảnh Khắc</span>
+            </button>
+            <button id="nav-places-btn" class="dropdown-item" role="menuitem">
+              <span class="dropdown-icon">📍</span>
+              <span class="dropdown-text">Nơi Muốn Đến</span>
+            </button>
+            <div class="dropdown-divider"></div>
             <button id="edit-profile-btn" class="dropdown-item couple-only" role="menuitem">
               <span class="dropdown-icon">⚙️</span>
               <span class="dropdown-text">Cài Đặt</span>
@@ -50,10 +59,6 @@
             <button id="music-toggle-btn" class="dropdown-item" role="menuitem">
               <span class="dropdown-icon">🎵</span>
               <span class="dropdown-text" id="music-status">Bật Nhạc</span>
-            </button>
-            <button id="nav-places-btn" class="dropdown-item" role="menuitem">
-              <span class="dropdown-icon">📍</span>
-              <span class="dropdown-text">Nơi Muốn Đi</span>
             </button>
             <button id="period-nav-btn" class="dropdown-item couple-only" role="menuitem">
               <span class="dropdown-icon">🍓</span>
@@ -80,105 +85,125 @@
   <!-- Main Container -->
   <main class="main-content">
     
-    <!-- Hero Section (Từ Timer trở lên) -->
-    <header class="hero-section">
-      <h1 class="hero-title">
-        <span id="partner-one-name">Kim</span>
-        <span class="hero-heart-pulse">❤️</span>
-        <span id="partner-two-name">Thư</span>
-      </h1>
-      
-      <p class="hero-quote" id="hero-custom-quote">
-        Iu béeeee:3
-      </p>
+    <!-- TRANG 1: KHOẢNH KHẮC ĐÔI TA (TIMELINE MẶC ĐỊNH) -->
+    <div id="view-moments" class="app-view active" role="region" aria-label="Trang khoảnh khắc đôi ta">
+      <!-- Hero Section (Từ Timer trở lên) -->
+      <header class="hero-section">
+        <h1 class="hero-title">
+          <span id="partner-one-name">Kim</span>
+          <span class="hero-heart-pulse">❤️</span>
+          <span id="partner-two-name">Thư</span>
+        </h1>
+        
+        <p class="hero-quote" id="hero-custom-quote">
+          Iu béeeee:3
+        </p>
 
-      <!-- Live Days Counter (Timer) -->
-      <section class="love-counter-card" aria-label="Đồng hồ đếm ngày yêu">
-        <div class="counter-header">
-          <span class="clock-icon">⏳</span>
-          <span class="counter-title">CHÚNG MÌNH ĐÃ Ở BÊN NHAU ĐƯỢC</span>
+        <!-- Live Days Counter (Timer) -->
+        <section class="love-counter-card" aria-label="Đồng hồ đếm ngày yêu">
+          <div class="counter-header">
+            <span class="clock-icon">⏳</span>
+            <span class="counter-title">CHÚNG MÌNH ĐÃ Ở BÊN NHAU ĐƯỢC</span>
+          </div>
+          <div class="counter-grid">
+            <div class="counter-box">
+              <span class="counter-number" id="count-days">0</span>
+              <span class="counter-unit">Ngày</span>
+            </div>
+            <div class="counter-box">
+              <span class="counter-number" id="count-hours">00</span>
+              <span class="counter-unit">Giờ</span>
+            </div>
+            <div class="counter-box">
+              <span class="counter-number" id="count-minutes">00</span>
+              <span class="counter-unit">Phút</span>
+            </div>
+            <div class="counter-box">
+              <span class="counter-number" id="count-seconds">00</span>
+              <span class="counter-unit">Giây</span>
+            </div>
+          </div>
+        </section>
+      </header>
+
+      <!-- SECTION: MOMENTS TIMELINE (Khung ảnh & Khung mô tả câu chuyện kế bên) -->
+      <section id="timeline" class="section-container timeline-section">
+        <div class="section-header">
+          <div class="pill-tag">Khoảnh Khắc Đôi Ta</div>
+          <h2 class="section-title">Khoảnh Khắc Của Tụi Mình</h2>
+          <button id="open-add-memory-modal-btn" class="btn btn-add-memory couple-only">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Gửi khoảnh khắc mới</span>
+          </button>
         </div>
-        <div class="counter-grid">
-          <div class="counter-box">
-            <span class="counter-number" id="count-days">0</span>
-            <span class="counter-unit">Ngày</span>
-          </div>
-          <div class="counter-box">
-            <span class="counter-number" id="count-hours">00</span>
-            <span class="counter-unit">Giờ</span>
-          </div>
-          <div class="counter-box">
-            <span class="counter-number" id="count-minutes">00</span>
-            <span class="counter-unit">Phút</span>
-          </div>
-          <div class="counter-box">
-            <span class="counter-number" id="count-seconds">00</span>
-            <span class="counter-unit">Giây</span>
+
+        <!-- Container danh sách các Moments lưu lại theo thời gian -->
+        <div class="locket-stream-wrapper">
+          <div class="locket-list" id="timeline-list-container">
+            <!-- Rendered dynamically via JS -->
           </div>
         </div>
       </section>
-    </header>
+    </div>
 
-    <!-- SECTION: MOMENTS TIMELINE (Khung ảnh & Khung mô tả câu chuyện kế bên) -->
-    <section id="timeline" class="section-container timeline-section">
-      <div class="section-header">
-        <div class="pill-tag">Khoảnh Khắc Đôi Ta</div>
-        <h2 class="section-title">Khoảnh Khắc Của Tụi Mình</h2>
-        <button id="open-add-memory-modal-btn" class="btn btn-add-memory couple-only">
-          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
+    <!-- TRANG 2: NHỮNG NƠI MUỐN ĐẾN (TRANG RIÊNG BIỆT) -->
+    <div id="view-places" class="app-view" role="region" aria-label="Trang những nơi muốn đến" style="display: none;">
+      <!-- Thanh điều hướng đầu trang có nút quay lại Khoảnh Khắc -->
+      <div class="places-view-topbar">
+        <button id="btn-back-to-moments" class="btn-back-to-moments" title="Quay lại trang khoảnh khắc ban đầu">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
-          <span>Gửi khoảnh khắc mới</span>
+          <span>Khoảnh khắc</span>
         </button>
+        <div class="places-view-indicator">
+          <span class="indicator-dot"></span>
+          <span>Nơi muốn đến</span>
+        </div>
       </div>
 
-      <!-- Container danh sách các Moments lưu lại theo thời gian -->
-      <div class="locket-stream-wrapper">
-        <div class="locket-list" id="timeline-list-container">
+      <!-- SECTION: PLACES WISHLIST (Những nơi chúng mình muốn đi) -->
+      <section id="places" class="section-container places-section">
+        <div class="section-header">
+          <div class="pill-tag">Đi Cùng Nhau</div>
+          <h2 class="section-title">Những Nơi Muốn Đi Cùng Em 💕</h2>
+          <p class="section-desc">Lưu lại những quán xinh, điểm hẹn hò hay ho từ TikTok & Google Maps.</p>
+
+          <!-- Thanh điều khiển: Lọc & Sắp xếp gần nhất & Thêm mới -->
+          <div class="places-controls-bar">
+            <div class="places-filter-tabs" role="tablist">
+              <button class="place-tab active" data-filter="all">Tất cả (<span id="count-places-all">0</span>)</button>
+              <button class="place-tab" data-filter="unvisited">Muốn đi (<span id="count-places-unvisited">0</span>)</button>
+              <button class="place-tab" data-filter="visited">Đã đến (<span id="count-places-visited">0</span>)</button>
+            </div>
+
+            <div class="places-action-btns">
+              <button id="reload-places-gps-btn" class="btn btn-reload-places" title="Lấy vị trí GPS và sắp xếp nơi gần bạn nhất từ trên xuống">
+                <svg class="reload-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+                <span>Nơi gần nhất</span>
+              </button>
+              <button id="open-add-place-modal-btn" class="btn btn-add-place couple-only" title="Thêm địa điểm muốn đi mới">
+                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Thêm địa điểm</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grid danh sách các địa điểm -->
+        <div class="places-grid" id="places-list-container">
           <!-- Rendered dynamically via JS -->
         </div>
-      </div>
-    </section>
-
-    <!-- SECTION: PLACES WISHLIST (Những nơi chúng mình muốn đi) -->
-    <section id="places" class="section-container places-section">
-      <div class="section-header">
-        <div class="pill-tag">Đi Cùng Nhau</div>
-        <h2 class="section-title">Những Nơi Muốn Đi Cùng Em 💕</h2>
-        <p class="section-desc">Lưu lại những quán xinh, điểm hẹn hò hay ho từ TikTok & Google Maps.</p>
-
-        <!-- Thanh điều khiển: Lọc & Sắp xếp gần nhất & Thêm mới -->
-        <div class="places-controls-bar">
-          <div class="places-filter-tabs" role="tablist">
-            <button class="place-tab active" data-filter="all">Tất cả (<span id="count-places-all">0</span>)</button>
-            <button class="place-tab" data-filter="unvisited">Muốn đi (<span id="count-places-unvisited">0</span>)</button>
-            <button class="place-tab" data-filter="visited">Đã đến (<span id="count-places-visited">0</span>)</button>
-          </div>
-
-          <div class="places-action-btns">
-            <button id="reload-places-gps-btn" class="btn btn-reload-places" title="Lấy vị trí GPS và sắp xếp nơi gần bạn nhất từ trên xuống">
-              <svg class="reload-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-              </svg>
-              <span>Nơi gần nhất</span>
-            </button>
-            <button id="open-add-place-modal-btn" class="btn btn-add-place couple-only" title="Thêm địa điểm muốn đi mới">
-              <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              <span>Thêm địa điểm</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Grid danh sách các địa điểm -->
-      <div class="places-grid" id="places-list-container">
-        <!-- Rendered dynamically via JS -->
-      </div>
-    </section>
+      </section>
+    </div>
 
     <!-- Footer -->
     <footer class="app-footer">
@@ -555,6 +580,6 @@
     </form>
   </div>
 
-  <script src="app.js?v=3.5"></script>
+  <script src="app.js?v=3.6"></script>
 </body>
 </html>

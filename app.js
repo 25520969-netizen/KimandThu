@@ -288,6 +288,14 @@ class JourneyApp {
     this.countPlacesAll = document.getElementById("count-places-all");
     this.countPlacesUnvisited = document.getElementById("count-places-unvisited");
     this.countPlacesVisited = document.getElementById("count-places-visited");
+
+    // SPA Views & Navigation
+    this.viewMoments = document.getElementById("view-moments");
+    this.viewPlaces = document.getElementById("view-places");
+    this.navMomentsBtn = document.getElementById("nav-moments-btn");
+    this.btnBackToMoments = document.getElementById("btn-back-to-moments");
+    this.navLogoBtn = document.getElementById("nav-logo-btn");
+    this.currentView = "moments";
   }
 
   // ==========================================
@@ -1550,16 +1558,40 @@ class JourneyApp {
       });
     }
 
-    // 7. Nhảy nhanh đến mục địa điểm từ dropdown navigation
+    // 7. Chuyển đổi linh hoạt giữa trang Khoảnh Khắc và trang Nơi Muốn Đến
     if (this.navPlacesBtn) {
       this.navPlacesBtn.addEventListener("click", () => {
-        if (this.navDropdownWrap) this.navDropdownWrap.classList.remove("open");
-        const placesSec = document.getElementById("places");
-        if (placesSec) {
-          placesSec.scrollIntoView({ behavior: "smooth" });
-        }
+        this.switchView("places");
       });
     }
+
+    if (this.navMomentsBtn) {
+      this.navMomentsBtn.addEventListener("click", () => {
+        this.switchView("moments");
+      });
+    }
+
+    if (this.btnBackToMoments) {
+      this.btnBackToMoments.addEventListener("click", () => {
+        this.switchView("moments");
+      });
+    }
+
+    if (this.navLogoBtn) {
+      this.navLogoBtn.addEventListener("click", () => {
+        this.switchView("moments");
+      });
+    }
+
+    // Xử lý nút Back/Forward trên điện thoại và trình duyệt
+    window.addEventListener("popstate", () => {
+      const isPlaces = window.location.hash === "#places";
+      this.switchView(isPlaces ? "places" : "moments", false);
+    });
+
+    // Mở trang ban đầu dựa theo URL hash (mặc định là trang khoảnh khắc)
+    const initialView = window.location.hash === "#places" ? "places" : "moments";
+    this.switchView(initialView, false);
 
     // 8. Tự động kiểm tra và phân giải toạ độ cho các địa điểm còn thiếu (chạy ngầm)
     this.autoResolveMissingPlaceCoordinates();
@@ -1572,6 +1604,70 @@ class JourneyApp {
       () => {},
       { timeout: 7000 }
     );
+  }
+
+  // ==========================================
+  // ĐIỀU HƯỚNG CHUYỂN TRANG (KHOẢNH KHẮC VS NƠI MUỐN ĐẾN)
+  // ==========================================
+  switchView(viewName, updateHistory = true) {
+    const isPlaces = (viewName === "places");
+    this.currentView = isPlaces ? "places" : "moments";
+
+    if (isPlaces) {
+      if (this.viewMoments) {
+        this.viewMoments.classList.remove("active");
+        this.viewMoments.style.display = "none";
+      }
+      if (this.viewPlaces) {
+        this.viewPlaces.style.display = "block";
+        requestAnimationFrame(() => {
+          this.viewPlaces.classList.add("active");
+        });
+      }
+      if (this.navMomentsBtn) this.navMomentsBtn.classList.remove("active");
+      if (this.navPlacesBtn) this.navPlacesBtn.classList.add("active");
+
+      // Đóng dropdown menu nếu đang mở
+      if (this.navDropdownWrap) {
+        this.navDropdownWrap.classList.remove("open");
+        if (this.navMenuToggleBtn) this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
+      }
+
+      // Đảm bảo danh sách địa điểm và khoảng cách được hiển thị
+      this.renderPlaces();
+      this.calculateAllDistancesAndRoutes(false);
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      if (updateHistory) {
+        window.history.pushState({ view: "places" }, "", "#places");
+      }
+    } else {
+      if (this.viewPlaces) {
+        this.viewPlaces.classList.remove("active");
+        this.viewPlaces.style.display = "none";
+      }
+      if (this.viewMoments) {
+        this.viewMoments.style.display = "block";
+        requestAnimationFrame(() => {
+          this.viewMoments.classList.add("active");
+        });
+      }
+      if (this.navPlacesBtn) this.navPlacesBtn.classList.remove("active");
+      if (this.navMomentsBtn) this.navMomentsBtn.classList.add("active");
+
+      if (this.navDropdownWrap) {
+        this.navDropdownWrap.classList.remove("open");
+        if (this.navMenuToggleBtn) this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
+      }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
+      if (updateHistory) {
+        const cleanUrl = window.location.pathname + window.location.search;
+        window.history.pushState({ view: "moments" }, "", cleanUrl);
+      }
+    }
   }
 
   // ==========================================
