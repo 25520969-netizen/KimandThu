@@ -235,17 +235,40 @@ function doPost(e) {
       if (placeSheet.getLastRow() === 0) {
         placeSheet.appendRow(["ID", "Name", "MapUrl", "TiktokUrl", "Lat", "Lng", "Notes", "Visited", "CreatedAt"]);
       }
-      placeSheet.appendRow([
-        data.id,
-        data.name || "",
-        data.mapUrl || "",
-        data.tiktokUrl || "",
-        data.lat !== undefined ? data.lat : "",
-        data.lng !== undefined ? data.lng : "",
-        data.notes || "",
-        data.visited === true,
-        new Date()
-      ]);
+      
+      var isUpdated = false;
+      if (placeSheet.getLastRow() > 1) {
+        var pData = placeSheet.getDataRange().getValues();
+        for (var pIdx = 1; pIdx < pData.length; pIdx++) {
+          if (String(pData[pIdx][0]).trim() === String(data.id).trim()) {
+            placeSheet.getRange(pIdx + 1, 2).setValue(data.name || "");
+            placeSheet.getRange(pIdx + 1, 3).setValue(data.mapUrl || "");
+            placeSheet.getRange(pIdx + 1, 4).setValue(data.tiktokUrl || "");
+            placeSheet.getRange(pIdx + 1, 5).setValue(data.lat !== undefined ? data.lat : "");
+            placeSheet.getRange(pIdx + 1, 6).setValue(data.lng !== undefined ? data.lng : "");
+            placeSheet.getRange(pIdx + 1, 7).setValue(data.notes || "");
+            if (data.visited !== undefined) {
+              placeSheet.getRange(pIdx + 1, 8).setValue(data.visited === true);
+            }
+            isUpdated = true;
+            break;
+          }
+        }
+      }
+
+      if (!isUpdated) {
+        placeSheet.appendRow([
+          data.id,
+          data.name || "",
+          data.mapUrl || "",
+          data.tiktokUrl || "",
+          data.lat !== undefined ? data.lat : "",
+          data.lng !== undefined ? data.lng : "",
+          data.notes || "",
+          data.visited === true,
+          data.createdAt || new Date().toISOString()
+        ]);
+      }
       return ContentService.createTextOutput(JSON.stringify({status: "success"}))
         .setMimeType(ContentService.MimeType.JSON);
     }

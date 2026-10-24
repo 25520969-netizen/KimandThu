@@ -1518,7 +1518,7 @@ class JourneyApp {
         // Đưa ngay vào đầu danh sách để phản hồi UI tức thì (0ms)
         this.places.unshift(newPlace);
         this.saveData("journey_places_v2", this.places);
-        this.sendToBackend({ type: "place", ...newPlace });
+        this.sendPlaceToBackend(newPlace);
 
         if (this.placeModal) this.placeModal.close();
         this.spawnHeartConfetti();
@@ -1571,7 +1571,7 @@ class JourneyApp {
               newPlace.lat = resolved.lat;
               newPlace.lng = resolved.lng;
               this.saveData("journey_places_v2", this.places);
-              this.sendToBackend({ type: "place", ...newPlace });
+              this.sendPlaceToBackend(newPlace);
 
               if (this.lastUserPosition) {
                 calculateForPlace(newPlace);
@@ -2401,7 +2401,7 @@ class JourneyApp {
     // Đưa vào đầu danh sách
     this.places.unshift(newPlace);
     this.saveData("journey_places_v2", this.places);
-    this.sendToBackend({ type: "place", ...newPlace });
+    this.sendPlaceToBackend(newPlace);
 
     if (this.addCurrentLocModal) this.addCurrentLocModal.close();
     this.spawnHeartConfetti();
@@ -2447,6 +2447,7 @@ class JourneyApp {
     place.visited = !place.visited;
     this.saveData("journey_places_v2", this.places);
     this.sendToBackend({ type: "toggle_place", id: place.id, visited: place.visited });
+    this.sendPlaceToBackend(place);
     this.renderPlaces();
     this.showToast(place.visited ? "🌸 Đã đánh dấu ghé thăm địa điểm này!" : "✨ Đã chuyển về danh sách muốn đi!");
   }
@@ -2471,6 +2472,15 @@ class JourneyApp {
       }
       this.saveData("journey_places_v2", this.places);
       this.sendToBackend({ type: "delete_place", id: pid });
+      this.sendToBackend({
+        type: "task",
+        id: "pw_del_" + pid,
+        title: "DELETED",
+        category: "PLACE_DELETED",
+        targetDate: new Date().toISOString(),
+        notes: pid,
+        completed: true
+      });
       this.renderPlaces();
       this.showToast("Đã xóa địa điểm khỏi danh sách.");
     }
@@ -2784,6 +2794,35 @@ class JourneyApp {
     }
   }
 
+  // Đồng bộ địa điểm với cơ chế Dual-Sync (Tương thích 100% cả bản Google Apps Script cũ và mới)
+  sendPlaceToBackend(place) {
+    if (!place || !this.config.apiUrl) return;
+
+    // 1. Gửi dạng place (dành cho Google Apps Script phiên bản có sheet Places)
+    this.sendToBackend({ type: "place", ...place });
+
+    // 2. Đồng thời gửi dạng task với category PLACE_WISHLIST (tương thích tức thì với Google Apps Script đang chạy trên cloud)
+    this.sendToBackend({
+      type: "task",
+      id: "pw_" + place.id,
+      title: place.name || "Địa điểm",
+      category: "PLACE_WISHLIST",
+      targetDate: place.createdAt || new Date().toISOString(),
+      notes: JSON.stringify({
+        id: place.id,
+        name: place.name,
+        mapUrl: place.mapUrl || "",
+        tiktokUrl: place.tiktokUrl || "",
+        lat: place.lat,
+        lng: place.lng,
+        notes: place.notes || "",
+        visited: place.visited === true,
+        createdAt: place.createdAt || new Date().toISOString()
+      }),
+      completed: place.visited === true
+    });
+  }
+
   // ==========================================
   // HỘP THƯ CHAT RIÊNG TƯ (LƯU DRIVE & GOOGLE CLOUD)
   // ==========================================
@@ -3019,8 +3058,47 @@ class JourneyApp {
             }
           }
         }
+        // TẬP HỢP TẤT CẢ ĐỊA ĐIỂM TỪ BACKEND
+        const incomingPlaces = [];
+
+        // 1. Nguồn 1: data.places (nếu Google Apps Script đã deploy bản có sheet Places)
         if (data.places && Array.isArray(data.places)) {
-          this.syncPlaces(data.places);
+          incomingPlaces.push(...data.places);
+        }
+
+        // 2. Nguồn 2: data.tasks với category PLACE_WISHLIST (Dual-Sync tương thích 100% với cloud backend hiện tại)
+        if (data.tasks && Array.isArray(data.tasks)) {
+          data.tasks.forEach(t => {
+            if (t.category === "PLACE_DELETED" && t.notes) {
+              const delId = String(t.notes).trim();
+              if (!this.deletedPlaceIds.includes(delId)) {
+                this.deletedPlaceIds.push(delId);
+                this.saveData("journey_deleted_place_ids", this.deletedPlaceIds);
+              }
+            } else if (t.category === "PLACE_WISHLIST" && t.notes) {
+              try {
+                const parsed = typeof t.notes === "string" ? JSON.parse(t.notes) : t.notes;
+                if (parsed && (parsed.id || parsed.name)) {
+                  if (t.completed !== undefined) {
+                    parsed.visited = t.completed === true;
+                  }
+                  incomingPlaces.push(parsed);
+                }
+              } catch (errParse) {
+                incomingPlaces.push({
+                  id: String(t.id).replace(/^pw_/, ""),
+                  name: t.title || "Địa điểm",
+                  notes: String(t.notes || ""),
+                  visited: t.completed === true,
+                  createdAt: t.targetDate || ""
+                });
+              }
+            }
+          });
+        }
+
+        if (incomingPlaces.length > 0) {
+          this.syncPlaces(incomingPlaces);
         }
       })
       .catch(e => console.warn("Chưa đồng bộ được từ Google Drive:", e));
@@ -3038,7 +3116,7 @@ class JourneyApp {
       !validServer.some(sp => String(sp.id) === String(dp.id))
     );
 
-    // 3. Giữ lại các địa điểm cục bộ vừa tạo trong vòng 60 giây
+    // 3. Giữ lại các địa điểm cục bộ vừa tạo trong vòng 120 giây (chờ đồng bộ)
     const now = Date.now();
     const pendingLocal = this.places.filter(p => {
       const pid = String(p.id);
@@ -3046,11 +3124,12 @@ class JourneyApp {
       if (validServer.some(sp => String(sp.id) === pid)) return false;
       if (["place-1", "place-2", "place-3"].includes(pid)) return false;
       const rawNum = parseInt(pid.replace(/\D/g, "")) || 0;
-      return (now - rawNum) < 60000;
+      return (now - rawNum) < 120000;
     });
 
     const combinedMap = new Map();
     validServer.forEach(p => {
+      const pid = String(p.id);
       if (p.lat != null && p.lat !== "") p.lat = parseFloat(p.lat);
       if (p.lng != null && p.lng !== "") p.lng = parseFloat(p.lng);
       if ((p.lat == null || isNaN(p.lat)) && p.mapUrl) {
@@ -3060,11 +3139,18 @@ class JourneyApp {
           p.lng = coords.lng;
         }
       }
-      combinedMap.set(String(p.id), p);
+      if (combinedMap.has(pid)) {
+        const existing = combinedMap.get(pid);
+        combinedMap.set(pid, { ...existing, ...p, lat: p.lat ?? existing.lat, lng: p.lng ?? existing.lng });
+      } else {
+        combinedMap.set(pid, p);
+      }
     });
+
     pendingLocal.forEach(p => {
       if (!combinedMap.has(String(p.id))) combinedMap.set(String(p.id), p);
     });
+
     defaultPlaces.forEach(p => {
       if (!combinedMap.has(String(p.id))) combinedMap.set(String(p.id), p);
     });
@@ -3073,6 +3159,7 @@ class JourneyApp {
     if (JSON.stringify(mergedPlaces) !== JSON.stringify(this.places)) {
       this.places = mergedPlaces;
       this.saveData("journey_places_v2", this.places);
+      this.renderPlaces();
       this.calculateAllDistancesAndRoutes(false);
       this.autoResolveMissingPlaceCoordinates();
     }
