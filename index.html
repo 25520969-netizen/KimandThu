@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,600&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=3.8">
+  <link rel="stylesheet" href="styles.css?v=3.9">
 </head>
 <body>
   <!-- Ambient Floating Petals Background Canvas -->
@@ -131,7 +131,7 @@
         <div class="section-header">
           <div class="pill-tag">Khoảnh Khắc Đôi Ta</div>
           <h2 class="section-title">Khoảnh Khắc Của Tụi Mình</h2>
-          <button id="open-add-memory-modal-btn" class="btn btn-add-memory couple-only">
+          <button id="open-add-memory-modal-btn" class="btn btn-add-memory" title="Gửi khoảnh khắc mới">
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
               <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -188,7 +188,7 @@
                 </svg>
                 <span>Đã đến chưa?</span>
               </button>
-              <button id="add-current-location-btn" class="btn btn-add-current-loc couple-only" title="Lấy toạ độ vị trí hiện tại và thêm trực tiếp vào danh sách đã đến">
+              <button id="add-current-location-btn" class="btn btn-add-current-loc" title="Lấy toạ độ vị trí hiện tại và thêm trực tiếp vào danh sách đã đến">
                 <svg class="add-loc-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
                   <circle cx="12" cy="10" r="3"></circle>
@@ -201,7 +201,7 @@
                 </svg>
                 <span>Nơi gần nhất</span>
               </button>
-              <button id="open-add-place-modal-btn" class="btn btn-add-place couple-only" title="Thêm địa điểm muốn đi mới">
+              <button id="open-add-place-modal-btn" class="btn btn-add-place" title="Thêm địa điểm muốn đi mới">
                 <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
                   <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -587,14 +587,14 @@
       <form id="auth-form" class="modal-form">
         <div style="text-align: center; margin-bottom: 12px;">
           <div style="font-size: 2.2rem; margin-bottom: 6px;">💑✨</div>
-          <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5;">
+          <p id="auth-modal-desc" style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5;">
             Trang web đang ở chế độ công khai (chỉ xem kỷ niệm & đếm ngày yêu).<br>
             Nhập mật mã tình yêu để mở khóa nhắn tin, gửi ảnh và chăm sóc bé nhé!
           </p>
         </div>
         <div class="form-group">
           <label for="auth-passcode-input">Mật mã tình yêu 💕</label>
-          <input type="password" id="auth-passcode-input" placeholder="Nhập mật khẩu..." autocomplete="current-password" required>
+          <input type="text" id="auth-passcode-input" placeholder="Nhập mật mã (kimthu hoặc ngày kỷ niệm)..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required>
           <small id="auth-error-msg" style="color: #e11d48; font-size: 0.82rem; margin-top: 6px; display: none;">Mật mã chưa đúng nè, thử lại nhé bé yêu! 💕</small>
         </div>
         <div class="modal-actions" style="margin-top: 18px;">
@@ -671,6 +671,6 @@
     </form>
   </div>
 
-  <script src="app.js?v=3.8"></script>
+  <script src="app.js?v=3.9"></script>
 </body>
 </html>

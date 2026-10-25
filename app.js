@@ -399,6 +399,12 @@ class JourneyApp {
           this.showToast("Mở khóa thành công! Chào mừng Kim & Thư 💕");
           this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
           this.syncFromBackend();
+
+          if (typeof this.pendingAuthSuccessCallback === "function") {
+            const cb = this.pendingAuthSuccessCallback;
+            this.pendingAuthSuccessCallback = null;
+            setTimeout(() => cb(), 150);
+          }
         } else {
           if (this.authErrorMsg) this.authErrorMsg.style.display = "block";
           if (this.authPasscodeInput) this.authPasscodeInput.focus();
@@ -426,20 +432,43 @@ class JourneyApp {
 
   isPasscodeValid(pass) {
     if (!pass) return false;
-    const clean = String(pass).trim().toLowerCase();
-    const currentPass = String(this.config.passcode || "kimthu").trim().toLowerCase();
-    return clean === currentPass || clean === "kimthu" || clean === "0204" || clean === "1909";
+    const raw = String(pass).trim().toLowerCase();
+    const clean = raw.replace(/\s+/g, "");
+    const normalized = clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const currentPass = String(this.config.passcode || "kimthu").trim().toLowerCase().replace(/\s+/g, "");
+    return (
+      raw === currentPass ||
+      clean === currentPass ||
+      normalized === "kimthu" ||
+      clean === "kimthu" ||
+      clean === "0204" ||
+      clean === "1909" ||
+      clean === "24" ||
+      clean === "199"
+    );
   }
 
-  openAuthModal() {
+  openAuthModal(callback = null, customMessage = null) {
     if (!this.authModal) return;
+    this.pendingAuthSuccessCallback = (typeof callback === "function") ? callback : null;
+    const descEl = document.getElementById("auth-modal-desc");
+    if (descEl) {
+      if (customMessage) {
+        descEl.innerHTML = `<strong>${customMessage}</strong><br><small style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; display: inline-block;">Gợi ý: Mật mã là kimthu hoặc ngày kỷ niệm của tụi mình 💕</small>`;
+      } else {
+        descEl.innerHTML = `Trang web đang ở chế độ công khai (chỉ xem kỷ niệm & đếm ngày yêu).<br>Nhập mật mã tình yêu để mở khóa nhắn tin, gửi ảnh và chăm sóc bé nhé!`;
+      }
+    }
     if (this.authErrorMsg) this.authErrorMsg.style.display = "none";
     if (this.authPasscodeInput) this.authPasscodeInput.value = "";
     this.authModal.showModal();
-    if (this.authPasscodeInput) this.authPasscodeInput.focus();
+    if (this.authPasscodeInput) {
+      setTimeout(() => this.authPasscodeInput.focus(), 100);
+    }
   }
 
   closeAuthModal() {
+    this.pendingAuthSuccessCallback = null;
     if (this.authModal && this.authModal.open) this.authModal.close();
   }
 
@@ -761,8 +790,9 @@ class JourneyApp {
   initEvents() {
     const openMemoryDialog = () => {
       if (!this.isAuthenticated) {
-        this.showToast("Chế độ chỉ xem: Chỉ Kim & Thư mới có thể gửi khoảnh khắc mới! 💕");
-        this.openAuthModal();
+        this.openAuthModal(() => {
+          openMemoryDialog();
+        }, "Bé Thư nhập mật mã tình yêu để gửi khoảnh khắc mới nhé 💕");
         return;
       }
 
@@ -839,8 +869,9 @@ class JourneyApp {
     // Cài đặt thông tin
     this.openSettingsBtn.addEventListener("click", () => {
       if (!this.isAuthenticated) {
-        this.showToast("Khu vực cài đặt chỉ dành cho Kim & Thư 💕");
-        this.openAuthModal();
+        this.openAuthModal(() => {
+          this.openSettingsBtn.click();
+        }, "Khu vực cài đặt chỉ dành cho Kim & Thư 💕");
         return;
       }
       document.getElementById("cfg-him-name").value = this.config.partnerOne;
@@ -1427,8 +1458,12 @@ class JourneyApp {
     if (this.openAddPlaceModalBtn) {
       this.openAddPlaceModalBtn.addEventListener("click", () => {
         if (!this.isAuthenticated) {
-          this.showToast("Chỉ Kim & Thư mới có quyền thêm địa điểm 💕");
-          this.openAuthModal();
+          this.openAuthModal(() => {
+            if (this.placeForm) this.placeForm.reset();
+            if (this.placeModal) this.placeModal.showModal();
+            if (this.placeNameInput) this.placeNameInput.focus();
+            this.getUserPosition();
+          }, "Bé Thư nhập mật mã tình yêu để thêm địa điểm muốn đi nhé 💕");
           return;
         }
         if (this.placeForm) this.placeForm.reset();
@@ -1648,8 +1683,9 @@ class JourneyApp {
     if (this.addCurrentLocationBtn) {
       this.addCurrentLocationBtn.addEventListener("click", () => {
         if (!this.isAuthenticated) {
-          this.showToast("Chỉ Kim & Thư mới có quyền thêm địa điểm 💕");
-          this.openAuthModal();
+          this.openAuthModal(() => {
+            this.openAddCurrentLocationModal();
+          }, "Bé Thư nhập mật mã tình yêu để lưu vị trí đang đứng nhé 💕");
           return;
         }
         this.openAddCurrentLocationModal();
