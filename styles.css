@@ -128,6 +128,59 @@ body {
   display: inline-block;
 }
 
+/* ===================================================================
+   TOP NAV SEGMENTED VIEW SWITCHER
+   =================================================================== */
+.nav-view-switcher {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 238, 244, 0.88);
+  padding: 4px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 184, 201, 0.65);
+  box-shadow: inset 0 1px 3px rgba(255, 117, 143, 0.08);
+  gap: 3px;
+}
+
+.nav-tab-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  min-height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.84rem;
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-tab-btn:hover {
+  color: var(--pink-deep);
+}
+
+.nav-tab-btn.active {
+  background: #ffffff;
+  color: var(--pink-deep);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(255, 117, 143, 0.22);
+}
+
+.nav-tab-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.nav-tab-label {
+  line-height: 1;
+}
+
 .nav-actions {
   display: flex;
   align-items: center;
@@ -1119,25 +1172,34 @@ body {
 }
 
 .places-filter-tabs {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(255, 240, 245, 0.75);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  max-width: 440px;
+  gap: 6px;
+  background: rgba(255, 240, 245, 0.85);
   padding: 4px;
   border-radius: var(--radius-pill);
-  border: 1px solid rgba(255, 184, 201, 0.55);
+  border: 1px solid rgba(255, 184, 201, 0.65);
+  box-shadow: inset 0 1px 3px rgba(255, 117, 143, 0.08);
 }
 
 .place-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   background: transparent;
   border: none;
   color: var(--text-soft);
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   font-weight: 600;
-  padding: 6px 14px;
+  padding: 8px 14px;
+  min-height: 44px;
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: var(--transition-smooth);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .place-tab:hover {
@@ -1148,7 +1210,37 @@ body {
   background: #ffffff;
   color: var(--pink-deep);
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(255, 117, 143, 0.16);
+  box-shadow: 0 3px 10px rgba(255, 117, 143, 0.22);
+}
+
+.place-tab-icon {
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
+.place-tab-label {
+  line-height: 1;
+}
+
+.place-tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 117, 143, 0.14);
+  color: var(--pink-deep);
+  transition: all 0.22s ease;
+}
+
+.place-tab.active .place-tab-badge {
+  background: var(--pink-gradient);
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(255, 117, 143, 0.3);
 }
 
 .places-action-btns {
@@ -2603,6 +2695,35 @@ body {
     padding-top: 4px;
   }
 
+  .nav-bar {
+    padding: 10px 12px;
+  }
+
+  .nav-container {
+    gap: 8px;
+  }
+
+  .logo {
+    font-size: 1.12rem;
+    gap: 6px;
+  }
+
+  .nav-view-switcher {
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .nav-tab-btn {
+    padding: 6px 10px;
+    min-height: 36px;
+    font-size: 0.78rem;
+    gap: 4px;
+  }
+
+  .nav-tab-icon {
+    font-size: 0.85rem;
+  }
+
   .places-controls-bar {
     flex-direction: column;
     align-items: stretch;
@@ -2611,7 +2732,7 @@ body {
 
   .places-filter-tabs {
     width: 100%;
-    justify-content: space-around;
+    max-width: 100%;
   }
 
   .places-action-btns {
@@ -2628,21 +2749,41 @@ body {
   .places-action-btns .btn-add-place {
     flex: 1.2;
     justify-content: center;
-    padding: 10px 14px;
-    font-size: 0.86rem;
+    padding: 11px 14px;
+    font-size: 0.88rem;
+    min-height: 44px;
   }
 
   .places-action-btns .btn-gps-utility {
     width: 100%;
     justify-content: center;
-    padding: 10px 12px;
-    font-size: 0.84rem;
+    padding: 11px 12px;
+    font-size: 0.86rem;
+    min-height: 44px;
   }
 
   .places-grid {
     grid-template-columns: 1fr;
     gap: 14px;
     margin-top: 18px;
+  }
+}
+
+@media (max-width: 380px) {
+  .nav-bar {
+    padding: 8px 10px;
+  }
+  .logo-text {
+    font-size: 1rem;
+  }
+  .nav-tab-btn {
+    padding: 5px 8px;
+    font-size: 0.74rem;
+  }
+  .place-tab {
+    padding: 8px 10px;
+    font-size: 0.82rem;
+    gap: 5px;
   }
 }
 

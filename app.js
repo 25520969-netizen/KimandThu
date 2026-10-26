@@ -116,7 +116,7 @@ class JourneyApp {
     this.deletedMemoryIds = this.loadData("journey_deleted_mem_ids", []);
     this.places = this.loadData("journey_places_v2", DEFAULT_PLACES);
     this.deletedPlaceIds = this.loadData("journey_deleted_place_ids", []);
-    this.placesFilter = "all";
+    this.placesFilter = "unvisited";
     this.lastUserPosition = this.loadData("journey_last_user_pos", null);
     this.placeDistances = new Map();
     this.placeRoutes = new Map();
@@ -282,7 +282,8 @@ class JourneyApp {
     this.placeNotesInput = document.getElementById("place-notes-input");
     this.btnPlaceUseCurrentGps = document.getElementById("btn-place-use-current-gps");
     this.navPlacesBtn = document.getElementById("nav-places-btn");
-    this.countPlacesAll = document.getElementById("count-places-all");
+    this.navTabMoments = document.getElementById("nav-tab-moments");
+    this.navTabPlaces = document.getElementById("nav-tab-places");
     this.countPlacesUnvisited = document.getElementById("count-places-unvisited");
     this.countPlacesVisited = document.getElementById("count-places-visited");
 
@@ -1473,12 +1474,12 @@ class JourneyApp {
       });
     }
 
-    // 1. Chuyển đổi tab bộ lọc (Tất cả / Chưa đi / Đã đến)
+    // 1. Chuyển đổi tab bộ lọc (Chưa đi / Đã đến)
     document.querySelectorAll(".place-tab").forEach(tab => {
       tab.addEventListener("click", () => {
         document.querySelectorAll(".place-tab").forEach(t => t.classList.remove("active"));
         tab.classList.add("active");
-        this.placesFilter = tab.dataset.filter || "all";
+        this.placesFilter = tab.dataset.filter || "unvisited";
         this.renderPlaces();
       });
     });
@@ -1662,6 +1663,18 @@ class JourneyApp {
     }
 
     // 7. Chuyển đổi linh hoạt giữa trang Khoảnh Khắc và trang Nơi Muốn Đến
+    if (this.navTabMoments) {
+      this.navTabMoments.addEventListener("click", () => {
+        this.switchView("moments");
+      });
+    }
+
+    if (this.navTabPlaces) {
+      this.navTabPlaces.addEventListener("click", () => {
+        this.switchView("places");
+      });
+    }
+
     if (this.navPlacesBtn) {
       this.navPlacesBtn.addEventListener("click", () => {
         this.switchView("places");
@@ -1781,6 +1794,14 @@ class JourneyApp {
       }
       if (this.navMomentsBtn) this.navMomentsBtn.classList.remove("active");
       if (this.navPlacesBtn) this.navPlacesBtn.classList.add("active");
+      if (this.navTabMoments) {
+        this.navTabMoments.classList.remove("active");
+        this.navTabMoments.setAttribute("aria-selected", "false");
+      }
+      if (this.navTabPlaces) {
+        this.navTabPlaces.classList.add("active");
+        this.navTabPlaces.setAttribute("aria-selected", "true");
+      }
 
       // Đóng dropdown menu nếu đang mở
       if (this.navDropdownWrap) {
@@ -1810,6 +1831,14 @@ class JourneyApp {
       }
       if (this.navPlacesBtn) this.navPlacesBtn.classList.remove("active");
       if (this.navMomentsBtn) this.navMomentsBtn.classList.add("active");
+      if (this.navTabPlaces) {
+        this.navTabPlaces.classList.remove("active");
+        this.navTabPlaces.setAttribute("aria-selected", "false");
+      }
+      if (this.navTabMoments) {
+        this.navTabMoments.classList.add("active");
+        this.navTabMoments.setAttribute("aria-selected", "true");
+      }
 
       if (this.navDropdownWrap) {
         this.navDropdownWrap.classList.remove("open");
@@ -2562,12 +2591,10 @@ class JourneyApp {
   renderPlaces(hasJustSorted = false) {
     if (!this.placesListContainer) return;
 
-    // Cập nhật số lượng đếm trên tab
-    const totalCount = this.places.length;
+    // Cập nhật số lượng đếm trên tab Muốn đi & Đã đến
     const unvisitedCount = this.places.filter(p => !p.visited).length;
     const visitedCount = this.places.filter(p => p.visited).length;
 
-    if (this.countPlacesAll) this.countPlacesAll.textContent = totalCount;
     if (this.countPlacesUnvisited) this.countPlacesUnvisited.textContent = unvisitedCount;
     if (this.countPlacesVisited) this.countPlacesVisited.textContent = visitedCount;
 
