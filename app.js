@@ -282,8 +282,6 @@ class JourneyApp {
     this.placeNotesInput = document.getElementById("place-notes-input");
     this.btnPlaceUseCurrentGps = document.getElementById("btn-place-use-current-gps");
     this.navPlacesBtn = document.getElementById("nav-places-btn");
-    this.navTabMoments = document.getElementById("nav-tab-moments");
-    this.navTabPlaces = document.getElementById("nav-tab-places");
     this.countPlacesUnvisited = document.getElementById("count-places-unvisited");
     this.countPlacesVisited = document.getElementById("count-places-visited");
 
@@ -326,7 +324,6 @@ class JourneyApp {
     this.viewMoments = document.getElementById("view-moments");
     this.viewPlaces = document.getElementById("view-places");
     this.navMomentsBtn = document.getElementById("nav-moments-btn");
-    this.btnBackToMoments = document.getElementById("btn-back-to-moments");
     this.navLogoBtn = document.getElementById("nav-logo-btn");
     this.currentView = "moments";
   }
@@ -1662,19 +1659,7 @@ class JourneyApp {
       });
     }
 
-    // 7. Chuyển đổi linh hoạt giữa trang Khoảnh Khắc và trang Nơi Muốn Đến
-    if (this.navTabMoments) {
-      this.navTabMoments.addEventListener("click", () => {
-        this.switchView("moments");
-      });
-    }
-
-    if (this.navTabPlaces) {
-      this.navTabPlaces.addEventListener("click", () => {
-        this.switchView("places");
-      });
-    }
-
+    // 7. Chuyển đổi linh hoạt giữa trang Khoảnh Khắc và trang Nơi Muốn Đến qua Menu Dropdown
     if (this.navPlacesBtn) {
       this.navPlacesBtn.addEventListener("click", () => {
         this.switchView("places");
@@ -1683,12 +1668,6 @@ class JourneyApp {
 
     if (this.navMomentsBtn) {
       this.navMomentsBtn.addEventListener("click", () => {
-        this.switchView("moments");
-      });
-    }
-
-    if (this.btnBackToMoments) {
-      this.btnBackToMoments.addEventListener("click", () => {
         this.switchView("moments");
       });
     }
@@ -1794,14 +1773,6 @@ class JourneyApp {
       }
       if (this.navMomentsBtn) this.navMomentsBtn.classList.remove("active");
       if (this.navPlacesBtn) this.navPlacesBtn.classList.add("active");
-      if (this.navTabMoments) {
-        this.navTabMoments.classList.remove("active");
-        this.navTabMoments.setAttribute("aria-selected", "false");
-      }
-      if (this.navTabPlaces) {
-        this.navTabPlaces.classList.add("active");
-        this.navTabPlaces.setAttribute("aria-selected", "true");
-      }
 
       // Đóng dropdown menu nếu đang mở
       if (this.navDropdownWrap) {
@@ -1831,14 +1802,6 @@ class JourneyApp {
       }
       if (this.navPlacesBtn) this.navPlacesBtn.classList.remove("active");
       if (this.navMomentsBtn) this.navMomentsBtn.classList.add("active");
-      if (this.navTabPlaces) {
-        this.navTabPlaces.classList.remove("active");
-        this.navTabPlaces.setAttribute("aria-selected", "false");
-      }
-      if (this.navTabMoments) {
-        this.navTabMoments.classList.add("active");
-        this.navTabMoments.setAttribute("aria-selected", "true");
-      }
 
       if (this.navDropdownWrap) {
         this.navDropdownWrap.classList.remove("open");

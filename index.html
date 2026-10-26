@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,600&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=4.3">
+  <link rel="stylesheet" href="styles.css?v=4.4">
 </head>
 <body>
   <!-- Ambient Floating Petals Background Canvas -->
@@ -32,18 +32,6 @@
       <div class="logo" id="nav-logo-btn" role="button" tabindex="0" title="Về trang khoảnh khắc">
         <span class="logo-heart">💖</span>
         <span class="logo-text" id="nav-couple-names">Kim & Thư</span>
-      </div>
-
-      <!-- Segmented View Switcher: Chuyển đổi nhanh 2 trang Khoảnh Khắc & Nơi Muốn Đến -->
-      <div class="nav-view-switcher" role="tablist" aria-label="Chuyển đổi giao diện chính">
-        <button id="nav-tab-moments" class="nav-tab-btn active" role="tab" aria-selected="true" title="Xem Dòng thời gian khoảnh khắc">
-          <span class="nav-tab-icon">📸</span>
-          <span class="nav-tab-label">Khoảnh Khắc</span>
-        </button>
-        <button id="nav-tab-places" class="nav-tab-btn" role="tab" aria-selected="false" title="Xem Những nơi muốn đến">
-          <span class="nav-tab-icon">📍</span>
-          <span class="nav-tab-label">Nơi Đến</span>
-        </button>
       </div>
 
       <div class="nav-actions">
@@ -164,20 +152,6 @@
 
     <!-- TRANG 2: NHỮNG NƠI MUỐN ĐẾN (TRANG RIÊNG BIỆT) -->
     <div id="view-places" class="app-view" role="region" aria-label="Trang những nơi muốn đến" style="display: none;">
-      <!-- Thanh điều hướng đầu trang có nút quay lại Khoảnh Khắc -->
-      <div class="places-view-topbar">
-        <button id="btn-back-to-moments" class="btn-back-to-moments" title="Quay lại trang khoảnh khắc ban đầu">
-          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-          <span>Khoảnh khắc</span>
-        </button>
-        <div class="places-view-indicator">
-          <span class="indicator-dot"></span>
-          <span>Nơi muốn đến</span>
-        </div>
-      </div>
-
       <!-- SECTION: PLACES WISHLIST (Những nơi chúng mình muốn đi) -->
       <section id="places" class="section-container places-section">
         <div class="section-header">
@@ -711,6 +685,6 @@
     </form>
   </div>
 
-  <script src="app.js?v=4.3"></script>
+  <script src="app.js?v=4.4"></script>
 </body>
 </html>
