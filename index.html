@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,600&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=3.9">
+  <link rel="stylesheet" href="styles.css?v=4.1">
 </head>
 <body>
   <!-- Ambient Floating Petals Background Canvas -->
@@ -181,26 +181,46 @@
             </div>
 
             <div class="places-action-btns">
-              <button id="check-visited-gps-btn" class="btn btn-check-visited" title="Kiểm tra xem vị trí bạn đang đứng đã từng ghé thăm cùng nhau chưa">
-                <svg class="check-gps-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <path d="m9 12 2 2 4-4"></path>
-                </svg>
-                <span>Đã đến chưa?</span>
-              </button>
-              <button id="add-current-location-btn" class="btn btn-add-current-loc" title="Lấy toạ độ vị trí hiện tại và thêm trực tiếp vào danh sách đã đến">
-                <svg class="add-loc-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                  <circle cx="12" cy="10" r="3"></circle>
-                </svg>
-                <span>Thêm nơi đang đứng</span>
-              </button>
-              <button id="reload-places-gps-btn" class="btn btn-reload-places" title="Lấy vị trí GPS và sắp xếp nơi gần bạn nhất từ trên xuống">
-                <svg class="reload-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                </svg>
-                <span>Nơi gần nhất</span>
-              </button>
+              <!-- Tiện ích GPS Dropdown Wrapper -->
+              <div class="places-gps-dropdown-wrap" id="places-gps-dropdown-wrap">
+                <button id="places-gps-menu-toggle-btn" class="btn btn-gps-utility" type="button" title="Các tiện ích vị trí GPS" aria-expanded="false" aria-haspopup="true">
+                  <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                    <circle cx="12" cy="10" r="3"></circle>
+                  </svg>
+                  <span>Tiện ích GPS</span>
+                  <svg class="dropdown-arrow-icon" viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+
+                <div class="places-gps-dropdown-menu" id="places-gps-dropdown-menu" role="menu" aria-hidden="true">
+                  <button id="reload-places-gps-btn" class="places-gps-menu-item" type="button" role="menuitem" title="Lấy vị trí GPS và sắp xếp nơi gần bạn nhất từ trên xuống">
+                    <svg class="reload-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                    </svg>
+                    <span>Sắp xếp gần nhất</span>
+                  </button>
+
+                  <button id="check-visited-gps-btn" class="places-gps-menu-item" type="button" role="menuitem" title="Kiểm tra xem vị trí bạn đang đứng đã từng ghé thăm cùng nhau chưa">
+                    <svg class="check-gps-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <path d="m9 12 2 2 4-4"></path>
+                    </svg>
+                    <span>Đã đến nơi này chưa?</span>
+                  </button>
+
+                  <button id="add-current-location-btn" class="places-gps-menu-item" type="button" role="menuitem" title="Lấy toạ độ vị trí hiện tại và thêm trực tiếp vào danh sách đã đến">
+                    <svg class="add-loc-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                      <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                    <span>Thêm nơi đang đứng</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Nút Thêm địa điểm chính -->
               <button id="open-add-place-modal-btn" class="btn btn-add-place" title="Thêm địa điểm muốn đi mới">
                 <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -671,6 +691,6 @@
     </form>
   </div>
 
-  <script src="app.js?v=3.9"></script>
+  <script src="app.js?v=4.1"></script>
 </body>
 </html>

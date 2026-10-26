@@ -192,7 +192,6 @@ class JourneyApp {
     // Timeline & Modals
     this.timelineContainer = document.getElementById("timeline-list-container");
     this.openAddMemoryBtn = document.getElementById("open-add-memory-modal-btn");
-    this.heroAddMemoryBtn = document.getElementById("hero-add-memory-btn");
     this.memoryModal = document.getElementById("memory-modal");
     this.memoryForm = document.getElementById("memory-form");
     this.closeMemoryBtn = document.getElementById("close-memory-modal-btn");
@@ -237,7 +236,6 @@ class JourneyApp {
     // Audio & Hearts
     this.musicToggleBtn = document.getElementById("music-toggle-btn");
     this.musicStatus = document.getElementById("music-status");
-    this.sendLoveBtn = document.getElementById("send-love-btn");
 
     // Photo Upload, Camera & GPS Elements
     this.memoryFileInput = document.getElementById("memory-file-input");
@@ -254,7 +252,6 @@ class JourneyApp {
     this.uploadPreviewImg = document.getElementById("upload-preview-img");
     this.removePreviewBtn = document.getElementById("remove-preview-btn");
     this.btnRefreshGps = document.getElementById("btn-refresh-gps");
-    this.gpsStatusText = document.getElementById("gps-status-text");
     this.memoryDateInput = document.getElementById("memory-date-input");
     this.memoryLocationInput = document.getElementById("memory-location-input");
     this.cameraStream = null;
@@ -289,7 +286,10 @@ class JourneyApp {
     this.countPlacesUnvisited = document.getElementById("count-places-unvisited");
     this.countPlacesVisited = document.getElementById("count-places-visited");
 
-    // Nút Kiểm tra đã đến chưa & Thêm nơi đang đứng
+    // Nút Tiện ích GPS & Thêm nơi đang đứng
+    this.placesGpsDropdownWrap = document.getElementById("places-gps-dropdown-wrap");
+    this.placesGpsMenuToggleBtn = document.getElementById("places-gps-menu-toggle-btn");
+    this.placesGpsDropdownMenu = document.getElementById("places-gps-dropdown-menu");
     this.checkVisitedGpsBtn = document.getElementById("check-visited-gps-btn");
     this.addCurrentLocationBtn = document.getElementById("add-current-location-btn");
 
@@ -345,7 +345,6 @@ class JourneyApp {
         if (decodedUrl.startsWith("http")) {
           this.config.apiUrl = decodedUrl;
           this.saveData("journey_config_v3", this.config);
-          console.log("Đã tự động kết nối Backend API từ link:", decodedUrl);
         }
       } catch (e) {}
     }
@@ -815,7 +814,6 @@ class JourneyApp {
     };
 
     if (this.openAddMemoryBtn) this.openAddMemoryBtn.addEventListener("click", openMemoryDialog);
-    if (this.heroAddMemoryBtn) this.heroAddMemoryBtn.addEventListener("click", openMemoryDialog);
     if (this.closeMemoryBtn) this.closeMemoryBtn.addEventListener("click", () => {
       this.stopInAppCamera();
       this.memoryModal.close();
@@ -955,13 +953,6 @@ class JourneyApp {
 
     // Lightbox đóng
     this.closeLightboxBtn.addEventListener("click", () => this.lightboxModal.close());
-
-    // Nút bắn tim (nếu có trên giao diện)
-    if (this.sendLoveBtn) {
-      this.sendLoveBtn.addEventListener("click", (e) => {
-        this.spawnHeartBurst(e.clientX, e.clientY);
-      });
-    }
 
     // Chạm 2 lần bất kỳ đâu để bắn tim
     document.addEventListener("dblclick", (e) => {
@@ -1437,6 +1428,51 @@ class JourneyApp {
   // NHỮNG NƠI MUỐN ĐI CÙNG EM (PLACES WISHLIST)
   // ==========================================
   initPlaces() {
+    // 0. Toggle dropdown Tiện ích GPS
+    if (this.placesGpsMenuToggleBtn && this.placesGpsDropdownWrap) {
+      this.placesGpsMenuToggleBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const isOpen = this.placesGpsDropdownWrap.classList.toggle("open");
+        this.placesGpsMenuToggleBtn.setAttribute("aria-expanded", isOpen);
+        if (this.placesGpsDropdownMenu) {
+          this.placesGpsDropdownMenu.setAttribute("aria-hidden", !isOpen);
+        }
+      });
+
+      // Đóng dropdown khi chọn bất kỳ chức năng nào bên trong
+      if (this.placesGpsDropdownMenu) {
+        this.placesGpsDropdownMenu.querySelectorAll(".places-gps-menu-item").forEach(item => {
+          item.addEventListener("click", () => {
+            this.placesGpsDropdownWrap.classList.remove("open");
+            this.placesGpsMenuToggleBtn.setAttribute("aria-expanded", "false");
+            this.placesGpsDropdownMenu.setAttribute("aria-hidden", "true");
+          });
+        });
+      }
+
+      // Đóng khi click ra ngoài
+      document.addEventListener("click", (e) => {
+        if (!this.placesGpsDropdownWrap.contains(e.target)) {
+          this.placesGpsDropdownWrap.classList.remove("open");
+          this.placesGpsMenuToggleBtn.setAttribute("aria-expanded", "false");
+          if (this.placesGpsDropdownMenu) {
+            this.placesGpsDropdownMenu.setAttribute("aria-hidden", "true");
+          }
+        }
+      });
+
+      // Đóng khi nhấn Esc
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && this.placesGpsDropdownWrap.classList.contains("open")) {
+          this.placesGpsDropdownWrap.classList.remove("open");
+          this.placesGpsMenuToggleBtn.setAttribute("aria-expanded", "false");
+          if (this.placesGpsDropdownMenu) {
+            this.placesGpsDropdownMenu.setAttribute("aria-hidden", "true");
+          }
+        }
+      });
+    }
+
     // 1. Chuyển đổi tab bộ lọc (Tất cả / Chưa đi / Đã đến)
     document.querySelectorAll(".place-tab").forEach(tab => {
       tab.addEventListener("click", () => {
@@ -2592,27 +2628,27 @@ class JourneyApp {
             <div class="place-meta-row">
               ${place.visited 
                 ? '<span class="place-status-tag visited">🌸 Đã ghé thăm</span>' 
-                : '<span class="place-status-tag unvisited">✨ Muốn đi</span>'}
+                : ''}
               ${distanceBadgeHtml}
             </div>
 
-            ${place.notes ? `<p class="place-notes">"${this.escapeHTML(place.notes)}"</p>` : ""}
+            ${place.notes ? `<p class="place-notes">${this.escapeHTML(place.notes)}</p>` : ""}
           </div>
 
           <div class="place-actions-row">
             <div class="place-links-group">
               <a href="${deviceMapsUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-maps" title="Mở ứng dụng Google Maps của thiết bị và dẫn đường ngắn nhất">
-                🗺️ Chỉ đường (Maps)
+                🗺️ Chỉ đường
               </a>
               ${place.tiktokUrl ? `
                 <a href="${place.tiktokUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-tiktok" title="Xem video review trên TikTok">
-                  🎵 TikTok ↗
+                  🎵 TikTok
                 </a>
               ` : ""}
             </div>
 
             <button class="btn-place-toggle-visited couple-only" data-id="${place.id}" title="${place.visited ? "Đánh dấu muốn đi lại" : "Đánh dấu đã đến cùng nhau"}">
-              ${place.visited ? "Đã đến ✓" : "Đánh dấu đã đi 💕"}
+              ${place.visited ? "✓ Đã đến" : "+ Đánh dấu đã đi"}
             </button>
           </div>
         </article>
@@ -2653,18 +2689,18 @@ class JourneyApp {
     });
 
     const petals = [];
-    const PETAL_COUNT = 24;
+    const PETAL_COUNT = 12;
 
     for (let i = 0; i < PETAL_COUNT; i++) {
       petals.push({
         x: Math.random() * width,
         y: Math.random() * height,
-        size: Math.random() * 8 + 6,
-        speedX: Math.random() * 1.2 - 0.4,
-        speedY: Math.random() * 0.8 + 0.6,
+        size: Math.random() * 6 + 5,
+        speedX: Math.random() * 0.8 - 0.25,
+        speedY: Math.random() * 0.5 + 0.4,
         rotation: Math.random() * 360,
-        rotationSpeed: Math.random() * 1.5 - 0.75,
-        opacity: Math.random() * 0.4 + 0.25,
+        rotationSpeed: Math.random() * 0.8 - 0.4,
+        opacity: Math.random() * 0.25 + 0.15,
         color: Math.random() > 0.4 ? "rgba(255, 184, 201," : "rgba(255, 218, 226,"
       });
     }
@@ -3247,10 +3283,6 @@ class JourneyApp {
       this.saveData("journey_memories_v3", this.memories);
       this.renderTimeline();
     }
-  }
-
-  mergeMemories(serverMemories) {
-    this.syncMemories(serverMemories);
   }
 
   formatLocationBadge(locationStr) {
