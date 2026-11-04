@@ -24,6 +24,8 @@ const SOURCE_FILES = [
   "src/services/sync_engine.js",
   "src/services/spaced_queue.js",
   "src/services/geo_policy.js",
+  "src/services/period_history.js",
+  "src/services/milestones.js",
   "src/adapters/outbox_store.js"
 ];
 const TEST_FILES = [
@@ -35,7 +37,10 @@ const TEST_FILES = [
   "tests/unit/services/test_sync_engine.js",
   "tests/unit/services/test_spaced_queue.js",
   "tests/unit/services/test_geo_policy.js",
+  "tests/unit/services/test_period_history.js",
+  "tests/unit/services/test_milestones.js",
   "tests/unit/backend/test_apps_script.js",
+  "tests/unit/ui/test_static_assets.js",
   "tests/unit/app/test_journey_app.js"
 ];
 

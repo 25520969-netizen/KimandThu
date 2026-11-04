@@ -2,6 +2,14 @@
 
 A single-page PWA for a couple: love counter, Moments timeline, Places wishlist, private chat and a gentle care reminder. Static files on GitHub Pages; Google Apps Script + Google Sheets/Drive as the backend.
 
+## Features
+
+- **Moments** feed or 3-column grid, month separators, "Ngày này năm xưa", milestone countdown (every 100 days and each anniversary), photo placeholder for photo-less memories.
+- **Places** wishlist with GPS tools (nearest, "have we been here?", add current spot); marking a place visited offers to save a linked moment.
+- **Chat** with photos, last-activity line, vibration on incoming messages (Android), and **Thư hẹn giờ** (timed notes whose text the server withholds until the open time).
+- **Period care** with a recorded history, predictions from the mean of recent cycles shown as a date window, a once-a-day alert, and data synced between both phones (couple-only).
+- Bottom tab bar, bottom-sheet forms, pinch-zoom, reduced-motion support, offline viewing through a service worker.
+
 ## Architecture
 
 ```
@@ -9,6 +17,9 @@ index.html + app.js + styles.css          UI (vanilla JS)
 src/utils/       safe_url, local_date      pure helpers
 src/services/    period_cycle, sync_*, geo_policy, spaced_queue   pure logic (unit tested)
 src/adapters/    outbox_store              IndexedDB outbox (memory fallback)
+src/ui/          app_shell, register_service_worker   tab bar, sticky counter, service worker registration
+src/styles/      app_shell.css             mobile shell, feed/grid, bottom sheets, accessibility overrides
+sw.js                                      service worker (precache + stale-while-revalidate)
 google-apps-script.js                      backend (deployed separately, see below)
 tests/           unit tests                scripts/test.sh
 ```
@@ -41,7 +52,7 @@ The Apps Script is tested against in-memory fakes of Sheets/Drive/Lock (`tests/u
 
 - The site and repo are public. Secrets live only in Script properties and in each user's head/device.
 - Guests can read the Moments timeline and Places; chat, notes and period data need the passcode.
-- All URLs rendered into HTML pass an `https`-only allow-list and are escaped; a Content-Security-Policy restricts scripts to this origin.
+- All URLs rendered into HTML pass an `https`-only allow-list and are escaped; a Content-Security-Policy restricts scripts to this origin (no inline scripts or handlers; keep it that way — `tests/unit/ui` checks it).
 
 ## Known limitations
 

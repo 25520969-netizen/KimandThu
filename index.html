@@ -2,7 +2,8 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; connect-src 'self' https://script.google.com https://script.googleusercontent.com https://nominatim.openstreetmap.org https://photon.komoot.io https://router.project-osrm.org; img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com; media-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; manifest-src 'self'; worker-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'">
   <title>Kim & Thư 💕 Chuyện Tình Chúng Mình</title>
   <meta name="description" content="Nơi lưu giữ từng kỷ niệm ngọt ngào và dòng thời gian tình yêu của Kim và Thư.">
   
@@ -21,6 +22,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,600&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="styles.css?v=4.6">
+  <link rel="stylesheet" href="src/styles/app_shell.css?v=4.6">
 </head>
 <body>
   <!-- Ambient Floating Petals Background Canvas -->
@@ -34,7 +36,15 @@
         <span class="logo-text" id="nav-couple-names">Kim & Thư</span>
       </div>
 
-      <div class="nav-actions">
+      <div class="sticky-counter-pill" id="sticky-counter-pill" aria-live="off" hidden></div>
+
+      <div class="header-actions">
+        <button type="button" class="header-icon-btn couple-only" data-proxy="edit-profile-btn" title="Cài đặt" aria-label="Cài đặt">⚙️</button>
+        <button type="button" class="header-icon-btn" id="header-music-btn" data-proxy="music-toggle-btn" title="Bật/tắt nhạc" aria-label="Bật hoặc tắt nhạc">🎵</button>
+        <button type="button" class="header-icon-btn couple-only" data-proxy="auth-lock-nav-btn" title="Chuyển sang chế độ khách" aria-label="Chuyển sang chế độ khách">🔒</button>
+      </div>
+
+      <div class="nav-actions legacy-nav-menu" aria-hidden="true">
         <!-- Nút mũi tên hướng xuống khung tròn bé bé góc phải cùng xổ dọc xuống các chức năng -->
         <div class="nav-dropdown-wrap" id="nav-dropdown-wrap">
           <button id="nav-menu-toggle-btn" class="circle-menu-btn" title="Menu tính năng" aria-label="Mở menu chức năng" aria-expanded="false">
@@ -124,14 +134,22 @@
               <span class="counter-unit">Giây</span>
             </div>
           </div>
+          <p class="milestone-line" id="milestone-line"></p>
         </section>
+        <button type="button" class="period-chip couple-only" id="period-chip" data-proxy="period-nav-btn" title="Mở góc chăm sóc bé">🍓 <span id="period-chip-text"></span></button>
       </header>
+
+      <section class="on-this-day-card" id="on-this-day-card" aria-label="Ngày này năm xưa" hidden></section>
 
       <!-- SECTION: MOMENTS TIMELINE (Khung ảnh & Khung mô tả câu chuyện kế bên) -->
       <section id="timeline" class="section-container timeline-section">
         <div class="section-header">
           <div class="pill-tag">Khoảnh Khắc Đôi Ta</div>
           <h2 class="section-title">Khoảnh Khắc Của Tụi Mình</h2>
+          <div class="view-toggle" role="group" aria-label="Kiểu hiển thị khoảnh khắc">
+            <button type="button" id="timeline-view-feed-btn" class="view-toggle-btn active" aria-pressed="true">▤ Dòng</button>
+            <button type="button" id="timeline-view-grid-btn" class="view-toggle-btn" aria-pressed="false">▦ Lưới</button>
+          </div>
           <button id="open-add-memory-modal-btn" class="btn btn-add-memory" title="Gửi khoảnh khắc mới">
             <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19"></line>
@@ -519,6 +537,8 @@
           <input type="number" id="period-cycle-length-input" value="28" min="21" max="45" required>
           <small style="color: var(--text-muted); font-size: 0.78rem;">Thông thường chu kỳ từ 28 đến 30 ngày.</small>
         </div>
+        <p class="period-disclaimer">Chỉ là nhắc nhở để chăm sóc nhau, không phải lời khuyên y tế và không dùng để tránh thai. Dự đoán được tính từ các chu kỳ đã ghi.</p>
+        <p class="period-accuracy" id="period-accuracy"></p>
         <div style="margin-top: 4px;">
           <button type="button" class="btn btn-outline btn-sm" id="set-period-today-btn" style="width: 100%;">
             🌸 Đánh dấu hôm nay là ngày bắt đầu dâu
@@ -647,10 +667,11 @@
         </div>
         <div class="chat-title-wrap">
           <h4 id="chat-receiver-name">Bé Thư ❤️</h4>
-          <span class="chat-status-text">Đang yêu thương ✨</span>
+          <span class="chat-status-text" id="chat-status-text">Đang yêu thương ✨</span>
         </div>
       </div>
       <div class="chat-header-actions">
+        <button type="button" id="open-notes-btn" class="chat-sender-toggle-btn" title="Thư hẹn giờ" aria-label="Thư hẹn giờ">⏳ Thư</button>
         <!-- Switch Identity (Tôi là Kim / Tôi là Thư) -->
         <button id="switch-chat-sender-btn" class="chat-sender-toggle-btn" title="Đổi người gửi">
           <span id="current-chat-sender-label">Tôi là: Kim</span>
@@ -684,6 +705,52 @@
     </form>
   </div>
 
+  <!-- MODAL: BẠN LÀ AI? (hỏi một lần trên mỗi thiết bị) -->
+  <dialog id="who-am-i-modal" class="custom-modal" aria-labelledby="who-am-i-title">
+    <div class="modal-card">
+      <div class="modal-header"><h3 id="who-am-i-title">Bạn là ai nè? 💕</h3></div>
+      <p style="color: var(--text-muted); margin-bottom: 16px;">Chọn một lần để tin nhắn trên máy này luôn đúng tên.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" id="who-first-btn">Kim</button>
+        <button type="button" class="btn btn-primary" id="who-second-btn">Thư</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- MODAL: THƯ HẸN GIỜ -->
+  <dialog id="notes-modal" class="custom-modal" aria-labelledby="notes-modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="notes-modal-title">⏳ Thư Hẹn Giờ</h3>
+        <button class="modal-close-btn" id="close-notes-modal-btn" aria-label="Đóng">&times;</button>
+      </div>
+      <div class="notes-list" id="notes-list"></div>
+      <form id="note-form" class="modal-form">
+        <div class="form-group">
+          <label for="note-text-input">Viết một lá thư để dành 💌</label>
+          <textarea id="note-text-input" rows="3" maxlength="1000" required placeholder="Thư sẽ được giữ kín cho đến ngày mở..."></textarea>
+        </div>
+        <div class="form-group">
+          <label for="note-open-at-input">Mở vào lúc *</label>
+          <input type="datetime-local" id="note-open-at-input" required>
+        </div>
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary">Gửi vào tương lai 💖</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- THANH ĐIỀU HƯỚNG DƯỚI CÙNG (vùng ngón cái) -->
+  <nav class="bottom-nav" id="bottom-nav" aria-label="Điều hướng chính">
+    <button type="button" class="bottom-tab active" data-proxy="nav-moments-btn" data-view="moments"><span class="tab-icon" aria-hidden="true">📸</span><span class="tab-label">Khoảnh khắc</span></button>
+    <button type="button" class="bottom-tab" data-proxy="nav-places-btn" data-view="places"><span class="tab-icon" aria-hidden="true">📍</span><span class="tab-label">Nơi muốn đến</span></button>
+    <button type="button" class="bottom-fab couple-only" id="bottom-fab-btn" aria-label="Thêm mới"><span aria-hidden="true">❤️</span></button>
+    <button type="button" class="bottom-tab couple-only" data-proxy="open-chat-dropdown-btn"><span class="tab-icon" aria-hidden="true">💌<span class="tab-dot" id="tab-chat-dot"></span></span><span class="tab-label">Chat</span></button>
+    <button type="button" class="bottom-tab couple-only" data-proxy="period-nav-btn"><span class="tab-icon" aria-hidden="true">🍓</span><span class="tab-label">Bé</span></button>
+    <button type="button" class="bottom-tab guest-only" data-proxy="auth-unlock-nav-btn"><span class="tab-icon" aria-hidden="true">🔐</span><span class="tab-label">Mở khóa</span></button>
+  </nav>
+
   <script src="src/utils/safe_url.js?v=4.6"></script>
   <script src="src/utils/local_date.js?v=4.6"></script>
   <script src="src/services/period_cycle.js?v=4.6"></script>
@@ -692,7 +759,11 @@
   <script src="src/services/sync_engine.js?v=4.6"></script>
   <script src="src/services/spaced_queue.js?v=4.6"></script>
   <script src="src/services/geo_policy.js?v=4.6"></script>
+  <script src="src/services/period_history.js?v=4.6"></script>
+  <script src="src/services/milestones.js?v=4.6"></script>
   <script src="src/adapters/outbox_store.js?v=4.6"></script>
+  <script src="src/ui/app_shell.js?v=4.6"></script>
   <script src="app.js?v=4.6"></script>
+  <script src="src/ui/register_service_worker.js?v=4.6"></script>
 </body>
 </html>
