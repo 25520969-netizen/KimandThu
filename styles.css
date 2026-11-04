@@ -2728,3 +2728,17 @@ body:not(.is-guest) .nav-dropdown-menu .dropdown-item.guest-only {
 }
 
 
+
+/* Mục đang chờ gửi lên máy chủ (BUG-03) */
+.sync-pending-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pink-deep);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px dashed var(--pink-light);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}

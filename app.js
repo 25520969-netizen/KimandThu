@@ -19,6 +19,14 @@ const DEFAULT_CONFIG = {
 const APPS_SCRIPT_URL_PATTERN = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
 const AUTH_REQUEST_TIMEOUT_MS = 10000;
 const MEMORY_IMAGE_URL_OPTIONS = { allowRelative: true, allowDataImage: true };
+const SYNC_CURSOR_KEY = "journey_sync_cursor_v2";
+const SYNC_CURSOR_OVERLAP_MS = 5000;
+const POST_TIMEOUT_MS = 60000;
+const GET_TIMEOUT_MS = 20000;
+const GEO_MIN_GAP_MS = 1100;
+const ROUTE_CACHE_KEY = "journey_route_cache_v1";
+const DEFAULT_MEMORY_IDS = ["mem-1", "mem-2", "mem-3"];
+const DEFAULT_PLACE_IDS = ["place-1", "place-2", "place-3"];
 
 
 const DEFAULT_MEMORIES = [
@@ -125,7 +133,6 @@ class JourneyApp {
     this.lastUserPosition = this.loadData("journey_last_user_pos", null);
     this.placeDistances = new Map();
     this.placeRoutes = new Map();
-    this.routingCache = new Map();
     this.period = this.loadData("journey_period_v1", DEFAULT_PERIOD);
     this.chatMessages = this.loadData("journey_chat_messages_v1", DEFAULT_CHAT_MESSAGES);
     this.currentSender = this.loadData("journey_chat_sender_v1", "Kim");
@@ -136,6 +143,14 @@ class JourneyApp {
     this.melodyTimer = null;
     this.isAuthenticated = false;
     this.toastTimer = null;
+    this.syncCursor = Number(this.loadData(SYNC_CURSOR_KEY, 0)) || 0;
+    this.syncEngine = null;
+    this.isSyncing = false;
+    this.pollTimer = null;
+    this.lastActivityAt = Date.now();
+    this.geocodeQueue = createSpacedQueue(GEO_MIN_GAP_MS);
+    this.routeQueue = createSpacedQueue(GEO_MIN_GAP_MS);
+    this.routeCache = this.loadData(ROUTE_CACHE_KEY, {});
 
     this.initDOM();
     this.initAuth();
@@ -151,11 +166,8 @@ class JourneyApp {
     this.renderPlaces();
     this.hasInitialRender = true;
     this.initPetalsCanvas();
-    this.syncFromBackend();
     this.checkPeriodAlert();
-
-    // Tự động kiểm tra tin nhắn mới từ backend mỗi 6 giây
-    setInterval(() => this.syncFromBackend(), 6000);
+    this.syncReady = this.initSync();
   }
 
   loadData(key, fallback) {
@@ -171,9 +183,23 @@ class JourneyApp {
   saveData(key, data) {
     try {
       localStorage.setItem(key, JSON.stringify(data));
+      return true;
     } catch (e) {
       console.error("Lỗi lưu dữ liệu:", e);
+      this.showToast("⚠️ Bộ nhớ trên máy đã đầy nên chưa lưu được. Hãy xóa bớt ảnh cũ nhé!", 6000);
+      return false;
     }
+  }
+
+  // Ảnh base64 chưa đồng bộ nằm trong hàng đợi IndexedDB, không lưu vào localStorage (BUG-11)
+  persistMemories() {
+    const slim = this.memories.map((m) => (String(m.image || "").startsWith("data:") ? { ...m, image: "" } : m));
+    this.saveData("journey_memories_v3", slim);
+  }
+
+  persistChat() {
+    const slim = this.chatMessages.map((m) => (String(m.image || "").startsWith("data:") ? { ...m, image: "" } : m));
+    this.saveData("journey_chat_messages_v1", slim);
   }
 
   // ==========================================
@@ -479,6 +505,7 @@ class JourneyApp {
     this.saveData("journey_config_v3", this.config);
     this.isAuthenticated = true;
     this.saveData("journey_auth_token", "unlocked");
+    this.resetSyncCursor(); // lần kéo kế tiếp lấy đầy đủ cả tin nhắn riêng tư
     return "ok";
   }
 
@@ -911,21 +938,22 @@ class JourneyApp {
         date,
         location,
         image,
-        story
+        story,
+        syncState: "pending"
       };
 
       this.memories.push(newMemory);
       // Sắp xếp sự kiện gần nhất lên đầu
       this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
-      this.saveData("journey_memories_v3", this.memories);
+      this.persistMemories();
       this.renderTimeline();
       this.memoryForm.reset();
       this.memoryModal.close();
       this.spawnHeartConfetti();
 
+      this.queueMemory(newMemory);
       if (this.config.apiUrl) {
         this.showToast("Đang đồng bộ ảnh lên Google Drive cho cả hai... ☁️");
-        this.sendToBackend({ type: "memory", ...newMemory, imageBase64: newMemory.image });
       } else {
         this.showToast("⚠️ Chưa kết nối link Google Drive trong Cài Đặt nên ảnh này chỉ xem được trên máy này!", 6000);
       }
@@ -1163,13 +1191,22 @@ class JourneyApp {
         if (startVal) {
           this.period.startDate = startVal;
           this.period.cycleLength = cycleVal;
+          this.period.updatedAt = Date.now();
           this.saveData("journey_period_v1", this.period);
+          this.queuePeriod();
           this.renderPeriodTracker();
           this.periodModal.close();
           this.spawnHeartConfetti();
         }
       });
     }
+  }
+
+  queuePeriod() {
+    return this.sendToBackend({
+      type: "period", startDate: this.period.startDate, cycleLength: this.period.cycleLength,
+      durationDays: this.period.durationDays || 5, history: this.period.history || [], updatedAt: this.period.updatedAt
+    });
   }
 
   renderPeriodTracker() {
@@ -1307,6 +1344,7 @@ class JourneyApp {
             <div class="locket-photo-inner">
               ${photoHtml}
               <div class="locket-photo-overlay">
+                ${mem.syncState === "pending" ? '<span class="sync-pending-badge">⏳ chưa đồng bộ</span>' : ""}
                 <span class="locket-sender-badge">💕 ${this.escapeHTML(this.config.partnerOne)} & ${this.escapeHTML(this.config.partnerTwo)}</span>
                 ${locBadgeHtml}
               </div>
@@ -1399,27 +1437,15 @@ class JourneyApp {
             this.saveData("journey_deleted_mem_ids", this.deletedMemoryIds);
           }
 
-          // 2. Trích xuất fileId nếu là ảnh trên Google Drive
-          let fileId = "";
-          if (targetMem.image) {
-            const m = targetMem.image.match(/id=([a-zA-Z0-9_-]+)/) || targetMem.image.match(/\/d\/([a-zA-Z0-9_-]+)/);
-            if (m && m[1]) fileId = m[1];
-          }
-
-          // 3. Xóa khỏi bộ nhớ và giao diện cục bộ ngay lập tức
+          // 2. Xóa khỏi bộ nhớ và giao diện cục bộ ngay lập tức
           this.memories = this.memories.filter(m => String(m.id) !== memId);
-          this.saveData("journey_memories_v3", this.memories);
+          this.persistMemories();
           this.renderTimeline();
 
-          // 4. Gửi yêu cầu xóa lên Google Drive & Google Sheets backend
+          // 3. Gửi yêu cầu xóa lên Google Drive & Google Sheets backend
           if (this.config.apiUrl) {
             this.showToast("Đang xóa và dọn dẹp ảnh trên Google Drive... 🗑️");
-            this.sendToBackend({
-              type: "delete_memory",
-              id: memId,
-              imageUrl: targetMem.image || "",
-              fileId: fileId
-            });
+            this.sendToBackend({ type: "delete_memory", id: memId });
           } else {
             this.showToast("Đã xóa khoảnh khắc trên máy này! 🗑️");
           }
@@ -1746,9 +1772,6 @@ class JourneyApp {
       });
     }
 
-    // 10. Tự động kiểm tra và phân giải toạ độ cho các địa điểm còn thiếu (chạy ngầm)
-    this.autoResolveMissingPlaceCoordinates();
-
     // 9. Tự động lấy vị trí hiện tại của thiết bị trong nền để sẵn sàng tính khoảng cách
     this.getUserPosition(
       () => {
@@ -1944,7 +1967,7 @@ class JourneyApp {
     // 3. Gọi OpenStreetMap Nominatim API (tìm chính xác tại Việt Nam)
     try {
       const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&countrycodes=vn&limit=1`;
-      const nomRes = await fetch(nomUrl, { headers: { "Accept-Language": "vi,en" } });
+      const nomRes = await this.geocodeQueue(() => fetch(nomUrl, { headers: { "Accept-Language": "vi,en" } }));
       if (nomRes.ok) {
         const nomData = await nomRes.json();
         if (nomData && nomData.length > 0) {
@@ -1961,7 +1984,7 @@ class JourneyApp {
     // 4. Fallback qua Photon Komoot API với bias toạ độ khu vực
     try {
       const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery)}&lat=${userLat}&lon=${userLng}&limit=1`;
-      const pRes = await fetch(photonUrl);
+      const pRes = await this.geocodeQueue(() => fetch(photonUrl));
       if (pRes.ok) {
         const pData = await pRes.json();
         if (pData.features && pData.features.length > 0) {
@@ -1980,18 +2003,21 @@ class JourneyApp {
   async autoResolveMissingPlaceCoordinates() {
     let hasUpdated = false;
     for (const place of this.places) {
-      if ((place.lat == null || place.lng == null) && (place.name || place.mapUrl)) {
-        const coords = await this.resolveCoordinatesAsync(place.mapUrl, place.name);
-        if (coords) {
-          place.lat = coords.lat;
-          place.lng = coords.lng;
-          hasUpdated = true;
-          if (this.lastUserPosition) {
-            const d = this.calculateDistanceKm(this.lastUserPosition.lat, this.lastUserPosition.lng, coords.lat, coords.lng);
-            this.placeDistances.set(place.id, d);
-          }
-        }
+      if (!canGeocode(place, Date.now())) continue;
+      const coords = await this.resolveCoordinatesAsync(place.mapUrl, place.name);
+      hasUpdated = true;
+      if (!coords) {
+        place.geocodeFailedAt = Date.now(); // không thử lại trong 24 giờ (BUG-08)
+        continue;
       }
+      place.lat = coords.lat;
+      place.lng = coords.lng;
+      delete place.geocodeFailedAt;
+      if (this.lastUserPosition) {
+        const d = this.calculateDistanceKm(this.lastUserPosition.lat, this.lastUserPosition.lng, coords.lat, coords.lng);
+        this.placeDistances.set(place.id, d);
+      }
+      if (this.isAuthenticated) this.sendPlaceToBackend(place); // để máy kia nhận luôn toạ độ
     }
     if (hasUpdated) {
       this.saveData("journey_places_v2", this.places);
@@ -2017,15 +2043,14 @@ class JourneyApp {
   async fetchDrivingRoute(userLat, userLng, destLat, destLng) {
     if (userLat == null || userLng == null || destLat == null || destLng == null) return null;
 
-    const cacheKey = `${Number(userLat).toFixed(4)},${Number(userLng).toFixed(4)}_${Number(destLat).toFixed(4)},${Number(destLng).toFixed(4)}`;
-    if (this.routingCache && this.routingCache.has(cacheKey)) {
-      return this.routingCache.get(cacheKey);
-    }
+    const cacheKey = routeCacheKey(userLat, userLng, destLat, destLng);
+    const cached = this.routeCache[cacheKey];
+    if (isRouteFresh(cached, Date.now())) return cached.route;
 
     try {
       // Gọi OSRM Routing Machine tính quãng đường đi xe ngắn nhất
       const url = `https://router.project-osrm.org/route/v1/driving/${destLng},${destLat};${userLng},${userLat}?overview=false`;
-      const res = await fetch(url);
+      const res = await this.routeQueue(() => fetch(url));
       if (res.ok) {
         const data = await res.json();
         if (data.code === "Ok" && data.routes && data.routes.length > 0) {
@@ -2037,8 +2062,8 @@ class JourneyApp {
             durationMin,
             isDrivingRoute: true
           };
-          if (!this.routingCache) this.routingCache = new Map();
-          this.routingCache.set(cacheKey, result);
+          this.routeCache[cacheKey] = { route: result, savedAt: Date.now() };
+          this.saveData(ROUTE_CACHE_KEY, this.routeCache);
           return result;
         }
       }
@@ -2105,9 +2130,10 @@ class JourneyApp {
     }
     this.renderPlaces(forceSort);
 
-    // 2. Tính toán đường đi xe ngắn nhất không đồng bộ
+    // 2. Đường đi xe chỉ tính cho vài nơi gần nhất, giãn cách ≥ 1 giây và có cache (BUG-08)
+    const routedIds = new Set(nearestPlaceIds(this.places, this.placeDistances));
     this.places.forEach(p => {
-      if (p.lat != null && p.lng != null) {
+      if (routedIds.has(p.id)) {
         this.fetchDrivingRoute(uLat, uLng, p.lat, p.lng).then(route => {
           if (route) {
             this.placeRoutes.set(p.id, route);
@@ -2137,6 +2163,7 @@ class JourneyApp {
     if (this.reloadPlacesGpsBtn) {
       this.reloadPlacesGpsBtn.classList.add("spinning");
     }
+    this.autoResolveMissingPlaceCoordinates();
 
     const onGotLocation = () => {
       this.calculateAllDistancesAndRoutes(true);
@@ -2516,7 +2543,6 @@ class JourneyApp {
 
     place.visited = !place.visited;
     this.saveData("journey_places_v2", this.places);
-    this.sendToBackend({ type: "toggle_place", id: place.id, visited: place.visited });
     this.sendPlaceToBackend(place);
     this.renderPlaces();
     this.showToast(place.visited ? "🌸 Đã đánh dấu ghé thăm địa điểm này!" : "✨ Đã chuyển về danh sách muốn đi!");
@@ -2542,15 +2568,6 @@ class JourneyApp {
       }
       this.saveData("journey_places_v2", this.places);
       this.sendToBackend({ type: "delete_place", id: pid });
-      this.sendToBackend({
-        type: "task",
-        id: "pw_del_" + pid,
-        title: "DELETED",
-        category: "PLACE_DELETED",
-        targetDate: new Date().toISOString(),
-        notes: pid,
-        completed: true
-      });
       this.renderPlaces();
       this.showToast("Đã xóa địa điểm khỏi danh sách.");
     }
@@ -2626,6 +2643,7 @@ class JourneyApp {
               ${place.visited 
                 ? '<span class="place-status-tag visited">🌸 Đã ghé thăm</span>' 
                 : ''}
+              ${place.syncState === "pending" ? '<span class="sync-pending-badge">⏳ chưa đồng bộ</span>' : ""}
               ${distanceBadgeHtml}
             </div>
 
@@ -2837,59 +2855,291 @@ class JourneyApp {
   }
 
   // ==========================================
-  // ĐỒNG BỘ GOOGLE APPS SCRIPT / DRIVE BACKEND
+  // ĐỒNG BỘ: HÀNG ĐỢI GHI (OUTBOX) + KÉO THAY ĐỔI (DELTA)
   // ==========================================
-  sendToBackend(payload) {
-    if (!this.config.apiUrl) return;
+  async initSync() {
     try {
-      const dataWithAuth = {
-        ...payload,
-        passcode: this.config.passcode || ""
-      };
-
-      // Gửi text/plain để không bị chặn bởi CORS Preflight OPTIONS trên browser
-      fetch(this.config.apiUrl, {
-        method: "POST",
-        mode: "no-cors",
-        body: JSON.stringify(dataWithAuth)
-      })
-      .then(() => {
-        // Đồng bộ lại sau 3.5s để cập nhật link ảnh chính thức từ Drive
-        setTimeout(() => this.syncFromBackend(), 3500);
-      })
-      .catch(e => console.warn("Lỗi gửi dữ liệu lên Google Drive Backend:", e));
+      const store = await createOutboxStore(window.indexedDB);
+      this.syncEngine = new SyncEngine({
+        store: store,
+        send: (payload) => this.postToBackend(payload),
+        onConfirmed: (entry, result) => this.handleWriteConfirmed(entry, result),
+        onUnauthorized: () => { if (this.isAuthenticated) this.lockForRejectedPasscode(); },
+        onChange: () => {}
+      });
+      await this.syncEngine.load();
+      await this.restoreQueuedState();
     } catch (e) {
-      console.warn("Lỗi fetch:", e);
+      console.error("Không khởi tạo được hàng đợi đồng bộ:", e);
+      this.showToast("⚠️ Không bật được hàng đợi đồng bộ, dữ liệu mới có thể chưa được gửi lên.", 6000);
+    }
+    this.bindSyncTriggers();
+    await this.syncFromBackend();
+  }
+
+  // Khôi phục ảnh đang chờ gửi và đưa lại vào hàng đợi các mục đang "chờ" nhưng mất hàng đợi
+  async restoreQueuedState() {
+    this.syncEngine.keys().forEach((key) => {
+      const payload = this.syncEngine.getEntry(key).payload;
+      if (!payload.imageBase64) return;
+      const list = payload.type === "memory" ? this.memories : this.chatMessages;
+      const item = list.find((x) => String(x.id) === String(payload.id));
+      if (item && !item.image) item.image = payload.imageBase64;
+    });
+    const queued = new Set(this.syncEngine.keys());
+    const orphanMemories = this.memories.filter((m) => m.syncState === "pending" && !queued.has(`memory:${m.id}`));
+    const orphanPlaces = this.places.filter((p) => p.syncState === "pending" && !queued.has(`place:${p.id}`));
+    for (const m of orphanMemories) await this.queueMemory(m);
+    for (const p of orphanPlaces) await this.sendPlaceToBackend(p);
+    this.renderTimeline();
+    this.renderChatMessages();
+  }
+
+  bindSyncTriggers() {
+    const markActive = () => { this.lastActivityAt = Date.now(); };
+    ["pointerdown", "keydown", "touchstart"].forEach((evt) => document.addEventListener(evt, markActive, { passive: true }));
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") this.syncFromBackend();
+      else clearTimeout(this.pollTimer);
+    });
+    window.addEventListener("online", () => this.syncFromBackend());
+  }
+
+  scheduleNextPoll() {
+    clearTimeout(this.pollTimer);
+    const delay = pollIntervalMs({
+      visible: document.visibilityState !== "hidden",
+      isAuth: this.isAuthenticated,
+      chatOpen: !!(this.chatDrawer && this.chatDrawer.classList.contains("open")),
+      lastActivityAt: this.lastActivityAt,
+      now: Date.now()
+    });
+    if (delay === null) return;
+    this.pollTimer = setTimeout(() => this.syncFromBackend(), delay);
+  }
+
+  resetSyncCursor() {
+    this.syncCursor = 0;
+    this.saveData(SYNC_CURSOR_KEY, 0);
+  }
+
+  async fetchJson(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  // Đồng bộ địa điểm với cơ chế Dual-Sync (Tương thích 100% cả bản Google Apps Script cũ và mới)
-  sendPlaceToBackend(place) {
-    if (!place || !this.config.apiUrl) return;
+  // Gửi một thay đổi lên Apps Script. Backend upsert theo id nên gửi lại luôn an toàn.
+  postToBackend(payload) {
+    if (!this.config.apiUrl) return Promise.reject(new Error("Chưa cấu hình link backend"));
+    const body = JSON.stringify({ ...payload, passcode: this.config.passcode || "" });
+    return this.fetchJson(this.config.apiUrl, { method: "POST", body: body }, POST_TIMEOUT_MS);
+  }
 
-    // 1. Gửi dạng place (dành cho Google Apps Script phiên bản có sheet Places)
-    this.sendToBackend({ type: "place", ...place });
+  // Đưa một thay đổi vào hàng đợi bền vững rồi thử gửi ngay
+  async sendToBackend(payload) {
+    if (this.syncReady) await this.syncReady;
+    if (!this.syncEngine) return;
+    try {
+      await this.syncEngine.enqueue(outboxKey(payload), payload);
+    } catch (e) {
+      console.error("Không lưu được vào hàng đợi:", e);
+      this.showToast("⚠️ Chưa lưu được thay đổi vào hàng đợi đồng bộ. Hãy thử lại nhé!", 5000);
+      return;
+    }
+    this.syncEngine.flush();
+  }
 
-    // 2. Đồng thời gửi dạng task với category PLACE_WISHLIST (tương thích tức thì với Google Apps Script đang chạy trên cloud)
-    this.sendToBackend({
-      type: "task",
-      id: "pw_" + place.id,
-      title: place.name || "Địa điểm",
-      category: "PLACE_WISHLIST",
-      targetDate: place.createdAt || new Date().toISOString(),
-      notes: JSON.stringify({
-        id: place.id,
-        name: place.name,
-        mapUrl: place.mapUrl || "",
-        tiktokUrl: place.tiktokUrl || "",
-        lat: place.lat,
-        lng: place.lng,
-        notes: place.notes || "",
-        visited: place.visited === true,
-        createdAt: place.createdAt || new Date().toISOString()
-      }),
-      completed: place.visited === true
+  queueMemory(mem) {
+    mem.syncState = "pending";
+    const image = String(mem.image || "");
+    return this.sendToBackend({
+      type: "memory", id: mem.id, title: mem.title, date: mem.date, location: mem.location,
+      story: mem.story, placeId: mem.placeId || "",
+      image: image.startsWith("https://") ? image : "",
+      imageBase64: image.startsWith("data:") ? image : ""
     });
+  }
+
+  // Một lần gửi duy nhất cho mỗi địa điểm (upsert), không còn gửi trùng sang bảng Tasks (BUG-06)
+  sendPlaceToBackend(place) {
+    if (!place) return Promise.resolve();
+    place.syncState = "pending";
+    this.saveData("journey_places_v2", this.places);
+    return this.sendToBackend({
+      type: "place", id: place.id, name: place.name, mapUrl: place.mapUrl || "", tiktokUrl: place.tiktokUrl || "",
+      lat: place.lat == null ? null : place.lat, lng: place.lng == null ? null : place.lng,
+      notes: place.notes || "", visited: place.visited === true,
+      createdAt: place.createdAt || new Date().toISOString()
+    });
+  }
+
+  handleWriteConfirmed(entry, result) {
+    const p = entry.payload;
+    const clear = (list, id) => {
+      const item = list.find((x) => String(x.id) === String(id));
+      if (!item) return false;
+      delete item.syncState;
+      if (result.imageUrl && !String(item.image || "").startsWith("https://")) item.image = result.imageUrl;
+      return true;
+    };
+    if (p.type === "memory" && clear(this.memories, p.id)) {
+      this.persistMemories();
+      this.renderTimeline();
+    } else if (p.type === "place" && clear(this.places, p.id)) {
+      this.saveData("journey_places_v2", this.places);
+      this.renderPlaces();
+    } else if (p.type === "chat_message" && clear(this.chatMessages, p.id)) {
+      this.persistChat();
+      this.renderChatMessages();
+    }
+  }
+
+  pendingIdsFor(prefix) {
+    if (!this.syncEngine) return [];
+    return this.syncEngine.keys().filter((k) => k.startsWith(`${prefix}:`)).map((k) => k.slice(prefix.length + 1));
+  }
+
+  async syncFromBackend() {
+    if (!this.config.apiUrl || this.isSyncing) return;
+    this.isSyncing = true;
+    try {
+      if (this.syncEngine) await this.syncEngine.flush();
+      const params = [`since=${this.syncCursor}`];
+      if (this.isAuthenticated) params.push(`passcode=${encodeURIComponent(this.config.passcode || "")}`);
+      const data = await this.fetchJson(`${this.config.apiUrl}?${params.join("&")}`, {}, GET_TIMEOUT_MS);
+      await this.applyPulledData(data);
+    } catch (e) {
+      console.warn("Chưa đồng bộ được từ Google Drive:", e);
+    } finally {
+      this.isSyncing = false;
+      this.scheduleNextPoll();
+    }
+  }
+
+  async applyPulledData(data) {
+    if (this.isAuthenticated && data.isAuth === false) {
+      this.lockForRejectedPasscode();
+      return;
+    }
+    if (this.syncEngine) await this.syncEngine.reconcile(data);
+    const deleted = data.deleted || {};
+    this.mergeMemories(data.memories || [], deleted.memories || []);
+    this.mergePlaces(data.places || [], deleted.places || []);
+    this.mergeChat(data.messages || []);
+    this.mergePeriod(data.period);
+    if (data.since === 0 && this.isAuthenticated) await this.adoptUnsyncedLocal(data);
+    if (Number.isFinite(Number(data.serverTime))) {
+      this.syncCursor = Math.max(0, Number(data.serverTime) - SYNC_CURSOR_OVERLAP_MS);
+      this.saveData(SYNC_CURSOR_KEY, this.syncCursor);
+    }
+  }
+
+  rememberTombstones(listName, storageKey, ids) {
+    let added = false;
+    ids.forEach((raw) => {
+      const id = String(raw);
+      if (!this[listName].includes(id)) {
+        this[listName].push(id);
+        added = true;
+      }
+    });
+    if (added) this.saveData(storageKey, this[listName]);
+  }
+
+  mergeMemories(upserts, deletedIds) {
+    this.rememberTombstones("deletedMemoryIds", "journey_deleted_mem_ids", deletedIds);
+    const result = applyDelta(this.memories, { upserts: upserts, deletedIds: deletedIds }, {
+      pendingIds: this.pendingIdsFor("memory"),
+      tombstones: this.deletedMemoryIds,
+      keepLocalWhenEmpty: ["image"]
+    });
+    if (!result.changed) return;
+    this.memories = result.items.sort((a, b) => new Date(b.date) - new Date(a.date));
+    this.persistMemories();
+    this.renderTimeline();
+  }
+
+  normalizeServerPlace(place) {
+    const normalized = { ...place };
+    if (normalized.lat != null && normalized.lat !== "") normalized.lat = parseFloat(normalized.lat);
+    if (normalized.lng != null && normalized.lng !== "") normalized.lng = parseFloat(normalized.lng);
+    if ((normalized.lat == null || isNaN(normalized.lat)) && normalized.mapUrl) {
+      const coords = this.extractCoordinates(normalized.mapUrl);
+      if (coords) {
+        normalized.lat = coords.lat;
+        normalized.lng = coords.lng;
+      }
+    }
+    return normalized;
+  }
+
+  mergePlaces(upserts, deletedIds) {
+    this.rememberTombstones("deletedPlaceIds", "journey_deleted_place_ids", deletedIds);
+    const result = applyDelta(this.places, { upserts: upserts.map((p) => this.normalizeServerPlace(p)), deletedIds: deletedIds }, {
+      pendingIds: this.pendingIdsFor("place"),
+      tombstones: this.deletedPlaceIds,
+      keepLocalWhenEmpty: ["lat", "lng"]
+    });
+    if (!result.changed) return;
+    this.places = result.items;
+    this.saveData("journey_places_v2", this.places);
+    this.renderPlaces();
+    this.calculateAllDistancesAndRoutes(false);
+  }
+
+  mergeChat(messages) {
+    const pending = new Set(this.pendingIdsFor("chat"));
+    let hasNew = false;
+    messages.forEach((serverMsg) => {
+      const existing = this.chatMessages.find((m) => m.id === serverMsg.id);
+      if (!existing) {
+        this.chatMessages.push(serverMsg);
+        hasNew = true;
+      } else if (!pending.has(String(existing.id)) && serverMsg.image && serverMsg.image !== existing.image) {
+        existing.image = serverMsg.image;
+        hasNew = true;
+      }
+    });
+    if (!hasNew) return;
+    this.persistChat();
+    this.renderChatMessages();
+    if (this.chatUnreadDot && (!this.chatDrawer || !this.chatDrawer.classList.contains("open"))) {
+      this.chatUnreadDot.style.display = "block";
+    }
+  }
+
+  // Kỳ dâu đồng bộ giữa hai máy: bản mới hơn (updatedAt) thắng, trừ khi máy này đang chờ gửi bản của mình
+  mergePeriod(serverPeriod) {
+    if (!serverPeriod || !serverPeriod.startDate) return;
+    if (this.syncEngine && this.syncEngine.getEntry("period")) return;
+    if (Number(serverPeriod.updatedAt) <= Number(this.period.updatedAt || 0)) return;
+    this.period = { ...this.period, ...serverPeriod };
+    this.saveData("journey_period_v1", this.period);
+    this.renderPeriodTracker();
+  }
+
+  // Sau lần đồng bộ đầy đủ: đẩy lên những mục chỉ có trên máy này (từ bản cũ từng làm rơi dữ liệu)
+  async adoptUnsyncedLocal(data) {
+    const deleted = data.deleted || {};
+    const memories = findUnsyncedLocal(this.memories, data.memories || [], deleted.memories, {
+      defaultIds: DEFAULT_MEMORY_IDS, pendingIds: this.pendingIdsFor("memory"), tombstones: this.deletedMemoryIds
+    });
+    const places = findUnsyncedLocal(this.places, data.places || [], deleted.places, {
+      defaultIds: DEFAULT_PLACE_IDS, pendingIds: this.pendingIdsFor("place"), tombstones: this.deletedPlaceIds
+    });
+    for (const m of memories) await this.queueMemory(m);
+    for (const p of places) await this.sendPlaceToBackend(p);
+    if (memories.length + places.length > 0) {
+      this.persistMemories();
+      this.renderTimeline();
+      this.renderPlaces();
+    }
   }
 
   // ==========================================
@@ -3055,23 +3305,22 @@ class JourneyApp {
       sender: this.currentSender,
       text: text || "",
       image: imageBase64 || "",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      syncState: "pending"
     };
 
     this.chatMessages.push(newMsg);
-    this.saveData("journey_chat_messages_v1", this.chatMessages);
+    this.persistChat();
     this.renderChatMessages();
     this.clearChatPendingImage();
     this.spawnHeartBurst(window.innerWidth - 60, window.innerHeight - 60);
 
     // Lưu vào Google Drive và Google Sheet Backend
-    if (this.config.apiUrl) {
-      this.sendToBackend({
-        type: "chat_message",
-        ...newMsg,
-        imageBase64: imageBase64 || ""
-      });
-    } else if (imageBase64) {
+    this.sendToBackend({
+      type: "chat_message", id: newMsg.id, sender: newMsg.sender, text: newMsg.text,
+      timestamp: newMsg.timestamp, image: "", imageBase64: imageBase64 || ""
+    });
+    if (!this.config.apiUrl && imageBase64) {
       this.showToast("⚠️ Lưu ý: Chưa kết nối link Google Drive trong Cài Đặt nên ảnh này chỉ lưu trên máy bạn!");
     }
   }
@@ -3089,7 +3338,7 @@ class JourneyApp {
             ${chatImageUrl ? `<img src="${this.escapeHTML(chatImageUrl)}" alt="Ảnh tin nhắn" class="chat-msg-img" data-msg-id="${this.escapeHTML(msg.id)}">` : ""}
             ${msg.text ? `<div>${this.escapeHTML(msg.text)}</div>` : ""}
           </div>
-          <span class="chat-msg-time">${timeStr}</span>
+          <span class="chat-msg-time">${timeStr}${msg.syncState === "pending" ? " ⏳" : ""}</span>
         </div>
       `;
     }).join("");
@@ -3104,194 +3353,6 @@ class JourneyApp {
       this.lightboxDate.textContent = "Lưu trữ an toàn trên Google Drive";
       this.lightboxStory.textContent = "";
       this.lightboxModal.showModal();
-    }
-  }
-
-  syncFromBackend() {
-    if (!this.config.apiUrl) return;
-    const fetchUrl = this.config.apiUrl + (this.isAuthenticated ? `?passcode=${encodeURIComponent(this.config.passcode || "")}` : "");
-    fetch(fetchUrl)
-      .then(res => res.json())
-      .then(data => {
-        if (this.isAuthenticated && data.isAuth === false) {
-          this.lockForRejectedPasscode();
-          return;
-        }
-        if (data.memories && Array.isArray(data.memories)) {
-          this.syncMemories(data.memories);
-        }
-        if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
-          let hasNew = false;
-          data.messages.forEach(serverMsg => {
-            const existingIdx = this.chatMessages.findIndex(m => m.id === serverMsg.id);
-            if (existingIdx === -1) {
-              this.chatMessages.push(serverMsg);
-              hasNew = true;
-            } else if (serverMsg.image && serverMsg.image !== this.chatMessages[existingIdx].image) {
-              this.chatMessages[existingIdx].image = serverMsg.image;
-              hasNew = true;
-            }
-          });
-          if (hasNew) {
-            this.saveData("journey_chat_messages_v1", this.chatMessages);
-            this.renderChatMessages();
-            if (this.chatUnreadDot && (!this.chatDrawer || !this.chatDrawer.classList.contains("open"))) {
-              this.chatUnreadDot.style.display = "block";
-            }
-          }
-        }
-        // TẬP HỢP TẤT CẢ ĐỊA ĐIỂM TỪ BACKEND
-        const incomingPlaces = [];
-
-        // 1. Nguồn 1: data.places (nếu Google Apps Script đã deploy bản có sheet Places)
-        if (data.places && Array.isArray(data.places)) {
-          incomingPlaces.push(...data.places);
-        }
-
-        // 2. Nguồn 2: data.tasks với category PLACE_WISHLIST (Dual-Sync tương thích 100% với cloud backend hiện tại)
-        if (data.tasks && Array.isArray(data.tasks)) {
-          data.tasks.forEach(t => {
-            if (t.category === "PLACE_DELETED" && t.notes) {
-              const delId = String(t.notes).trim();
-              if (!this.deletedPlaceIds.includes(delId)) {
-                this.deletedPlaceIds.push(delId);
-                this.saveData("journey_deleted_place_ids", this.deletedPlaceIds);
-              }
-            } else if (t.category === "PLACE_WISHLIST" && t.notes) {
-              try {
-                const parsed = typeof t.notes === "string" ? JSON.parse(t.notes) : t.notes;
-                if (parsed && (parsed.id || parsed.name)) {
-                  if (t.completed !== undefined) {
-                    parsed.visited = t.completed === true;
-                  }
-                  incomingPlaces.push(parsed);
-                }
-              } catch (errParse) {
-                incomingPlaces.push({
-                  id: String(t.id).replace(/^pw_/, ""),
-                  name: t.title || "Địa điểm",
-                  notes: String(t.notes || ""),
-                  visited: t.completed === true,
-                  createdAt: t.targetDate || ""
-                });
-              }
-            }
-          });
-        }
-
-        if (incomingPlaces.length > 0) {
-          this.syncPlaces(incomingPlaces);
-        }
-      })
-      .catch(e => console.warn("Chưa đồng bộ được từ Google Drive:", e));
-  }
-
-  syncPlaces(serverPlaces) {
-    if (!Array.isArray(serverPlaces)) return;
-
-    // 1. Lọc bỏ các địa điểm mà người dùng đã bấm xóa trên thiết bị này
-    const validServer = serverPlaces.filter(sp => !this.deletedPlaceIds.includes(String(sp.id)));
-
-    // 2. Giữ lại địa điểm mặc định nếu chưa bị xóa
-    const defaultPlaces = DEFAULT_PLACES.filter(dp =>
-      !this.deletedPlaceIds.includes(String(dp.id)) &&
-      !validServer.some(sp => String(sp.id) === String(dp.id))
-    );
-
-    // 3. Giữ lại các địa điểm cục bộ vừa tạo trong vòng 120 giây (chờ đồng bộ)
-    const now = Date.now();
-    const pendingLocal = this.places.filter(p => {
-      const pid = String(p.id);
-      if (this.deletedPlaceIds.includes(pid)) return false;
-      if (validServer.some(sp => String(sp.id) === pid)) return false;
-      if (["place-1", "place-2", "place-3"].includes(pid)) return false;
-      const rawNum = parseInt(pid.replace(/\D/g, "")) || 0;
-      return (now - rawNum) < 120000;
-    });
-
-    const combinedMap = new Map();
-    validServer.forEach(p => {
-      const pid = String(p.id);
-      if (p.lat != null && p.lat !== "") p.lat = parseFloat(p.lat);
-      if (p.lng != null && p.lng !== "") p.lng = parseFloat(p.lng);
-      if ((p.lat == null || isNaN(p.lat)) && p.mapUrl) {
-        const coords = this.extractCoordinates(p.mapUrl);
-        if (coords) {
-          p.lat = coords.lat;
-          p.lng = coords.lng;
-        }
-      }
-      if (combinedMap.has(pid)) {
-        const existing = combinedMap.get(pid);
-        combinedMap.set(pid, { ...existing, ...p, lat: p.lat ?? existing.lat, lng: p.lng ?? existing.lng });
-      } else {
-        combinedMap.set(pid, p);
-      }
-    });
-
-    pendingLocal.forEach(p => {
-      if (!combinedMap.has(String(p.id))) combinedMap.set(String(p.id), p);
-    });
-
-    defaultPlaces.forEach(p => {
-      if (!combinedMap.has(String(p.id))) combinedMap.set(String(p.id), p);
-    });
-
-    const mergedPlaces = Array.from(combinedMap.values());
-    if (JSON.stringify(mergedPlaces) !== JSON.stringify(this.places)) {
-      this.places = mergedPlaces;
-      this.saveData("journey_places_v2", this.places);
-      this.renderPlaces();
-      this.calculateAllDistancesAndRoutes(false);
-      this.autoResolveMissingPlaceCoordinates();
-    }
-  }
-
-  syncMemories(serverMemories) {
-    if (!Array.isArray(serverMemories)) return;
-
-    // 1. Lọc bỏ các kỷ niệm mà người dùng đã bấm xóa trên thiết bị này
-    const validServer = serverMemories.filter(sm => !this.deletedMemoryIds.includes(String(sm.id)));
-
-    // 2. Giữ lại các kỷ niệm mặc định nếu chúng chưa bị xóa (mem-1, mem-2, mem-3)
-    const defaultMems = DEFAULT_MEMORIES.filter(dm => 
-      !this.deletedMemoryIds.includes(String(dm.id)) &&
-      !validServer.some(sm => String(sm.id) === String(dm.id))
-    );
-
-    // 3. Giữ lại các kỷ niệm cục bộ vừa mới được tạo trong vòng 60 giây (đang đợi backend lưu)
-    const now = Date.now();
-    const pendingLocal = this.memories.filter(m => {
-      const mid = String(m.id);
-      if (this.deletedMemoryIds.includes(mid)) return false;
-      if (validServer.some(sm => String(sm.id) === mid)) return false;
-      if (["mem-1", "mem-2", "mem-3"].includes(mid)) return false;
-      // Trích xuất timestamp từ ID nếu dạng 'mem-1792435...'
-      const rawNum = parseInt(mid.replace(/\D/g, "")) || 0;
-      return (now - rawNum) < 60000;
-    });
-
-    // 4. Tổng hợp danh sách kỷ niệm mới
-    const combinedMap = new Map();
-    validServer.forEach(m => combinedMap.set(String(m.id), m));
-    pendingLocal.forEach(m => {
-      if (!combinedMap.has(String(m.id))) combinedMap.set(String(m.id), m);
-    });
-    defaultMems.forEach(m => {
-      if (!combinedMap.has(String(m.id))) combinedMap.set(String(m.id), m);
-    });
-
-    const newMemoriesList = Array.from(combinedMap.values());
-    newMemoriesList.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // 5. So sánh với this.memories hiện tại, chỉ re-render nếu có sự thay đổi
-    const curHash = this.memories.map(m => `${m.id}_${(m.image || "").slice(0, 30)}`).join("|");
-    const newHash = newMemoriesList.map(m => `${m.id}_${(m.image || "").slice(0, 30)}`).join("|");
-
-    if (curHash !== newHash) {
-      this.memories = newMemoriesList;
-      this.saveData("journey_memories_v3", this.memories);
-      this.renderTimeline();
     }
   }
 

@@ -1,25 +1,44 @@
 /**
  * GOOGLE APPS SCRIPT BACKEND CHO KIM & THƯ 💕
- * 
- * Thư mục Google Drive: 
- * https://drive.google.com/drive/folders/1dcyUgareKuDTIyj9xmhKKY6Uq0uC6Zuj
+ *
+ * Triển khai: xem README.md (mục "Triển khai backend").
+ * Thư mục Google Drive: https://drive.google.com/drive/folders/1dcyUgareKuDTIyj9xmhKKY6Uq0uC6Zuj
+ *
+ * Nguyên tắc:
+ *  - Mọi ghi (doPost) đều là UPSERT theo id → client có thể gửi lại an toàn (outbox/retry).
+ *  - Xóa là "xóa mềm" (tombstone) để thiết bị khác biết và không đồng bộ ngược lại.
+ *  - Mọi ghi chạy trong LockService để các request song song không làm lệch dòng.
+ *  - doGet hỗ trợ ?since=<ms> chỉ trả phần thay đổi.
  */
 
 var FOLDER_ID = "1dcyUgareKuDTIyj9xmhKKY6Uq0uC6Zuj";
+var LOCK_WAIT_MS = 20000;
+var MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+var ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 // Mật mã KHÔNG nằm trong mã nguồn. Đặt tại: Project Settings → Script properties
 // → thêm thuộc tính APP_PASSCODE (tối thiểu 12 ký tự, ngẫu nhiên). Thiếu thuộc tính = từ chối tất cả.
 var PASSCODE_PROPERTY = "APP_PASSCODE";
 var MIN_PASSCODE_LENGTH = 12;
 
+// Cột của từng sheet. Cột mới luôn thêm vào CUỐI để sheet cũ vẫn đọc được.
+var SHEET_DEFS = {
+  memories: { name: "Memories", header: ["ID", "Title", "Date", "Location", "ImageUrl", "Story", "CreatedAt", "UpdatedAt", "Deleted", "PlaceId"] },
+  places:   { name: "Places",   header: ["ID", "Name", "MapUrl", "TiktokUrl", "Lat", "Lng", "Notes", "Visited", "CreatedAt", "UpdatedAt", "Deleted"] },
+  messages: { name: "Messages", header: ["ID", "Sender", "Text", "ImageUrl", "Timestamp", "CreatedAt"] },
+  notes:    { name: "Notes",    header: ["ID", "Sender", "Text", "OpenAt", "CreatedAt", "UpdatedAt", "Deleted"] },
+  period:   { name: "Period",   header: ["ID", "StartDate", "CycleLength", "DurationDays", "HistoryJson", "UpdatedAt"] },
+  tasks:    { name: "Tasks",    header: ["ID", "Title", "Category", "TargetDate", "Notes", "Completed", "CreatedAt"] }
+};
+
+// ---------------------------------------------------------------------------
+// Xác thực
+// ---------------------------------------------------------------------------
 function normalizePasscode_(value) {
   return String(value === null || value === undefined ? "" : value).trim().toLowerCase();
 }
 
-/**
- * So sánh mật mã với bí mật lưu trên server (so sánh thời gian cố định).
- * Fail-closed: chưa cấu hình hoặc quá ngắn thì không ai được xác thực.
- */
+/** So sánh thời gian cố định. Fail-closed khi chưa cấu hình hoặc mật mã quá ngắn. */
 function isPasscodeAuthorized_(candidate) {
   var secret = normalizePasscode_(PropertiesService.getScriptProperties().getProperty(PASSCODE_PROPERTY));
   if (secret.length < MIN_PASSCODE_LENGTH) return false;
@@ -31,10 +50,96 @@ function isPasscodeAuthorized_(candidate) {
   return diff === 0;
 }
 
-/**
- * Chỉ chuyển vào thùng rác các file nằm TRONG thư mục FOLDER_ID của ứng dụng.
- * @return {boolean} true nếu đã chuyển vào thùng rác.
- */
+// ---------------------------------------------------------------------------
+// Tiện ích chung
+// ---------------------------------------------------------------------------
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function toMillis_(value) {
+  if (value instanceof Date) return value.getTime();
+  var n = Number(value);
+  if (n > 0) return n;
+  var parsed = Date.parse(value);
+  return isNaN(parsed) ? 0 : parsed;
+}
+
+function isTrue_(value) {
+  return value === true || String(value).toUpperCase() === "TRUE";
+}
+
+function getSheet_(ss, def) {
+  var sheet = ss.getSheetByName(def.name) || ss.insertSheet(def.name);
+  if (sheet.getLastRow() === 0) sheet.appendRow(def.header);
+  return sheet;
+}
+
+/** Trả về số dòng (1-based) của id, hoặc 0 nếu chưa có. Chỉ đọc cột ID. */
+function findRow_(sheet, id) {
+  var last = sheet.getLastRow();
+  if (last < 2) return 0;
+  var target = String(id).trim();
+  var ids = sheet.getRange(2, 1, last - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]).trim() === target) return i + 2;
+  }
+  return 0;
+}
+
+function writeRow_(sheet, row, values) {
+  if (row) {
+    sheet.getRange(row, 1, 1, values.length).setValues([values]);
+  } else {
+    sheet.appendRow(values);
+  }
+}
+
+function readRow_(sheet, row, width) {
+  return row ? sheet.getRange(row, 1, 1, width).getValues()[0] : null;
+}
+
+function requireId_(data) {
+  if (data.id === undefined || data.id === null || String(data.id).trim() === "") {
+    throw new Error("Thiếu id");
+  }
+  return String(data.id).trim();
+}
+
+// ---------------------------------------------------------------------------
+// Google Drive
+// ---------------------------------------------------------------------------
+function getAppFolder_() {
+  try {
+    return DriveApp.getFolderById(FOLDER_ID);
+  } catch (e) {
+    return DriveApp.getRootFolder();
+  }
+}
+
+/** Lưu ảnh base64 vào Drive. Trả về URL hoặc "" nếu không hợp lệ / lỗi. */
+function saveImage_(dataUrl, prefix) {
+  if (!dataUrl || String(dataUrl).indexOf("data:image/") !== 0) return "";
+  try {
+    var contentType = dataUrl.substring(dataUrl.indexOf(":") + 1, dataUrl.indexOf(";"));
+    if (ALLOWED_IMAGE_TYPES.indexOf(contentType) === -1) return "";
+    var decoded = Utilities.base64Decode(dataUrl.split(",")[1]);
+    if (decoded.length > MAX_IMAGE_BYTES) return "";
+    var filename = prefix + Utilities.formatDate(new Date(), "GMT+7", "yyyyMMdd_HHmmss") + ".jpg";
+    var file = getAppFolder_().createFile(Utilities.newBlob(decoded, contentType, filename));
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (shareErr) {
+      Logger.log("Sharing warning: " + shareErr.toString());
+    }
+    return "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
+  } catch (driveErr) {
+    Logger.log("Drive Error: " + driveErr.toString());
+    return "";
+  }
+}
+
+/** Chỉ chuyển vào thùng rác các file nằm TRONG thư mục FOLDER_ID của ứng dụng. */
 function trashFileInAppFolder_(fileId) {
   try {
     var file = DriveApp.getFileById(fileId);
@@ -52,386 +157,277 @@ function trashFileInAppFolder_(fileId) {
   return false;
 }
 
-/**
- * HÀM CẤP QUYỀN VÀ KIỂM TRA GOOGLE DRIVE:
- * Bạn có thể chọn hàm này và bấm "Chạy" (Run) để kiểm tra tạo file trong thư mục.
- */
-function capQuyenTruyCapDrive() {
-  try {
-    var folder = DriveApp.getFolderById(FOLDER_ID);
-    Logger.log("1. Kết nối Drive thành công! Thư mục: " + folder.getName());
-    var blob = Utilities.newBlob("Test connection", "text/plain", "test.txt");
-    var file = folder.createFile(blob);
-    Logger.log("2. Tạo file thành công! ID: " + file.getId());
-    try {
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      Logger.log("3. Cấp quyền xem công khai thành công!");
-    } catch(errShare) {
-      Logger.log("3. Lưu ý chia sẻ (tài khoản tổ chức): " + errShare.toString());
-    }
-    file.setTrashed(true);
-    Logger.log("Hoàn tất kiểm tra Drive!");
-  } catch(e) {
-    Logger.log("Lỗi: " + e.toString());
-  }
+function trashImageByUrl_(imageUrl) {
+  var url = String(imageUrl || "");
+  if (!url || url.indexOf("data:") === 0) return "";
+  var match = url.match(/id=([a-zA-Z0-9_-]+)/) || url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  return (match && match[1] && trashFileInAppFolder_(match[1])) ? match[1] : "";
 }
 
-/**
- * HÀM HỖ TRỢ XÓA FILE DRIVE BẰNG ID HOẶC LINK:
- * Dùng để kiểm tra hoặc xóa thủ công file nếu cần
- */
-function xoaFileDrive(fileIdOrUrl) {
-  try {
-    var raw = fileIdOrUrl || "";
-    var match = raw.match(/id=([a-zA-Z0-9_-]+)/) || raw.match(/\/d\/([a-zA-Z0-9_-]+)/);
-    var fileId = (match && match[1]) ? match[1] : raw;
-    var file = DriveApp.getFileById(fileId);
-    file.setTrashed(true);
-    Logger.log("Đã chuyển file vào thùng rác thành công: " + file.getName() + " (" + fileId + ")");
-  } catch(e) {
-    Logger.log("Lỗi xóa file: " + e.toString());
-  }
+/** HÀM CẤP QUYỀN: chạy thủ công trong editor để kiểm tra quyền Drive. */
+function capQuyenTruyCapDrive() {
+  var folder = DriveApp.getFolderById(FOLDER_ID);
+  Logger.log("Kết nối Drive thành công! Thư mục: " + folder.getName());
 }
+
+// ---------------------------------------------------------------------------
+// Handlers ghi (tất cả là upsert theo id)
+// ---------------------------------------------------------------------------
+function handleMemory_(ss, data) {
+  var id = requireId_(data);
+  var sheet = getSheet_(ss, SHEET_DEFS.memories);
+  var row = findRow_(sheet, id);
+  var old = readRow_(sheet, row, 10);
+  if (old && isTrue_(old[8])) return { status: "success", deleted: true, id: id };
+
+  var imageUrl = old && old[4] ? String(old[4]) : "";
+  if (!imageUrl) imageUrl = saveImage_(data.imageBase64, "kyniem_");
+  if (!imageUrl && String(data.image || "").indexOf("https://") === 0) imageUrl = data.image;
+
+  var now = Date.now();
+  writeRow_(sheet, row, [
+    id, data.title || "", data.date || "", data.location || "", imageUrl, data.story || "",
+    old ? old[6] : new Date(), now, false, data.placeId || (old ? old[9] : "")
+  ]);
+  return { status: "success", id: id, imageUrl: imageUrl };
+}
+
+function handleDeleteMemory_(ss, data) {
+  var id = requireId_(data);
+  var sheet = getSheet_(ss, SHEET_DEFS.memories);
+  var row = findRow_(sheet, id);
+  var old = readRow_(sheet, row, 10);
+  var deletedFileId = old ? trashImageByUrl_(old[4]) : "";
+  var created = old ? old[6] : new Date();
+  writeRow_(sheet, row, [id, "", "", "", "", "", created, Date.now(), true, ""]);
+  return { status: "success", id: id, deletedId: id, deletedFileId: deletedFileId };
+}
+
+function handleChat_(ss, data) {
+  var id = requireId_(data);
+  var sheet = getSheet_(ss, SHEET_DEFS.messages);
+  var row = findRow_(sheet, id);
+  var old = readRow_(sheet, row, 6);
+  var imageUrl = old && old[3] ? String(old[3]) : saveImage_(data.imageBase64, "chat_");
+  if (!imageUrl && String(data.image || "").indexOf("https://") === 0) imageUrl = data.image;
+  writeRow_(sheet, row, [
+    id, data.sender || "", data.text || "", imageUrl,
+    data.timestamp || new Date().toISOString(), old ? old[5] : new Date()
+  ]);
+  return { status: "success", id: id, imageUrl: imageUrl };
+}
+
+function handlePlace_(ss, data) {
+  var id = requireId_(data);
+  var sheet = getSheet_(ss, SHEET_DEFS.places);
+  var row = findRow_(sheet, id);
+  var old = readRow_(sheet, row, 11);
+  if (old && isTrue_(old[10])) return { status: "success", deleted: true, id: id };
+  writeRow_(sheet, row, [
+    id, data.name || "", data.mapUrl || "", data.tiktokUrl || "",
+    data.lat !== undefined && data.lat !== null ? data.lat : "",
+    data.lng !== undefined && data.lng !== null ? data.lng : "",
+    data.notes || "", data.visited === true,
+    old ? old[8] : (data.createdAt || new Date().toISOString()), Date.now(), false
+  ]);
+  return { status: "success", id: id };
+}
+
+function handleDeletePlace_(ss, data) {
+  var id = requireId_(data);
+  var sheet = getSheet_(ss, SHEET_DEFS.places);
+  var row = findRow_(sheet, id);
+  var old = readRow_(sheet, row, 11);
+  writeRow_(sheet, row, [id, "", "", "", "", "", "", false, old ? old[8] : new Date().toISOString(), Date.now(), true]);
+  return { status: "success", id: id, deletedId: id };
+}
+
+/** Tương thích client cũ: chỉ đổi cờ Visited của một địa điểm đã có. */
+function handleTogglePlace_(ss, data) {
+  var id = requireId_(data);
+  var sheet = getSheet_(ss, SHEET_DEFS.places);
+  var row = findRow_(sheet, id);
+  if (row) {
+    sheet.getRange(row, 8).setValue(data.visited === true);
+    sheet.getRange(row, 10).setValue(Date.now());
+  }
+  return { status: "success", id: id };
+}
+
+function handleNote_(ss, data) {
+  var id = requireId_(data);
+  var sheet = getSheet_(ss, SHEET_DEFS.notes);
+  var row = findRow_(sheet, id);
+  var old = readRow_(sheet, row, 7);
+  if (old && isTrue_(old[6])) return { status: "success", deleted: true, id: id };
+  writeRow_(sheet, row, [
+    id, data.sender || "", data.text || "", data.openAt || "",
+    old ? old[4] : new Date().toISOString(), Date.now(), data.deleted === true
+  ]);
+  return { status: "success", id: id };
+}
+
+/** Dữ liệu kỳ dâu: last-writer-wins theo updatedAt do client gửi. */
+function handlePeriod_(ss, data) {
+  var sheet = getSheet_(ss, SHEET_DEFS.period);
+  var row = findRow_(sheet, "period");
+  var old = readRow_(sheet, row, 6);
+  var incoming = Number(data.updatedAt) || 0;
+  if (old && Number(old[5]) > incoming) return { status: "success", ignored: true, id: "period" };
+  writeRow_(sheet, row, [
+    "period", data.startDate || "", Number(data.cycleLength) || 28, Number(data.durationDays) || 5,
+    JSON.stringify(data.history || []), incoming || Date.now()
+  ]);
+  return { status: "success", id: "period" };
+}
+
+/** Tương thích client cũ (bảng Tasks): upsert theo id, không còn phình dòng. */
+function handleTask_(ss, data) {
+  var id = requireId_(data);
+  var sheet = getSheet_(ss, SHEET_DEFS.tasks);
+  var row = findRow_(sheet, id);
+  writeRow_(sheet, row, [id, data.title, data.category, data.targetDate, data.notes, data.completed, new Date()]);
+  return { status: "success", id: id };
+}
+
+var POST_HANDLERS = {
+  memory: handleMemory_,
+  delete_memory: handleDeleteMemory_,
+  chat_message: handleChat_,
+  place: handlePlace_,
+  delete_place: handleDeletePlace_,
+  toggle_place: handleTogglePlace_,
+  note: handleNote_,
+  period: handlePeriod_,
+  task: handleTask_
+};
 
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
-    
-    // BẢO VỆ TUYỆT ĐỐI: Chỉ Kim & Thư có mật mã mới được thực thi thay đổi
     if (!isPasscodeAuthorized_(data.passcode)) {
-      return ContentService.createTextOutput(JSON.stringify({
-        status: "error",
-        message: "Chế độ khách: Bạn chỉ có quyền xem timeline & timer, không thể thực hiện thay đổi."
-      })).setMimeType(ContentService.MimeType.JSON);
+      return json_({ status: "error", code: "unauthorized", message: "Chế độ khách: chỉ có quyền xem." });
     }
+    var handler = POST_HANDLERS[data.type];
+    if (!handler) return json_({ status: "ignored", message: "Loại yêu cầu không được hỗ trợ: " + data.type });
 
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    
-    // 1. LƯU MONG ƯỚC (TASK)
-    if (data.type === "task") {
-      var sheet = ss.getSheetByName("Tasks") || ss.insertSheet("Tasks");
-      if (sheet.getLastRow() === 0) {
-        sheet.appendRow(["ID", "Title", "Category", "TargetDate", "Notes", "Completed", "CreatedAt"]);
-      }
-      sheet.appendRow([data.id, data.title, data.category, data.targetDate, data.notes, data.completed, new Date()]);
-      return ContentService.createTextOutput(JSON.stringify({status: "success"}))
-        .setMimeType(ContentService.MimeType.JSON);
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(LOCK_WAIT_MS)) {
+      return json_({ status: "error", code: "busy", retryable: true, message: "Máy chủ đang bận, thử lại sau." });
     }
-
-    // 2. CẬP NHẬT TRẠNG THÁI MONG ƯỚC
-    if (data.type === "toggle_task") {
-      var sheet = ss.getSheetByName("Tasks");
-      if (sheet) {
-        var values = sheet.getDataRange().getValues();
-        for (var i = 1; i < values.length; i++) {
-          if (values[i][0] == data.id) {
-            sheet.getRange(i + 1, 6).setValue(data.completed);
-            break;
-          }
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({status: "success"}))
-        .setMimeType(ContentService.MimeType.JSON);
+    try {
+      return json_(handler(SpreadsheetApp.getActiveSpreadsheet(), data));
+    } finally {
+      lock.releaseLock();
     }
-    
-    // 3. LƯU KỶ NIỆM VÀ ẢNH VÀO GOOGLE DRIVE
-    if (data.type === "memory") {
-      var sheet = ss.getSheetByName("Memories") || ss.insertSheet("Memories");
-      if (sheet.getLastRow() === 0) {
-        sheet.appendRow(["ID", "Title", "Date", "Location", "ImageUrl", "Story", "CreatedAt"]);
-      }
-      
-      var imageUrl = data.image || "";
-      
-      // Nếu có ảnh chụp từ điện thoại gửi lên dạng Base64
-      if (data.imageBase64 && data.imageBase64.indexOf("data:image") === 0) {
-        try {
-          var folder;
-          try {
-            folder = DriveApp.getFolderById(FOLDER_ID);
-          } catch(eFolder) {
-            folder = DriveApp.getRootFolder();
-          }
-          var contentType = data.imageBase64.substring(data.imageBase64.indexOf(":") + 1, data.imageBase64.indexOf(";"));
-          var base64Data = data.imageBase64.split(",")[1];
-          var decoded = Utilities.base64Decode(base64Data);
-          var filename = "kyniem_" + Utilities.formatDate(new Date(), "GMT+7", "yyyyMMdd_HHmmss") + ".jpg";
-          var blob = Utilities.newBlob(decoded, contentType, filename);
-          
-          var file = folder.createFile(blob);
-          try {
-            file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-          } catch(shareErr) {
-            Logger.log("Sharing warning: " + shareErr.toString());
-          }
-          imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
-        } catch (driveErr) {
-          Logger.log("Drive Error: " + driveErr.toString());
-          imageUrl = data.image || "";
-        }
-      }
-      
-      sheet.appendRow([data.id, data.title, data.date, data.location, imageUrl, data.story, new Date()]);
-      return ContentService.createTextOutput(JSON.stringify({status: "success", imageUrl: imageUrl}))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 4. LƯU TIN NHẮN CHAT VÀ ẢNH VÀO GOOGLE DRIVE
-    if (data.type === "chat_message") {
-      var sheet = ss.getSheetByName("Messages") || ss.insertSheet("Messages");
-      if (sheet.getLastRow() === 0) {
-        sheet.appendRow(["ID", "Sender", "Text", "ImageUrl", "Timestamp", "CreatedAt"]);
-      }
-      
-      var imageUrl = data.image || "";
-      if (data.imageBase64 && data.imageBase64.indexOf("data:image") === 0) {
-        try {
-          var folder;
-          try {
-            folder = DriveApp.getFolderById(FOLDER_ID);
-          } catch(eFolder) {
-            folder = DriveApp.getRootFolder();
-          }
-          var contentType = data.imageBase64.substring(data.imageBase64.indexOf(":") + 1, data.imageBase64.indexOf(";"));
-          var base64Data = data.imageBase64.split(",")[1];
-          var decoded = Utilities.base64Decode(base64Data);
-          var filename = "chat_" + Utilities.formatDate(new Date(), "GMT+7", "yyyyMMdd_HHmmss") + ".jpg";
-          var blob = Utilities.newBlob(decoded, contentType, filename);
-          
-          var file = folder.createFile(blob);
-          try {
-            file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-          } catch(shareErr) {
-            Logger.log("Sharing warning: " + shareErr.toString());
-          }
-          imageUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
-        } catch (driveErr) {
-          Logger.log("Drive Error: " + driveErr.toString());
-          imageUrl = data.image || "";
-        }
-      }
-      
-      sheet.appendRow([data.id, data.sender, data.text || "", imageUrl, data.timestamp || new Date().toISOString(), new Date()]);
-      return ContentService.createTextOutput(JSON.stringify({status: "success", imageUrl: imageUrl}))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 5. XÓA KỶ NIỆM VÀ XÓA ẢNH TRÊN GOOGLE DRIVE
-    if (data.type === "delete_memory") {
-      var sheet = ss.getSheetByName("Memories");
-      var deletedFileId = "";
-      
-      if (sheet && sheet.getLastRow() > 1) {
-        var values = sheet.getDataRange().getValues();
-        // Lặp ngược từ dưới lên để xóa an toàn không bị lệch dòng
-        for (var i = values.length - 1; i >= 1; i--) {
-          if (String(values[i][0]).trim() === String(data.id).trim()) {
-            // Chỉ tin link ảnh lưu trong dòng của sheet, KHÔNG tin fileId do client gửi lên
-            var imgUrl = String(values[i][4] || "");
-            if (imgUrl && imgUrl.indexOf("data:") === -1) {
-              var match = imgUrl.match(/id=([a-zA-Z0-9_-]+)/) || imgUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-              if (match && match[1] && trashFileInAppFolder_(match[1])) {
-                deletedFileId = match[1];
-              }
-            }
-            sheet.deleteRow(i + 1);
-          }
-        }
-      }
-
-      return ContentService.createTextOutput(JSON.stringify({
-        status: "success", 
-        deletedId: data.id, 
-        deletedFileId: deletedFileId
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 6. LƯU ĐỊA ĐIỂM MUỐN ĐI (PLACES WISHLIST)
-    if (data.type === "place") {
-      var placeSheet = ss.getSheetByName("Places") || ss.insertSheet("Places");
-      if (placeSheet.getLastRow() === 0) {
-        placeSheet.appendRow(["ID", "Name", "MapUrl", "TiktokUrl", "Lat", "Lng", "Notes", "Visited", "CreatedAt"]);
-      }
-      
-      var isUpdated = false;
-      if (placeSheet.getLastRow() > 1) {
-        var pData = placeSheet.getDataRange().getValues();
-        for (var pIdx = 1; pIdx < pData.length; pIdx++) {
-          if (String(pData[pIdx][0]).trim() === String(data.id).trim()) {
-            placeSheet.getRange(pIdx + 1, 2).setValue(data.name || "");
-            placeSheet.getRange(pIdx + 1, 3).setValue(data.mapUrl || "");
-            placeSheet.getRange(pIdx + 1, 4).setValue(data.tiktokUrl || "");
-            placeSheet.getRange(pIdx + 1, 5).setValue(data.lat !== undefined ? data.lat : "");
-            placeSheet.getRange(pIdx + 1, 6).setValue(data.lng !== undefined ? data.lng : "");
-            placeSheet.getRange(pIdx + 1, 7).setValue(data.notes || "");
-            if (data.visited !== undefined) {
-              placeSheet.getRange(pIdx + 1, 8).setValue(data.visited === true);
-            }
-            isUpdated = true;
-            break;
-          }
-        }
-      }
-
-      if (!isUpdated) {
-        placeSheet.appendRow([
-          data.id,
-          data.name || "",
-          data.mapUrl || "",
-          data.tiktokUrl || "",
-          data.lat !== undefined ? data.lat : "",
-          data.lng !== undefined ? data.lng : "",
-          data.notes || "",
-          data.visited === true,
-          data.createdAt || new Date().toISOString()
-        ]);
-      }
-      return ContentService.createTextOutput(JSON.stringify({status: "success"}))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 7. CẬP NHẬT TRẠNG THÁI ĐÃ ĐI / CHƯA ĐI
-    if (data.type === "toggle_place") {
-      var placeSheet = ss.getSheetByName("Places");
-      if (placeSheet && placeSheet.getLastRow() > 1) {
-        var values = placeSheet.getDataRange().getValues();
-        for (var i = 1; i < values.length; i++) {
-          if (String(values[i][0]).trim() === String(data.id).trim()) {
-            placeSheet.getRange(i + 1, 8).setValue(data.visited === true);
-            break;
-          }
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({status: "success"}))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // 8. XÓA ĐỊA ĐIỂM MUỐN ĐI
-    if (data.type === "delete_place") {
-      var placeSheet = ss.getSheetByName("Places");
-      if (placeSheet && placeSheet.getLastRow() > 1) {
-        var values = placeSheet.getDataRange().getValues();
-        for (var i = values.length - 1; i >= 1; i--) {
-          if (String(values[i][0]).trim() === String(data.id).trim()) {
-            placeSheet.deleteRow(i + 1);
-          }
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({status: "success", deletedId: data.id}))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // Phản hồi mặc định nếu kiểu dữ liệu không khớp
-    return ContentService.createTextOutput(JSON.stringify({
-      status: "ignored", 
-      message: "Yêu cầu không thuộc loại nào đã xử lý: " + data.type
-    })).setMimeType(ContentService.MimeType.JSON);
-    
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({status: "error", message: err.toString()}))
-      .setMimeType(ContentService.MimeType.JSON);
+    return json_({ status: "error", message: err.toString() });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Đọc (doGet)
+// ---------------------------------------------------------------------------
+function readRows_(ss, def, width) {
+  var sheet = ss.getSheetByName(def.name);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getValues();
+}
+
+function formatMemoryDate_(dateVal) {
+  var d = new Date(dateVal);
+  if (isNaN(d.getTime())) return String(dateVal);
+  var hours = Utilities.formatDate(d, "GMT+7", "HH:mm");
+  var datePart = Utilities.formatDate(d, "GMT+7", "yyyy-MM-dd");
+  return hours !== "00:00" ? datePart + "T" + hours : datePart;
+}
+
+function collectMemories_(ss, since, out) {
+  readRows_(ss, SHEET_DEFS.memories, 10).forEach(function (r) {
+    var updatedAt = toMillis_(r[7]);
+    if (updatedAt <= since) return;
+    if (isTrue_(r[8])) {
+      out.deleted.memories.push(String(r[0]));
+      return;
+    }
+    out.memories.push({
+      id: String(r[0]), title: r[1], date: formatMemoryDate_(r[2]), location: r[3],
+      image: r[4], story: r[5], placeId: r[9] ? String(r[9]) : "", updatedAt: updatedAt
+    });
+  });
+}
+
+function collectPlaces_(ss, since, out) {
+  readRows_(ss, SHEET_DEFS.places, 11).forEach(function (r) {
+    var updatedAt = toMillis_(r[9]);
+    if (updatedAt <= since) return;
+    if (isTrue_(r[10])) {
+      out.deleted.places.push(String(r[0]));
+      return;
+    }
+    out.places.push({
+      id: String(r[0]), name: r[1] || "", mapUrl: r[2] || "", tiktokUrl: r[3] || "",
+      lat: r[4] !== "" ? parseFloat(r[4]) : null, lng: r[5] !== "" ? parseFloat(r[5]) : null,
+      notes: r[6] || "", visited: isTrue_(r[7]), createdAt: r[8] ? String(r[8]) : "", updatedAt: updatedAt
+    });
+  });
+}
+
+function collectMessages_(ss, since, out) {
+  readRows_(ss, SHEET_DEFS.messages, 6).forEach(function (r) {
+    if (toMillis_(r[5]) <= since) return;
+    out.messages.push({ id: String(r[0]), sender: r[1], text: r[2], image: r[3], timestamp: r[4] });
+  });
+}
+
+/** Ghi chú hẹn giờ: server giữ kín nội dung cho tới khi đến giờ mở. */
+function collectNotes_(ss, since, out) {
+  var now = Date.now();
+  readRows_(ss, SHEET_DEFS.notes, 7).forEach(function (r) {
+    var updatedAt = toMillis_(r[5]);
+    var openAt = toMillis_(r[3]);
+    var unlocked = openAt > 0 && openAt <= now;
+    var justUnlocked = unlocked && openAt > since;
+    if (updatedAt <= since && !justUnlocked) return;
+    if (isTrue_(r[6])) {
+      out.deleted.notes.push(String(r[0]));
+      return;
+    }
+    out.notes.push({
+      id: String(r[0]), sender: r[1], text: unlocked ? r[2] : "", openAt: r[3] ? String(r[3]) : "",
+      locked: !unlocked, createdAt: r[4] ? String(r[4]) : "", updatedAt: updatedAt
+    });
+  });
+}
+
+function readPeriod_(ss) {
+  var rows = readRows_(ss, SHEET_DEFS.period, 6);
+  if (rows.length === 0) return null;
+  var r = rows[0];
+  var history = [];
+  try { history = JSON.parse(r[4] || "[]"); } catch (e) { history = []; }
+  return {
+    startDate: r[1] instanceof Date ? Utilities.formatDate(r[1], "GMT+7", "yyyy-MM-dd") : String(r[1]),
+    cycleLength: Number(r[2]) || 28, durationDays: Number(r[3]) || 5, history: history, updatedAt: toMillis_(r[5])
+  };
 }
 
 function doGet(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var taskSheet = ss.getSheetByName("Tasks");
-  var memorySheet = ss.getSheetByName("Memories");
-  var msgSheet = ss.getSheetByName("Messages");
-  var placeSheet = ss.getSheetByName("Places");
-  
-  // Xác thực quyền riêng tư: Nếu có mật mã thì mới trả về tin nhắn riêng tư
-  var isAuth = isPasscodeAuthorized_(e && e.parameter ? e.parameter.passcode : "");
-
-  var tasks = [];
-  if (taskSheet && taskSheet.getLastRow() > 1) {
-    var taskData = taskSheet.getDataRange().getValues();
-    for (var i = 1; i < taskData.length; i++) {
-      tasks.push({
-        id: taskData[i][0],
-        title: taskData[i][1],
-        category: taskData[i][2],
-        targetDate: taskData[i][3],
-        notes: taskData[i][4],
-        completed: taskData[i][5] === true || taskData[i][5] === "TRUE"
-      });
-    }
+  var params = (e && e.parameter) || {};
+  var isAuth = isPasscodeAuthorized_(params.passcode);
+  var since = Math.max(0, Number(params.since) || 0);
+  var out = {
+    serverTime: Date.now(), isAuth: isAuth, since: since,
+    memories: [], places: [], messages: [], notes: [], period: null, tasks: [],
+    deleted: { memories: [], places: [], notes: [] }
+  };
+  collectMemories_(ss, since, out);
+  collectPlaces_(ss, since, out);
+  if (isAuth) {
+    collectMessages_(ss, since, out);
+    collectNotes_(ss, since, out);
+    out.period = readPeriod_(ss);
   }
-  
-  var memories = [];
-  if (memorySheet && memorySheet.getLastRow() > 1) {
-    var memData = memorySheet.getDataRange().getValues();
-    for (var j = 1; j < memData.length; j++) {
-      var dateVal = memData[j][2];
-      var formattedDate = String(dateVal);
-      try {
-        var d = new Date(dateVal);
-        if (!isNaN(d.getTime())) {
-          var hours = Utilities.formatDate(d, "GMT+7", "HH:mm");
-          var datePart = Utilities.formatDate(d, "GMT+7", "yyyy-MM-dd");
-          if (hours && hours !== "00:00") {
-            formattedDate = datePart + "T" + hours;
-          } else {
-            formattedDate = datePart;
-          }
-        }
-      } catch(e) {}
-      
-      memories.push({
-        id: memData[j][0],
-        title: memData[j][1],
-        date: formattedDate,
-        location: memData[j][3],
-        image: memData[j][4],
-        story: memData[j][5]
-      });
-    }
-
-    // Sắp xếp sự kiện gần nhất lên đầu
-    memories.sort(function(a, b) {
-      return new Date(b.date) - new Date(a.date);
-    });
-  }
-
-  // Tin nhắn chỉ trả về khi là Kim hoặc Thư đã xác thực
-  var messages = [];
-  if (isAuth && msgSheet && msgSheet.getLastRow() > 1) {
-    var msgData = msgSheet.getDataRange().getValues();
-    for (var k = 1; k < msgData.length; k++) {
-      messages.push({
-        id: msgData[k][0],
-        sender: msgData[k][1],
-        text: msgData[k][2],
-        image: msgData[k][3],
-        timestamp: msgData[k][4]
-      });
-    }
-  }
-  
-  // Danh sách địa điểm muốn đi
-  var places = [];
-  if (placeSheet && placeSheet.getLastRow() > 1) {
-    var placeData = placeSheet.getDataRange().getValues();
-    for (var p = 1; p < placeData.length; p++) {
-      places.push({
-        id: String(placeData[p][0]),
-        name: placeData[p][1] || "",
-        mapUrl: placeData[p][2] || "",
-        tiktokUrl: placeData[p][3] || "",
-        lat: placeData[p][4] !== "" ? parseFloat(placeData[p][4]) : null,
-        lng: placeData[p][5] !== "" ? parseFloat(placeData[p][5]) : null,
-        notes: placeData[p][6] || "",
-        visited: placeData[p][7] === true || placeData[p][7] === "TRUE",
-        createdAt: placeData[p][8] ? String(placeData[p][8]) : ""
-      });
-    }
-  }
-
-  return ContentService.createTextOutput(JSON.stringify({
-    tasks: tasks, 
-    memories: memories, 
-    messages: messages,
-    places: places,
-    isAuth: isAuth
-  })).setMimeType(ContentService.MimeType.JSON);
+  return json_(out);
 }
