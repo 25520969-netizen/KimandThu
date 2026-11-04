@@ -12,8 +12,26 @@ const DEFAULT_CONFIG = {
   startDate: "2025-04-02T19:00:00",
   quote: "Iu béeeee:3",
   apiUrl: "https://script.google.com/macros/s/AKfycbxDI9aaD94CTOU8rYk-NRc8Hb3Uajv24LgnPdrTrLXGZGsR7sykPBBUwC7ttesFfxl3PA/exec",
-  passcode: "kimthu"
+  passcode: ""
 };
+
+// Chỉ chấp nhận link backend dạng Google Apps Script Web App (SEC-04)
+const APPS_SCRIPT_URL_PATTERN = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
+const AUTH_REQUEST_TIMEOUT_MS = 10000;
+const MEMORY_IMAGE_URL_OPTIONS = { allowRelative: true, allowDataImage: true };
+const SYNC_CURSOR_KEY = "journey_sync_cursor_v2";
+const SYNC_CURSOR_OVERLAP_MS = 5000;
+const POST_TIMEOUT_MS = 60000;
+const GET_TIMEOUT_MS = 20000;
+const GEO_MIN_GAP_MS = 1100;
+const ROUTE_CACHE_KEY = "journey_route_cache_v1";
+const TIMELINE_VIEW_KEY = "journey_timeline_view";
+const NOTES_KEY = "journey_notes_v1";
+const PERIOD_ALERT_SEEN_KEY = "journey_period_alert_seen_v1";
+const SENDER_CHOSEN_KEY = "journey_chat_sender_chosen_v1";
+const VIBRATE_PATTERN_MS = [30, 40, 30];
+const DEFAULT_MEMORY_IDS = ["mem-1", "mem-2", "mem-3"];
+const DEFAULT_PLACE_IDS = ["place-1", "place-2", "place-3"];
 
 
 const DEFAULT_MEMORIES = [
@@ -120,8 +138,10 @@ class JourneyApp {
     this.lastUserPosition = this.loadData("journey_last_user_pos", null);
     this.placeDistances = new Map();
     this.placeRoutes = new Map();
-    this.routingCache = new Map();
-    this.period = this.loadData("journey_period_v1", DEFAULT_PERIOD);
+    this.period = this.normalizePeriod(this.loadData("journey_period_v1", DEFAULT_PERIOD));
+    this.timelineView = this.loadData(TIMELINE_VIEW_KEY, "feed") === "grid" ? "grid" : "feed";
+    this.notes = this.loadData(NOTES_KEY, []);
+    this.pendingMemoryPlaceId = "";
     this.chatMessages = this.loadData("journey_chat_messages_v1", DEFAULT_CHAT_MESSAGES);
     this.currentSender = this.loadData("journey_chat_sender_v1", "Kim");
     this.chatPendingImage = null;
@@ -131,6 +151,14 @@ class JourneyApp {
     this.melodyTimer = null;
     this.isAuthenticated = false;
     this.toastTimer = null;
+    this.syncCursor = Number(this.loadData(SYNC_CURSOR_KEY, 0)) || 0;
+    this.syncEngine = null;
+    this.isSyncing = false;
+    this.pollTimer = null;
+    this.lastActivityAt = Date.now();
+    this.geocodeQueue = createSpacedQueue(GEO_MIN_GAP_MS);
+    this.routeQueue = createSpacedQueue(GEO_MIN_GAP_MS);
+    this.routeCache = this.loadData(ROUTE_CACHE_KEY, {});
 
     this.initDOM();
     this.initAuth();
@@ -139,17 +167,17 @@ class JourneyApp {
     this.initChat();
     this.initPhotoUpload();
     this.initPlaces();
+    this.initTimelineViewToggle();
+    this.initNotes();
     this.startLiveCounter();
     this.renderProfile();
     this.renderPeriodTracker();
     this.renderTimeline();
     this.renderPlaces();
+    this.hasInitialRender = true;
     this.initPetalsCanvas();
-    this.syncFromBackend();
     this.checkPeriodAlert();
-
-    // Tự động kiểm tra tin nhắn mới từ backend mỗi 6 giây
-    setInterval(() => this.syncFromBackend(), 6000);
+    this.syncReady = this.initSync();
   }
 
   loadData(key, fallback) {
@@ -165,9 +193,23 @@ class JourneyApp {
   saveData(key, data) {
     try {
       localStorage.setItem(key, JSON.stringify(data));
+      return true;
     } catch (e) {
       console.error("Lỗi lưu dữ liệu:", e);
+      this.showToast("⚠️ Bộ nhớ trên máy đã đầy nên chưa lưu được. Hãy xóa bớt ảnh cũ nhé!", 6000);
+      return false;
     }
+  }
+
+  // Ảnh base64 chưa đồng bộ nằm trong hàng đợi IndexedDB, không lưu vào localStorage (BUG-11)
+  persistMemories() {
+    const slim = this.memories.map((m) => (String(m.image || "").startsWith("data:") ? { ...m, image: "" } : m));
+    this.saveData("journey_memories_v3", slim);
+  }
+
+  persistChat() {
+    const slim = this.chatMessages.map((m) => (String(m.image || "").startsWith("data:") ? { ...m, image: "" } : m));
+    this.saveData("journey_chat_messages_v1", slim);
   }
 
   // ==========================================
@@ -200,6 +242,10 @@ class JourneyApp {
     // Period Tracker (Thanh công cụ & Modal & Alert)
     this.periodNavBtn = document.getElementById("period-nav-btn");
     this.periodNavLabel = document.getElementById("period-nav-label");
+    this.periodChipText = document.getElementById("period-chip-text");
+    this.periodAccuracy = document.getElementById("period-accuracy");
+    this.milestoneLine = document.getElementById("milestone-line");
+    this.onThisDayCard = document.getElementById("on-this-day-card");
     this.periodPhaseText = document.getElementById("period-phase-text");
     this.periodStatusMessage = document.getElementById("period-status-message");
     this.periodModal = document.getElementById("period-modal");
@@ -266,7 +312,6 @@ class JourneyApp {
     this.closeAuthModalBtn = document.getElementById("close-auth-modal-btn");
     this.cancelAuthBtn = document.getElementById("cancel-auth-btn");
     this.copySecretLinkBtn = document.getElementById("copy-secret-link-btn");
-    this.cfgPasscodeInput = document.getElementById("cfg-passcode");
 
     // Places Wishlist
     this.placesListContainer = document.getElementById("places-list-container");
@@ -337,26 +382,16 @@ class JourneyApp {
     const secretKey = urlParams.get("key") || urlParams.get("code") || urlParams.get("pass");
     const apiUrlParam = urlParams.get("api");
 
-    if (apiUrlParam) {
-      try {
-        const decodedUrl = decodeURIComponent(apiUrlParam);
-        if (decodedUrl.startsWith("http")) {
-          this.config.apiUrl = decodedUrl;
-          this.saveData("journey_config_v3", this.config);
-        }
-      } catch (e) {}
-    }
+    this.applyApiUrlParam(apiUrlParam);
 
-    if (secretKey && this.isPasscodeValid(secretKey)) {
-      this.isAuthenticated = true;
-      this.saveData("journey_auth_token", "unlocked");
+    // 2. Trạng thái đã mở khóa trước đó trên máy này (server sẽ xác nhận lại ở lần đồng bộ đầu tiên)
+    const token = this.loadData("journey_auth_token", null);
+    this.isAuthenticated = (token === "unlocked");
+
+    // 1b. Link tự mở khóa: gỡ mật mã khỏi thanh địa chỉ ngay, rồi xác thực với server
+    if (secretKey) {
       window.history.replaceState({}, document.title, window.location.pathname);
-      this.showToast("Chào mừng Kim & Thư 💕 Đã mở khóa toàn bộ quyền!");
-      this.spawnHeartConfetti();
-    } else {
-      // 2. Kiểm tra token đã lưu trên trình duyệt của máy này trước đó
-      const token = this.loadData("journey_auth_token", null);
-      this.isAuthenticated = (token === "unlocked");
+      this.unlockFromMagicLink(secretKey);
     }
 
     if (this.authUnlockNavBtn) {
@@ -384,12 +419,11 @@ class JourneyApp {
     }
 
     if (this.authForm) {
-      this.authForm.addEventListener("submit", (e) => {
+      this.authForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const inputPass = this.authPasscodeInput ? this.authPasscodeInput.value : "";
-        if (this.isPasscodeValid(inputPass)) {
-          this.isAuthenticated = true;
-          this.saveData("journey_auth_token", "unlocked");
+        const result = await this.tryUnlock(inputPass);
+        if (result === "ok") {
           if (this.authErrorMsg) this.authErrorMsg.style.display = "none";
           this.closeAuthModal();
           this.applyAuthMode();
@@ -403,7 +437,12 @@ class JourneyApp {
             setTimeout(() => cb(), 150);
           }
         } else {
-          if (this.authErrorMsg) this.authErrorMsg.style.display = "block";
+          if (this.authErrorMsg) {
+            this.authErrorMsg.textContent = result === "offline"
+              ? "Chưa kết nối được máy chủ để kiểm tra mật mã. Kiểm tra mạng rồi thử lại nhé! 💕"
+              : "Mật mã chưa đúng nè, thử lại nhé bé yêu! 💕";
+            this.authErrorMsg.style.display = "block";
+          }
           if (this.authPasscodeInput) this.authPasscodeInput.focus();
         }
       });
@@ -411,7 +450,11 @@ class JourneyApp {
 
     if (this.copySecretLinkBtn) {
       this.copySecretLinkBtn.addEventListener("click", () => {
-        const pass = (this.cfgPasscodeInput && this.cfgPasscodeInput.value.trim()) || this.config.passcode || "kimthu";
+        const pass = this.config.passcode;
+        if (!pass) {
+          this.showToast("Hãy mở khóa trước khi sao chép link tự mở khóa nhé 💕");
+          return;
+        }
         let secretLink = `${window.location.origin}${window.location.pathname}?key=${encodeURIComponent(pass)}`;
         if (this.config.apiUrl) {
           secretLink += `&api=${encodeURIComponent(this.config.apiUrl)}`;
@@ -427,22 +470,81 @@ class JourneyApp {
     this.applyAuthMode();
   }
 
-  isPasscodeValid(pass) {
-    if (!pass) return false;
-    const raw = String(pass).trim().toLowerCase();
-    const clean = raw.replace(/\s+/g, "");
-    const normalized = clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const currentPass = String(this.config.passcode || "kimthu").trim().toLowerCase().replace(/\s+/g, "");
-    return (
-      raw === currentPass ||
-      clean === currentPass ||
-      normalized === "kimthu" ||
-      clean === "kimthu" ||
-      clean === "0204" ||
-      clean === "1909" ||
-      clean === "24" ||
-      clean === "199"
-    );
+  // Link ?api=: ch\u1ec9 nh\u1eadn \u0111\u00fang d\u1ea1ng Apps Script Web App v\u00e0 ph\u1ea3i \u0111\u01b0\u1ee3c ng\u01b0\u1eddi d\u00f9ng x\u00e1c nh\u1eadn (SEC-04)
+  applyApiUrlParam(rawParam) {
+    if (!rawParam) return;
+    let candidate = "";
+    try {
+      candidate = decodeURIComponent(rawParam).trim();
+    } catch (e) {
+      console.warn("Tham s\u1ed1 api trong link kh\u00f4ng h\u1ee3p l\u1ec7:", e);
+      return;
+    }
+    if (!APPS_SCRIPT_URL_PATTERN.test(candidate)) {
+      console.warn("B\u1ecf qua tham s\u1ed1 api: kh\u00f4ng ph\u1ea3i link Google Apps Script Web App.");
+      return;
+    }
+    if (candidate === this.config.apiUrl) return;
+    const accepted = confirm(`Link n\u00e0y mu\u1ed1n \u0111\u1ed5i n\u01a1i l\u01b0u d\u1eef li\u1ec7u sang:\n${candidate}\n\nCh\u1ec9 \u0111\u1ed3ng \u00fd n\u1ebfu ch\u00ednh Kim ho\u1eb7c Th\u01b0 g\u1eedi link n\u00e0y. \u0110\u1ed5i nh\u00e9?`);
+    if (!accepted) return;
+    this.config.apiUrl = candidate;
+    this.saveData("journey_config_v3", this.config);
+  }
+
+  // H\u1ecfi m\u00e1y ch\u1ee7 xem m\u1eadt m\u00e3 c\u00f3 \u0111\u00fang kh\u00f4ng. N\u00e9m l\u1ed7i n\u1ebfu kh\u00f4ng li\u00ean l\u1ea1c \u0111\u01b0\u1ee3c m\u00e1y ch\u1ee7.
+  async verifyPasscode(pass) {
+    const candidate = String(pass || "").trim();
+    if (!candidate) return false;
+    if (!this.config.apiUrl) throw new Error("Ch\u01b0a c\u1ea5u h\u00ecnh link backend");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${this.config.apiUrl}?passcode=${encodeURIComponent(candidate)}`, { signal: controller.signal });
+      const data = await res.json();
+      return data.isAuth === true;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // @returns {"ok" | "wrong" | "offline"}
+  async tryUnlock(pass) {
+    try {
+      if (!(await this.verifyPasscode(pass))) return "wrong";
+    } catch (e) {
+      console.warn("Kh\u00f4ng x\u00e1c th\u1ef1c \u0111\u01b0\u1ee3c m\u1eadt m\u00e3 v\u1edbi m\u00e1y ch\u1ee7:", e);
+      return "offline";
+    }
+    this.config.passcode = String(pass).trim();
+    this.saveData("journey_config_v3", this.config);
+    this.isAuthenticated = true;
+    this.saveData("journey_auth_token", "unlocked");
+    this.resetSyncCursor(); // lần kéo kế tiếp lấy đầy đủ cả tin nhắn riêng tư
+    return "ok";
+  }
+
+  async unlockFromMagicLink(secretKey) {
+    const result = await this.tryUnlock(secretKey);
+    if (result === "ok") {
+      this.applyAuthMode();
+      this.showToast("Ch\u00e0o m\u1eebng Kim & Th\u01b0 \ud83d\udc95 \u0110\u00e3 m\u1edf kh\u00f3a to\u00e0n b\u1ed9 quy\u1ec1n!");
+      this.spawnHeartConfetti();
+      this.syncFromBackend();
+      return;
+    }
+    this.showToast(result === "offline"
+      ? "Ch\u01b0a k\u1ebft n\u1ed1i \u0111\u01b0\u1ee3c m\u00e1y ch\u1ee7 \u0111\u1ec3 m\u1edf kh\u00f3a. Th\u1eed l\u1ea1i sau nh\u00e9 \ud83d\udc95"
+      : "Link m\u1edf kh\u00f3a kh\u00f4ng \u0111\u00fang ho\u1eb7c \u0111\u00e3 h\u1ebft h\u1ea1n \ud83d\udc95");
+  }
+
+  // M\u00e1y ch\u1ee7 b\u00e1o m\u1eadt m\u00e3 kh\u00f4ng c\u00f2n h\u1ee3p l\u1ec7 (\u0111\u00e3 \u0111\u1ed5i) \u2192 quay v\u1ec1 ch\u1ebf \u0111\u1ed9 kh\u00e1ch
+  lockForRejectedPasscode() {
+    this.isAuthenticated = false;
+    this.config.passcode = "";
+    this.saveData("journey_config_v3", this.config);
+    this.saveData("journey_auth_token", "locked");
+    this.applyAuthMode();
+    this.showToast("M\u1eadt m\u00e3 \u0111\u00e3 thay \u0111\u1ed5i. H\u00e3y nh\u1eadp l\u1ea1i m\u1eadt m\u00e3 m\u1edbi \u0111\u1ec3 m\u1edf kh\u00f3a \ud83d\udd10", 5000);
   }
 
   openAuthModal(callback = null, customMessage = null) {
@@ -451,7 +553,7 @@ class JourneyApp {
     const descEl = document.getElementById("auth-modal-desc");
     if (descEl) {
       if (customMessage) {
-        descEl.innerHTML = `<strong>${customMessage}</strong><br><small style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; display: inline-block;">Gợi ý: Mật mã là kimthu hoặc ngày kỷ niệm của tụi mình 💕</small>`;
+        descEl.innerHTML = `<strong>${customMessage}</strong><br><small style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; display: inline-block;">Nhập mật mã riêng của tụi mình nhé 💕</small>`;
       } else {
         descEl.innerHTML = `Trang web đang ở chế độ công khai (chỉ xem kỷ niệm & đếm ngày yêu).<br>Nhập mật mã tình yêu để mở khóa nhắn tin, gửi ảnh và chăm sóc bé nhé!`;
       }
@@ -476,6 +578,7 @@ class JourneyApp {
       if (this.authLockNavBtn) this.authLockNavBtn.style.display = "flex";
       if (this.floatingChatBtn) this.floatingChatBtn.style.display = "flex";
       this.checkPeriodAlert();
+      this.promptSenderIfNeeded();
     } else {
       document.body.classList.add("is-guest");
       if (this.authUnlockNavBtn) this.authUnlockNavBtn.style.display = "flex";
@@ -491,9 +594,15 @@ class JourneyApp {
       if (this.memoryModal && this.memoryModal.open) this.memoryModal.close();
       if (this.placeModal && this.placeModal.open) this.placeModal.close();
     }
+
+    // Nút xóa được chọn lúc render nên phải vẽ lại khi trạng thái khóa/mở thay đổi (BUG-09)
+    if (this.hasInitialRender) {
+      this.renderTimeline();
+      this.renderPlaces();
+    }
   }
 
-  showToast(message, duration = 3000) {
+  showToast(message, duration = 3000, action = null) {
     let toast = document.getElementById("journey-toast");
     if (!toast) {
       toast = document.createElement("div");
@@ -502,6 +611,18 @@ class JourneyApp {
       document.body.appendChild(toast);
     }
     toast.textContent = message;
+    toast.classList.toggle("has-action", !!action);
+    if (action) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "toast-action";
+      button.textContent = action.label;
+      button.addEventListener("click", () => {
+        toast.classList.remove("show");
+        action.onClick();
+      });
+      toast.appendChild(button);
+    }
     toast.classList.add("show");
     clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => {
@@ -572,7 +693,7 @@ class JourneyApp {
       this.removePreviewBtn.addEventListener("click", () => {
         if (this.memoryFileInput) this.memoryFileInput.value = "";
         if (this.memoryCameraInput) this.memoryCameraInput.value = "";
-        this.memoryImageInput.value = "assets/images/memory1.jpg";
+        this.memoryImageInput.value = "";
         this.uploadPreviewWrapper.style.display = "none";
         if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "grid";
         this.stopInAppCamera();
@@ -785,10 +906,11 @@ class JourneyApp {
   // LẮNG NGHE SỰ KIỆN (EVENT LISTENERS)
   // ==========================================
   initEvents() {
-    const openMemoryDialog = () => {
+    // prefill: { title, location, placeId } khi mở từ một địa điểm vừa ghé thăm
+    const openMemoryDialog = (prefill = null) => {
       if (!this.isAuthenticated) {
         this.openAuthModal(() => {
-          openMemoryDialog();
+          openMemoryDialog(prefill);
         }, "Bé Thư nhập mật mã tình yêu để gửi khoảnh khắc mới nhé 💕");
         return;
       }
@@ -803,15 +925,27 @@ class JourneyApp {
       if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "grid";
       if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "none";
       if (this.uploadPreviewWrapper) this.uploadPreviewWrapper.style.display = "none";
-      if (this.memoryImageInput) this.memoryImageInput.value = "assets/images/memory1.jpg";
+      if (this.memoryImageInput) this.memoryImageInput.value = "";
 
-      // Tự động kích hoạt định vị GPS Google Maps
-      this.autoFetchGpsLocation();
+      this.pendingMemoryPlaceId = prefill ? prefill.placeId : "";
+      if (prefill) {
+        document.getElementById("memory-title-input").value = prefill.title;
+        document.getElementById("memory-location-input").value = prefill.location;
+      } else {
+        // Tự động kích hoạt định vị GPS Google Maps
+        this.autoFetchGpsLocation();
+      }
 
       this.memoryModal.showModal();
     };
+    this.openMemoryDialog = openMemoryDialog;
 
-    if (this.openAddMemoryBtn) this.openAddMemoryBtn.addEventListener("click", openMemoryDialog);
+    if (this.openAddMemoryBtn) this.openAddMemoryBtn.addEventListener("click", () => openMemoryDialog());
+    // Esc / cử chỉ quay lại đóng <dialog> mà không qua nút nào → vẫn phải tắt camera (BUG-10)
+    this.memoryModal.addEventListener("close", () => {
+      this.stopInAppCamera();
+      this.pendingMemoryPlaceId = "";
+    });
     if (this.closeMemoryBtn) this.closeMemoryBtn.addEventListener("click", () => {
       this.stopInAppCamera();
       this.memoryModal.close();
@@ -831,7 +965,7 @@ class JourneyApp {
       const title = document.getElementById("memory-title-input").value.trim();
       const date = document.getElementById("memory-date-input").value;
       const location = document.getElementById("memory-location-input").value.trim() || "Cùng Nhau";
-      const image = this.memoryImageInput.value.trim() || "assets/images/memory1.jpg";
+      const image = this.memoryImageInput.value.trim();
       const story = document.getElementById("memory-story-input").value.trim();
 
       if (!title || !date) return;
@@ -842,21 +976,23 @@ class JourneyApp {
         date,
         location,
         image,
-        story
+        story,
+        placeId: this.pendingMemoryPlaceId || "",
+        syncState: "pending"
       };
 
       this.memories.push(newMemory);
       // Sắp xếp sự kiện gần nhất lên đầu
       this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
-      this.saveData("journey_memories_v3", this.memories);
+      this.persistMemories();
       this.renderTimeline();
       this.memoryForm.reset();
       this.memoryModal.close();
       this.spawnHeartConfetti();
 
+      this.queueMemory(newMemory);
       if (this.config.apiUrl) {
         this.showToast("Đang đồng bộ ảnh lên Google Drive cho cả hai... ☁️");
-        this.sendToBackend({ type: "memory", ...newMemory, imageBase64: newMemory.image });
       } else {
         this.showToast("⚠️ Chưa kết nối link Google Drive trong Cài Đặt nên ảnh này chỉ xem được trên máy này!", 6000);
       }
@@ -874,8 +1010,6 @@ class JourneyApp {
       document.getElementById("cfg-her-name").value = this.config.partnerTwo;
       document.getElementById("cfg-start-date").value = this.config.startDate.slice(0, 16);
       document.getElementById("cfg-quote").value = this.config.quote;
-      const passField = document.getElementById("cfg-passcode");
-      if (passField) passField.value = this.config.passcode || "kimthu";
       const apiInput = document.getElementById("cfg-api-url");
       if (apiInput) apiInput.value = this.config.apiUrl || "";
 
@@ -905,8 +1039,6 @@ class JourneyApp {
         this.config.startDate = dateVal.length === 16 ? `${dateVal}:00` : dateVal;
       }
       this.config.quote = document.getElementById("cfg-quote").value.trim();
-      const passField = document.getElementById("cfg-passcode");
-      if (passField) this.config.passcode = passField.value.trim() || "kimthu";
       const apiInput = document.getElementById("cfg-api-url");
       if (apiInput) {
         this.config.apiUrl = apiInput.value.trim();
@@ -952,8 +1084,9 @@ class JourneyApp {
     // Lightbox đóng
     this.closeLightboxBtn.addEventListener("click", () => this.lightboxModal.close());
 
-    // Chạm 2 lần bất kỳ đâu để bắn tim
+    // Chạm 2 lần vào ảnh để bắn tim (không bắn khi đang bôi đen chữ)
     document.addEventListener("dblclick", (e) => {
+      if (!e.target.closest || !e.target.closest(".locket-photo-frame, .chat-msg-img")) return;
       this.spawnHeartBurst(e.clientX, e.clientY);
     });
 
@@ -1042,6 +1175,14 @@ class JourneyApp {
     this.countHours.textContent = String(hours).padStart(2, "0");
     this.countMinutes.textContent = String(minutes).padStart(2, "0");
     this.countSeconds.textContent = String(seconds).padStart(2, "0");
+    this.renderMilestone(days);
+  }
+
+  // Đếm ngược tới mốc 100 ngày / kỷ niệm năm; chỉ tính lại khi sang ngày mới
+  renderMilestone(days) {
+    if (!this.milestoneLine || this.lastMilestoneDay === days) return;
+    this.lastMilestoneDay = days;
+    this.milestoneLine.textContent = milestoneText(nextMilestone(this.config.startDate, new Date()));
   }
 
   // ==========================================
@@ -1057,7 +1198,7 @@ class JourneyApp {
         this.openAuthModal();
         return;
       }
-      this.periodStartDateInput.value = this.period.startDate || new Date().toISOString().split("T")[0];
+      this.periodStartDateInput.value = this.period.startDate || formatLocalDate(new Date());
       this.periodCycleLengthInput.value = this.period.cycleLength || 28;
       this.periodModal.showModal();
     };
@@ -1079,7 +1220,7 @@ class JourneyApp {
           this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
           return;
         }
-        const todayStr = new Date().toISOString().split("T")[0];
+        const todayStr = formatLocalDate(new Date());
         this.periodStartDateInput.value = todayStr;
         this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
       });
@@ -1096,15 +1237,72 @@ class JourneyApp {
         const cycleVal = parseInt(this.periodCycleLengthInput.value, 10) || 28;
 
         if (startVal) {
-          this.period.startDate = startVal;
-          this.period.cycleLength = cycleVal;
-          this.saveData("journey_period_v1", this.period);
+          this.recordPeriodStart(startVal, cycleVal);
           this.renderPeriodTracker();
           this.periodModal.close();
           this.spawnHeartConfetti();
         }
       });
     }
+  }
+
+  normalizePeriod(period) {
+    const base = { ...DEFAULT_PERIOD, ...period };
+    const seed = Array.isArray(base.history) && base.history.length > 0 ? base.history : [base.startDate];
+    const history = normalizeHistory(seed);
+    return {
+      ...base,
+      history: history,
+      startDate: history.length > 0 ? history[history.length - 1] : base.startDate,
+      predictionLog: Array.isArray(base.predictionLog) ? base.predictionLog : []
+    };
+  }
+
+  // Ghi một ngày bắt đầu mới, đối chiếu với dự đoán trước đó để biết dự đoán có trúng không
+  recordPeriodStart(startVal, cycleVal) {
+    const history = this.period.history;
+    if (!history.includes(startVal)) {
+      const outcome = evaluatePrediction(history, cycleVal, startVal);
+      this.period.predictionLog = appendPredictionLog(this.period.predictionLog, outcome);
+    }
+    this.period.history = addPeriodStart(history, startVal);
+    this.period.startDate = this.period.history[this.period.history.length - 1];
+    this.period.cycleLength = cycleVal;
+    this.period.updatedAt = Date.now();
+    this.saveData("journey_period_v1", this.period);
+    this.queuePeriod();
+  }
+
+  formatPeriodWindow(nextStart, windowDays) {
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmt = (d) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+    if (windowDays <= 0) return fmt(nextStart);
+    const shift = (days) => new Date(nextStart.getFullYear(), nextStart.getMonth(), nextStart.getDate() + days);
+    return `${fmt(shift(-windowDays))} – ${fmt(shift(windowDays))}`;
+  }
+
+  // Dự đoán từ trung bình các chu kỳ đã ghi, trả về khoảng ngày thay vì một ngày cố định
+  computePeriodStatus(durationDays) {
+    const prediction = predictCycle(this.period.history, this.period.cycleLength);
+    const cycle = computeCycle(this.period.startDate, prediction.cycleLength, durationDays, new Date());
+    if (!cycle) return null;
+    return { ...cycle, windowText: this.formatPeriodWindow(cycle.nextStart, prediction.windowDays) };
+  }
+
+  updatePeriodExtras() {
+    if (this.periodChipText && this.periodPhaseText) this.periodChipText.textContent = this.periodPhaseText.textContent;
+    if (!this.periodAccuracy) return;
+    const a = accuracySummary(this.period.predictionLog);
+    this.periodAccuracy.textContent = a.total > 0
+      ? `Dự đoán nằm trong khoảng đã báo: ${a.hits}/${a.total} chu kỳ gần đây.`
+      : "";
+  }
+
+  queuePeriod() {
+    return this.sendToBackend({
+      type: "period", startDate: this.period.startDate, cycleLength: this.period.cycleLength,
+      durationDays: this.period.durationDays || 5, history: this.period.history || [], updatedAt: this.period.updatedAt
+    });
   }
 
   renderPeriodTracker() {
@@ -1116,46 +1314,14 @@ class JourneyApp {
       return;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [y, m, d] = this.period.startDate.split("-").map(Number);
-    const start = new Date(y, m - 1, d);
-    start.setHours(0, 0, 0, 0);
-
-    const cycleLength = Number(this.period.cycleLength) || 28;
     const durationDays = Number(this.period.durationDays) || 5;
-
-    // Tính chu kỳ tiếp theo dựa trên ngày bắt đầu
-    let nextStart = new Date(start.getTime());
-    while (nextStart < today && (today - nextStart) >= durationDays * 86400000) {
-      nextStart = new Date(nextStart.getTime() + cycleLength * 86400000);
+    const cycle = this.computePeriodStatus(durationDays);
+    if (!cycle) {
+      this.periodPhaseText.textContent = "Chưa cài đặt";
+      this.periodStatusMessage.textContent = "Ngày bắt đầu chưa hợp lệ, bấm vào để cài đặt lại 💕";
+      return;
     }
-
-    const daysUntilNext = Math.ceil((nextStart - today) / 86400000);
-
-    const formatShortDate = (dt) => {
-      const day = dt.getDate();
-      const month = dt.getMonth() + 1;
-      return `${day < 10 ? '0' + day : day}/${month < 10 ? '0' + month : month}`;
-    };
-
-    // Kiểm tra xem hiện tại có đang trong kỳ dâu không
-    let isDuringPeriod = false;
-    let periodDay = 1;
-
-    const currentPeriodStart = new Date(nextStart.getTime() - cycleLength * 86400000);
-    if (today >= currentPeriodStart) {
-      const daysSinceCurrent = Math.floor((today - currentPeriodStart) / 86400000);
-      if (daysSinceCurrent >= 0 && daysSinceCurrent < durationDays) {
-        isDuringPeriod = true;
-        periodDay = daysSinceCurrent + 1;
-      }
-    }
-    if (daysUntilNext === 0) {
-      isDuringPeriod = true;
-      periodDay = 1;
-    }
+    const { isDuring: isDuringPeriod, periodDay, windowText, daysUntilNext } = cycle;
 
     if (isDuringPeriod) {
       this.periodPhaseText.textContent = `🌸 Đang kỳ dâu (Ngày ${periodDay}/${durationDays})`;
@@ -1163,17 +1329,14 @@ class JourneyApp {
       if (this.periodNavBtn) this.periodNavBtn.title = `🌸 Đang kỳ dâu của bé Thư (Ngày ${periodDay}/${durationDays})`;
     } else if (daysUntilNext > 0 && daysUntilNext <= 3) {
       this.periodPhaseText.textContent = `🍓 Sắp đến kỳ dâu (còn ${daysUntilNext} ngày)`;
-      this.periodStatusMessage.textContent = `Dự kiến ngày ${formatShortDate(nextStart)}. Chuẩn bị giữ ấm và để anh chăm sóc em thật chu đáo nha bé! 💕`;
+      this.periodStatusMessage.textContent = `Dự kiến khoảng ${windowText}. Chuẩn bị giữ ấm và để anh chăm sóc em thật chu đáo nha bé! 💕`;
       if (this.periodNavBtn) this.periodNavBtn.title = `🍓 Sắp đến kỳ dâu của bé (còn ${daysUntilNext} ngày)`;
     } else if (daysUntilNext > 0) {
-      this.periodPhaseText.textContent = `✨ Dự kiến: ${formatShortDate(nextStart)} (còn ${daysUntilNext} ngày)`;
+      this.periodPhaseText.textContent = `✨ Dự kiến: ${windowText} (còn ~${daysUntilNext} ngày)`;
       this.periodStatusMessage.textContent = "Bé Thư nhớ uống đủ nước, ngủ thật ngon và luôn cười thật rạng rỡ nha cô gái nhỏ! 🌸";
-      if (this.periodNavBtn) this.periodNavBtn.title = `Góc chăm sóc bé Thư 🍓 (Dự kiến: ${formatShortDate(nextStart)})`;
-    } else {
-      this.periodPhaseText.textContent = `🍓 Dự kiến: Hôm nay`;
-      this.periodStatusMessage.textContent = "Nhớ giữ ấm bụng và nghỉ ngơi thoải mái nha bé iu của anh 💕";
-      if (this.periodNavBtn) this.periodNavBtn.title = "Hôm nay là kỳ dâu của bé Thư 🍓";
+      if (this.periodNavBtn) this.periodNavBtn.title = `Góc chăm sóc bé Thư 🍓 (Dự kiến: ${windowText})`;
     }
+    this.updatePeriodExtras();
   }
 
   // ==========================================
@@ -1200,44 +1363,10 @@ class JourneyApp {
       };
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [y, m, d] = this.period.startDate.split("-").map(Number);
-    const start = new Date(y, m - 1, d);
-    start.setHours(0, 0, 0, 0);
-
-    const cycleLength = Number(this.period.cycleLength) || 28;
     const durationDays = Number(this.period.durationDays) || 5;
-
-    let nextStart = new Date(start.getTime());
-    while (nextStart < today && (today - nextStart) >= durationDays * 86400000) {
-      nextStart = new Date(nextStart.getTime() + cycleLength * 86400000);
-    }
-
-    const daysUntilNext = Math.ceil((nextStart - today) / 86400000);
-
-    const formatShortDate = (dt) => {
-      const day = dt.getDate();
-      const month = dt.getMonth() + 1;
-      return `${day < 10 ? '0' + day : day}/${month < 10 ? '0' + month : month}`;
-    };
-
-    let isDuringPeriod = false;
-    let periodDay = 1;
-
-    const currentPeriodStart = new Date(nextStart.getTime() - cycleLength * 86400000);
-    if (today >= currentPeriodStart) {
-      const daysSinceCurrent = Math.floor((today - currentPeriodStart) / 86400000);
-      if (daysSinceCurrent >= 0 && daysSinceCurrent < durationDays) {
-        isDuringPeriod = true;
-        periodDay = daysSinceCurrent + 1;
-      }
-    }
-    if (daysUntilNext === 0) {
-      isDuringPeriod = true;
-      periodDay = 1;
-    }
+    const cycle = this.computePeriodStatus(durationDays);
+    if (!cycle) return;
+    const { isDuring: isDuringPeriod, periodDay, windowText, daysUntilNext } = cycle;
 
     // Kiểm tra điều kiện: trước ba ngày kỳ dâu dự đoán (còn <= 3 ngày) hoặc đang trong kỳ dâu
     let shouldAlert = false;
@@ -1249,17 +1378,14 @@ class JourneyApp {
       shouldAlert = true;
     } else if (daysUntilNext > 0 && daysUntilNext <= 3) {
       this.periodAlertTitle.textContent = "🍓 Sắp Đến Kỳ Dâu Của Bé Thư!";
-      this.periodAlertCountdownPill.innerHTML = `Chỉ còn <strong style="color: var(--pink-deep); font-size: 1.25rem;">${daysUntilNext}</strong> ngày nữa (Dự kiến: ${formatShortDate(nextStart)})`;
+      this.periodAlertCountdownPill.innerHTML = `Chỉ còn <strong style="color: var(--pink-deep); font-size: 1.25rem;">${daysUntilNext}</strong> ngày nữa (Dự kiến: ${windowText})`;
       this.periodAlertMessage.textContent = `Chỉ còn ${daysUntilNext} ngày nữa là đến kỳ dâu rồi nè! Bé iu nhớ chuẩn bị giữ ấm bụng, uống nước ấm, tránh đồ lạnh và ngủ sớm nhé. Anh luôn ở cạnh chăm sóc em! 🌸💕`;
-      shouldAlert = true;
-    } else if (daysUntilNext === 0) {
-      this.periodAlertTitle.textContent = "🍓 Hôm Nay Là Ngày Dâu Của Bé Thư!";
-      this.periodAlertCountdownPill.innerHTML = `Kỳ dâu dự kiến bắt đầu: <strong style="color: var(--pink-deep);">Hôm Nay</strong>`;
-      this.periodAlertMessage.textContent = "Hôm nay là ngày dâu của bé nè. Bé nhớ giữ ấm, nghỉ ngơi thoải mái và để anh thương em nhiều hơn nha! 💕";
       shouldAlert = true;
     }
 
-    if (shouldAlert) {
+    const todayKey = formatLocalDate(new Date());
+    if (shouldAlert && this.loadData(PERIOD_ALERT_SEEN_KEY, "") !== todayKey) {
+      this.saveData(PERIOD_ALERT_SEEN_KEY, todayKey);
       // Hiển thị alert ngay khi truy cập trang web (delay nhẹ 600ms tạo hiệu ứng mượt mà)
       setTimeout(() => {
         if (!this.periodAlertModal.open) {
@@ -1274,6 +1400,8 @@ class JourneyApp {
   // DÒNG THỜI GIAN LOCKET (KHUNG ẢNH & KHUNG CÂU CHUYỆN KẾ BÊN)
   // ==========================================
   renderTimeline() {
+    this.timelineContainer.classList.toggle("is-grid", this.timelineView === "grid");
+    this.renderOnThisDay();
     if (this.memories.length === 0) {
       this.timelineContainer.innerHTML = `
         <div style="text-align: center; padding: 40px; color: var(--text-muted); background: rgba(255,255,255,0.7); border-radius: var(--radius-lg); border: 1px dashed var(--pink-soft);">
@@ -1290,18 +1418,31 @@ class JourneyApp {
     // Hiển thị gọn gàng (mặc định 6 sự kiện mới nhất, có nút xem thêm nếu nhiều hơn)
     const visibleMemories = this.showAllMemories ? this.memories : this.memories.slice(0, 6);
 
+    let lastMonthKey = "";
     this.timelineContainer.innerHTML = visibleMemories.map((mem) => {
       const dateFormatted = this.formatMemoryDate(mem.date);
       const locBadgeHtml = this.formatLocationBadge(mem.location);
+      const monthKey = String(mem.date || "").slice(0, 7);
+      const [monthYear, monthNum] = monthKey.split("-");
+      const monthSeparator = monthKey && monthKey !== lastMonthKey
+        ? `<div class="timeline-month-sep">Tháng ${parseInt(monthNum, 10)} · ${this.escapeHTML(monthYear)}</div>`
+        : "";
+      lastMonthKey = monthKey;
+      const imageUrl = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
+      const photoHtml = imageUrl
+        ? `<img src="${this.escapeHTML(imageUrl)}" alt="${this.escapeHTML(mem.title)}" loading="lazy">`
+        : `<div class="locket-photo-placeholder" aria-hidden="true">❤️</div>`;
 
-      return `
-        <article class="locket-card" data-id="${mem.id}">
+      return `${monthSeparator}
+        <article class="locket-card" data-id="${this.escapeHTML(mem.id)}">
           <!-- Khung 1: Khung chứa ảnh (Locket Photo Widget) -->
           <div class="locket-photo-frame" title="Chạm để xem ảnh phóng to">
             <div class="locket-photo-inner">
-              <img src="${mem.image}" alt="${this.escapeHTML(mem.title)}" loading="lazy">
+              ${photoHtml}
               <div class="locket-photo-overlay">
-                <span class="locket-sender-badge">💕 ${this.config.partnerOne} & ${this.config.partnerTwo}</span>
+                ${mem.syncState === "pending" ? '<span class="sync-pending-badge">⏳ chưa đồng bộ</span>' : ""}
+                <span class="locket-date-chip">🗓️ ${this.escapeHTML(dateFormatted)}</span>
+                <span class="locket-sender-badge">💕 ${this.escapeHTML(this.config.partnerOne)} & ${this.escapeHTML(this.config.partnerTwo)}</span>
                 ${locBadgeHtml}
               </div>
               <div class="locket-zoom-hint">🔍 Phóng to</div>
@@ -1315,7 +1456,7 @@ class JourneyApp {
                 <span class="locket-cal-icon">🗓️</span>
                 <span class="locket-date-text">${dateFormatted}</span>
               </div>
-              ${this.isAuthenticated ? `<button class="locket-delete-btn" data-id="${mem.id}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>` : ""}
+              ${this.isAuthenticated ? `<button class="locket-delete-btn couple-only" data-id="${this.escapeHTML(mem.id)}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>` : ""}
             </div>
 
             <h3 class="locket-story-title">${this.escapeHTML(mem.title)}</h3>
@@ -1329,7 +1470,7 @@ class JourneyApp {
                 <span class="mini-heart-pulse">❤️</span>
                 <span class="locket-footer-note">Lưu giữ theo thời gian</span>
               </div>
-              <button class="locket-expand-story-btn" data-id="${mem.id}">Xem chi tiết 🌸</button>
+              <button class="locket-expand-story-btn" data-id="${this.escapeHTML(mem.id)}">Xem chi tiết 🌸</button>
             </div>
           </div>
         </article>
@@ -1357,17 +1498,10 @@ class JourneyApp {
     this.timelineContainer.querySelectorAll(".locket-photo-frame, .locket-expand-story-btn").forEach(el => {
       el.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (e.target.closest && e.target.closest("a")) return; // link bản đồ tự mở, không mở ảnh lớn
         const card = el.closest(".locket-card");
         const mem = this.memories.find(m => m.id === card.dataset.id);
-        if (mem) {
-          this.lightboxImg.src = mem.image;
-          this.lightboxTitle.textContent = mem.title;
-          const dateFormatted = this.formatMemoryDate(mem.date);
-          const locBadgeHtml = this.formatLocationBadge(mem.location);
-          this.lightboxDate.innerHTML = `${locBadgeHtml ? locBadgeHtml + " • " : ""}🗓️ ${dateFormatted}`;
-          this.lightboxStory.textContent = mem.story;
-          this.lightboxModal.showModal();
-        }
+        if (mem) this.openMemoryLightbox(mem);
       });
     });
 
@@ -1393,33 +1527,68 @@ class JourneyApp {
             this.saveData("journey_deleted_mem_ids", this.deletedMemoryIds);
           }
 
-          // 2. Trích xuất fileId nếu là ảnh trên Google Drive
-          let fileId = "";
-          if (targetMem.image) {
-            const m = targetMem.image.match(/id=([a-zA-Z0-9_-]+)/) || targetMem.image.match(/\/d\/([a-zA-Z0-9_-]+)/);
-            if (m && m[1]) fileId = m[1];
-          }
-
-          // 3. Xóa khỏi bộ nhớ và giao diện cục bộ ngay lập tức
+          // 2. Xóa khỏi bộ nhớ và giao diện cục bộ ngay lập tức
           this.memories = this.memories.filter(m => String(m.id) !== memId);
-          this.saveData("journey_memories_v3", this.memories);
+          this.persistMemories();
           this.renderTimeline();
 
-          // 4. Gửi yêu cầu xóa lên Google Drive & Google Sheets backend
+          // 3. Gửi yêu cầu xóa lên Google Drive & Google Sheets backend
           if (this.config.apiUrl) {
             this.showToast("Đang xóa và dọn dẹp ảnh trên Google Drive... 🗑️");
-            this.sendToBackend({
-              type: "delete_memory",
-              id: memId,
-              imageUrl: targetMem.image || "",
-              fileId: fileId
-            });
+            this.sendToBackend({ type: "delete_memory", id: memId });
           } else {
             this.showToast("Đã xóa khoảnh khắc trên máy này! 🗑️");
           }
         }
       });
     });
+  }
+
+  openMemoryLightbox(mem) {
+    this.lightboxImg.src = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
+    this.lightboxTitle.textContent = mem.title;
+    const dateFormatted = this.formatMemoryDate(mem.date);
+    const locBadgeHtml = this.formatLocationBadge(mem.location);
+    this.lightboxDate.innerHTML = `${locBadgeHtml ? locBadgeHtml + " • " : ""}🗓️ ${this.escapeHTML(dateFormatted)}`;
+    this.lightboxStory.textContent = mem.story;
+    this.lightboxModal.showModal();
+  }
+
+  // "Ngày này năm xưa": nhắc lại các khoảnh khắc cùng ngày-tháng ở những năm trước
+  renderOnThisDay() {
+    if (!this.onThisDayCard) return;
+    const hits = memoriesOnThisDay(this.memories, new Date());
+    this.onThisDayCard.hidden = hits.length === 0;
+    if (hits.length === 0) return;
+    this.onThisDayCard.innerHTML = `<h3>🕰️ Ngày này năm xưa</h3>` + hits.map((hit) => {
+      const url = safeUrl(hit.memory.image, MEMORY_IMAGE_URL_OPTIONS);
+      const thumb = url ? `<img src="${this.escapeHTML(url)}" alt="">` : `<span class="on-this-day-thumb">❤️</span>`;
+      return `<button type="button" class="on-this-day-item" data-id="${this.escapeHTML(hit.memory.id)}">${thumb}<span><strong>${this.escapeHTML(hit.memory.title)}</strong><br><small>${hit.yearsAgo} năm trước</small></span></button>`;
+    }).join("");
+    this.onThisDayCard.querySelectorAll(".on-this-day-item").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const mem = this.memories.find((m) => String(m.id) === btn.dataset.id);
+        if (mem) this.openMemoryLightbox(mem);
+      });
+    });
+  }
+
+  initTimelineViewToggle() {
+    const feedBtn = document.getElementById("timeline-view-feed-btn");
+    const gridBtn = document.getElementById("timeline-view-grid-btn");
+    if (!feedBtn || !gridBtn) return;
+    const apply = (view) => {
+      this.timelineView = view;
+      this.saveData(TIMELINE_VIEW_KEY, view);
+      feedBtn.classList.toggle("active", view === "feed");
+      gridBtn.classList.toggle("active", view === "grid");
+      feedBtn.setAttribute("aria-pressed", String(view === "feed"));
+      gridBtn.setAttribute("aria-pressed", String(view === "grid"));
+      this.renderTimeline();
+    };
+    feedBtn.addEventListener("click", () => apply("feed"));
+    gridBtn.addEventListener("click", () => apply("grid"));
+    apply(this.timelineView);
   }
 
   // ==========================================
@@ -1740,9 +1909,6 @@ class JourneyApp {
       });
     }
 
-    // 10. Tự động kiểm tra và phân giải toạ độ cho các địa điểm còn thiếu (chạy ngầm)
-    this.autoResolveMissingPlaceCoordinates();
-
     // 9. Tự động lấy vị trí hiện tại của thiết bị trong nền để sẵn sàng tính khoảng cách
     this.getUserPosition(
       () => {
@@ -1759,6 +1925,7 @@ class JourneyApp {
   switchView(viewName, updateHistory = true) {
     const isPlaces = (viewName === "places");
     this.currentView = isPlaces ? "places" : "moments";
+    document.dispatchEvent(new CustomEvent("journey:viewchange", { detail: { view: this.currentView } }));
 
     if (isPlaces) {
       if (this.viewMoments) {
@@ -1894,7 +2061,7 @@ class JourneyApp {
     }
 
     // 4. Link Apple Maps hoặc query dạng lat=...&lon=...
-    const latLonMatch = clean.match(/[?&]lat=(-?\d+\.\d+)&[?&](?:lon|lng)=(-?\d+\.\d+)/);
+    const latLonMatch = clean.match(/[?&]lat=(-?\d+(?:\.\d+)?)&(?:lon|lng)=(-?\d+(?:\.\d+)?)/);
     if (latLonMatch) {
       return { lat: parseFloat(latLonMatch[1]), lng: parseFloat(latLonMatch[2]) };
     }
@@ -1938,7 +2105,7 @@ class JourneyApp {
     // 3. Gọi OpenStreetMap Nominatim API (tìm chính xác tại Việt Nam)
     try {
       const nomUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&countrycodes=vn&limit=1`;
-      const nomRes = await fetch(nomUrl, { headers: { "Accept-Language": "vi,en" } });
+      const nomRes = await this.geocodeQueue(() => fetch(nomUrl, { headers: { "Accept-Language": "vi,en" } }));
       if (nomRes.ok) {
         const nomData = await nomRes.json();
         if (nomData && nomData.length > 0) {
@@ -1955,7 +2122,7 @@ class JourneyApp {
     // 4. Fallback qua Photon Komoot API với bias toạ độ khu vực
     try {
       const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQuery)}&lat=${userLat}&lon=${userLng}&limit=1`;
-      const pRes = await fetch(photonUrl);
+      const pRes = await this.geocodeQueue(() => fetch(photonUrl));
       if (pRes.ok) {
         const pData = await pRes.json();
         if (pData.features && pData.features.length > 0) {
@@ -1974,18 +2141,21 @@ class JourneyApp {
   async autoResolveMissingPlaceCoordinates() {
     let hasUpdated = false;
     for (const place of this.places) {
-      if ((place.lat == null || place.lng == null) && (place.name || place.mapUrl)) {
-        const coords = await this.resolveCoordinatesAsync(place.mapUrl, place.name);
-        if (coords) {
-          place.lat = coords.lat;
-          place.lng = coords.lng;
-          hasUpdated = true;
-          if (this.lastUserPosition) {
-            const d = this.calculateDistanceKm(this.lastUserPosition.lat, this.lastUserPosition.lng, coords.lat, coords.lng);
-            this.placeDistances.set(place.id, d);
-          }
-        }
+      if (!canGeocode(place, Date.now())) continue;
+      const coords = await this.resolveCoordinatesAsync(place.mapUrl, place.name);
+      hasUpdated = true;
+      if (!coords) {
+        place.geocodeFailedAt = Date.now(); // không thử lại trong 24 giờ (BUG-08)
+        continue;
       }
+      place.lat = coords.lat;
+      place.lng = coords.lng;
+      delete place.geocodeFailedAt;
+      if (this.lastUserPosition) {
+        const d = this.calculateDistanceKm(this.lastUserPosition.lat, this.lastUserPosition.lng, coords.lat, coords.lng);
+        this.placeDistances.set(place.id, d);
+      }
+      if (this.isAuthenticated) this.sendPlaceToBackend(place); // để máy kia nhận luôn toạ độ
     }
     if (hasUpdated) {
       this.saveData("journey_places_v2", this.places);
@@ -2011,15 +2181,14 @@ class JourneyApp {
   async fetchDrivingRoute(userLat, userLng, destLat, destLng) {
     if (userLat == null || userLng == null || destLat == null || destLng == null) return null;
 
-    const cacheKey = `${Number(userLat).toFixed(4)},${Number(userLng).toFixed(4)}_${Number(destLat).toFixed(4)},${Number(destLng).toFixed(4)}`;
-    if (this.routingCache && this.routingCache.has(cacheKey)) {
-      return this.routingCache.get(cacheKey);
-    }
+    const cacheKey = routeCacheKey(userLat, userLng, destLat, destLng);
+    const cached = this.routeCache[cacheKey];
+    if (isRouteFresh(cached, Date.now())) return cached.route;
 
     try {
       // Gọi OSRM Routing Machine tính quãng đường đi xe ngắn nhất
       const url = `https://router.project-osrm.org/route/v1/driving/${destLng},${destLat};${userLng},${userLat}?overview=false`;
-      const res = await fetch(url);
+      const res = await this.routeQueue(() => fetch(url));
       if (res.ok) {
         const data = await res.json();
         if (data.code === "Ok" && data.routes && data.routes.length > 0) {
@@ -2031,8 +2200,8 @@ class JourneyApp {
             durationMin,
             isDrivingRoute: true
           };
-          if (!this.routingCache) this.routingCache = new Map();
-          this.routingCache.set(cacheKey, result);
+          this.routeCache[cacheKey] = { route: result, savedAt: Date.now() };
+          this.saveData(ROUTE_CACHE_KEY, this.routeCache);
           return result;
         }
       }
@@ -2099,9 +2268,10 @@ class JourneyApp {
     }
     this.renderPlaces(forceSort);
 
-    // 2. Tính toán đường đi xe ngắn nhất không đồng bộ
+    // 2. Đường đi xe chỉ tính cho vài nơi gần nhất, giãn cách ≥ 1 giây và có cache (BUG-08)
+    const routedIds = new Set(nearestPlaceIds(this.places, this.placeDistances));
     this.places.forEach(p => {
-      if (p.lat != null && p.lng != null) {
+      if (routedIds.has(p.id)) {
         this.fetchDrivingRoute(uLat, uLng, p.lat, p.lng).then(route => {
           if (route) {
             this.placeRoutes.set(p.id, route);
@@ -2131,6 +2301,7 @@ class JourneyApp {
     if (this.reloadPlacesGpsBtn) {
       this.reloadPlacesGpsBtn.classList.add("spinning");
     }
+    this.autoResolveMissingPlaceCoordinates();
 
     const onGotLocation = () => {
       this.calculateAllDistancesAndRoutes(true);
@@ -2510,10 +2681,26 @@ class JourneyApp {
 
     place.visited = !place.visited;
     this.saveData("journey_places_v2", this.places);
-    this.sendToBackend({ type: "toggle_place", id: place.id, visited: place.visited });
     this.sendPlaceToBackend(place);
     this.renderPlaces();
-    this.showToast(place.visited ? "🌸 Đã đánh dấu ghé thăm địa điểm này!" : "✨ Đã chuyển về danh sách muốn đi!");
+    if (!place.visited) {
+      this.showToast("✨ Đã chuyển về danh sách muốn đi!");
+      return;
+    }
+    this.showToast("🌸 Đã đánh dấu ghé thăm địa điểm này!", 6000, {
+      label: "Lưu khoảnh khắc",
+      onClick: () => this.openMemoryForPlace(place)
+    });
+  }
+
+  // Mở form khoảnh khắc điền sẵn tên và vị trí của địa điểm, và liên kết hai bản ghi
+  openMemoryForPlace(place) {
+    const mapsUrl = safeUrl(place.mapUrl);
+    this.openMemoryDialog({
+      title: place.name,
+      location: mapsUrl ? `${place.name} (${mapsUrl})` : place.name,
+      placeId: String(place.id)
+    });
   }
 
   // Xóa địa điểm khỏi danh sách
@@ -2536,15 +2723,6 @@ class JourneyApp {
       }
       this.saveData("journey_places_v2", this.places);
       this.sendToBackend({ type: "delete_place", id: pid });
-      this.sendToBackend({
-        type: "task",
-        id: "pw_del_" + pid,
-        title: "DELETED",
-        category: "PLACE_DELETED",
-        targetDate: new Date().toISOString(),
-        notes: pid,
-        completed: true
-      });
       this.renderPlaces();
       this.showToast("Đã xóa địa điểm khỏi danh sách.");
     }
@@ -2606,19 +2784,22 @@ class JourneyApp {
 
       // Link gọi API Google Maps của thiết bị và điều hướng đường ngắn nhất
       const deviceMapsUrl = this.getDeviceGoogleMapsUrl(place);
+      const tiktokUrl = safeUrl(place.tiktokUrl);
+      const linkedMemory = this.memories.find((m) => m.placeId && String(m.placeId) === String(place.id));
 
       return `
-        <article class="place-card ${place.visited ? "is-visited" : ""}" data-id="${place.id}">
+        <article class="place-card ${place.visited ? "is-visited" : ""}" data-id="${this.escapeHTML(place.id)}">
           <div>
             <div class="place-card-top">
               <h3 class="place-title">${this.escapeHTML(place.name)}</h3>
-              ${this.isAuthenticated ? `<button class="place-delete-btn couple-only" data-id="${place.id}" title="Xóa địa điểm này" aria-label="Xóa địa điểm">&times;</button>` : ""}
+              ${this.isAuthenticated ? `<button class="place-delete-btn couple-only" data-id="${this.escapeHTML(place.id)}" title="Xóa địa điểm này" aria-label="Xóa địa điểm">&times;</button>` : ""}
             </div>
 
             <div class="place-meta-row">
               ${place.visited 
                 ? '<span class="place-status-tag visited">🌸 Đã ghé thăm</span>' 
                 : ''}
+              ${place.syncState === "pending" ? '<span class="sync-pending-badge">⏳ chưa đồng bộ</span>' : ""}
               ${distanceBadgeHtml}
             </div>
 
@@ -2627,23 +2808,33 @@ class JourneyApp {
 
           <div class="place-actions-row">
             <div class="place-links-group">
-              <a href="${deviceMapsUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-maps" title="Mở ứng dụng Google Maps của thiết bị và dẫn đường ngắn nhất">
+              <a href="${this.escapeHTML(deviceMapsUrl)}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-maps" title="Mở ứng dụng Google Maps của thiết bị và dẫn đường ngắn nhất">
                 🗺️ Chỉ đường
               </a>
-              ${place.tiktokUrl ? `
-                <a href="${place.tiktokUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-tiktok" title="Xem video review trên TikTok">
+              ${linkedMemory ? `<button type="button" class="btn-place-link btn-place-memory" data-memory-id="${this.escapeHTML(linkedMemory.id)}" title="Xem khoảnh khắc đã lưu ở đây">📸 Khoảnh khắc</button>` : ""}
+              ${tiktokUrl ? `
+                <a href="${this.escapeHTML(tiktokUrl)}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-tiktok" title="Xem video review trên TikTok">
                   🎵 TikTok
                 </a>
               ` : ""}
             </div>
 
-            <button class="btn-place-toggle-visited couple-only" data-id="${place.id}" title="${place.visited ? "Đánh dấu muốn đi lại" : "Đánh dấu đã đến cùng nhau"}">
+            <button class="btn-place-toggle-visited couple-only" data-id="${this.escapeHTML(place.id)}" title="${place.visited ? "Đánh dấu muốn đi lại" : "Đánh dấu đã đến cùng nhau"}">
               ${place.visited ? "✓ Đã đến" : "+ Đánh dấu đã đi"}
             </button>
           </div>
         </article>
       `;
     }).join("");
+
+    // Mở khoảnh khắc đã liên kết với địa điểm
+    this.placesListContainer.querySelectorAll(".btn-place-memory").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const mem = this.memories.find((m) => String(m.id) === btn.dataset.memoryId);
+        if (mem) this.openMemoryLightbox(mem);
+      });
+    });
 
     // Gắn sự kiện đánh dấu đã đi
     this.placesListContainer.querySelectorAll(".btn-place-toggle-visited").forEach(btn => {
@@ -2668,6 +2859,7 @@ class JourneyApp {
   initPetalsCanvas() {
     const canvas = document.getElementById("petal-canvas");
     if (!canvas) return;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ctx = canvas.getContext("2d");
 
     let width = (canvas.width = window.innerWidth);
@@ -2721,9 +2913,15 @@ class JourneyApp {
         ctx.restore();
       });
 
-      requestAnimationFrame(animate);
+      frameId = requestAnimationFrame(animate);
     };
 
+    // Dừng vòng lặp khi tab bị ẩn để không tốn pin (UX-02)
+    let frameId = 0;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) cancelAnimationFrame(frameId);
+      else frameId = requestAnimationFrame(animate);
+    });
     animate();
   }
 
@@ -2830,59 +3028,423 @@ class JourneyApp {
   }
 
   // ==========================================
-  // ĐỒNG BỘ GOOGLE APPS SCRIPT / DRIVE BACKEND
+  // ĐỒNG BỘ: HÀNG ĐỢI GHI (OUTBOX) + KÉO THAY ĐỔI (DELTA)
   // ==========================================
-  sendToBackend(payload) {
-    if (!this.config.apiUrl) return;
+  async initSync() {
     try {
-      const dataWithAuth = {
-        ...payload,
-        passcode: this.config.passcode || "kimthu"
-      };
-
-      // Gửi text/plain để không bị chặn bởi CORS Preflight OPTIONS trên browser
-      fetch(this.config.apiUrl, {
-        method: "POST",
-        mode: "no-cors",
-        body: JSON.stringify(dataWithAuth)
-      })
-      .then(() => {
-        // Đồng bộ lại sau 3.5s để cập nhật link ảnh chính thức từ Drive
-        setTimeout(() => this.syncFromBackend(), 3500);
-      })
-      .catch(e => console.warn("Lỗi gửi dữ liệu lên Google Drive Backend:", e));
+      const store = await createOutboxStore(window.indexedDB);
+      this.syncEngine = new SyncEngine({
+        store: store,
+        send: (payload) => this.postToBackend(payload),
+        onConfirmed: (entry, result) => this.handleWriteConfirmed(entry, result),
+        onUnauthorized: () => { if (this.isAuthenticated) this.lockForRejectedPasscode(); },
+        onChange: () => {}
+      });
+      await this.syncEngine.load();
+      await this.restoreQueuedState();
     } catch (e) {
-      console.warn("Lỗi fetch:", e);
+      console.error("Không khởi tạo được hàng đợi đồng bộ:", e);
+      this.showToast("⚠️ Không bật được hàng đợi đồng bộ, dữ liệu mới có thể chưa được gửi lên.", 6000);
+    }
+    this.bindSyncTriggers();
+    await this.syncFromBackend();
+  }
+
+  // Khôi phục ảnh đang chờ gửi và đưa lại vào hàng đợi các mục đang "chờ" nhưng mất hàng đợi
+  async restoreQueuedState() {
+    this.syncEngine.keys().forEach((key) => {
+      const payload = this.syncEngine.getEntry(key).payload;
+      if (!payload.imageBase64) return;
+      const list = payload.type === "memory" ? this.memories : this.chatMessages;
+      const item = list.find((x) => String(x.id) === String(payload.id));
+      if (item && !item.image) item.image = payload.imageBase64;
+    });
+    const queued = new Set(this.syncEngine.keys());
+    const orphanMemories = this.memories.filter((m) => m.syncState === "pending" && !queued.has(`memory:${m.id}`));
+    const orphanPlaces = this.places.filter((p) => p.syncState === "pending" && !queued.has(`place:${p.id}`));
+    for (const m of orphanMemories) await this.queueMemory(m);
+    for (const p of orphanPlaces) await this.sendPlaceToBackend(p);
+    this.renderTimeline();
+    this.renderChatMessages();
+  }
+
+  bindSyncTriggers() {
+    const markActive = () => { this.lastActivityAt = Date.now(); };
+    ["pointerdown", "keydown", "touchstart"].forEach((evt) => document.addEventListener(evt, markActive, { passive: true }));
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") this.syncFromBackend();
+      else clearTimeout(this.pollTimer);
+    });
+    window.addEventListener("online", () => this.syncFromBackend());
+  }
+
+  scheduleNextPoll() {
+    clearTimeout(this.pollTimer);
+    const delay = pollIntervalMs({
+      visible: document.visibilityState !== "hidden",
+      isAuth: this.isAuthenticated,
+      chatOpen: !!(this.chatDrawer && this.chatDrawer.classList.contains("open")),
+      lastActivityAt: this.lastActivityAt,
+      now: Date.now()
+    });
+    if (delay === null) return;
+    this.pollTimer = setTimeout(() => this.syncFromBackend(), delay);
+  }
+
+  resetSyncCursor() {
+    this.syncCursor = 0;
+    this.saveData(SYNC_CURSOR_KEY, 0);
+  }
+
+  async fetchJson(url, options, timeoutMs) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  // Đồng bộ địa điểm với cơ chế Dual-Sync (Tương thích 100% cả bản Google Apps Script cũ và mới)
-  sendPlaceToBackend(place) {
-    if (!place || !this.config.apiUrl) return;
+  // Gửi một thay đổi lên Apps Script. Backend upsert theo id nên gửi lại luôn an toàn.
+  postToBackend(payload) {
+    if (!this.config.apiUrl) return Promise.reject(new Error("Chưa cấu hình link backend"));
+    const body = JSON.stringify({ ...payload, passcode: this.config.passcode || "" });
+    return this.fetchJson(this.config.apiUrl, { method: "POST", body: body }, POST_TIMEOUT_MS);
+  }
 
-    // 1. Gửi dạng place (dành cho Google Apps Script phiên bản có sheet Places)
-    this.sendToBackend({ type: "place", ...place });
+  // Đưa một thay đổi vào hàng đợi bền vững rồi thử gửi ngay
+  async sendToBackend(payload) {
+    if (this.syncReady) await this.syncReady;
+    if (!this.syncEngine) return;
+    try {
+      await this.syncEngine.enqueue(outboxKey(payload), payload);
+    } catch (e) {
+      console.error("Không lưu được vào hàng đợi:", e);
+      this.showToast("⚠️ Chưa lưu được thay đổi vào hàng đợi đồng bộ. Hãy thử lại nhé!", 5000);
+      return;
+    }
+    this.syncEngine.flush();
+  }
 
-    // 2. Đồng thời gửi dạng task với category PLACE_WISHLIST (tương thích tức thì với Google Apps Script đang chạy trên cloud)
-    this.sendToBackend({
-      type: "task",
-      id: "pw_" + place.id,
-      title: place.name || "Địa điểm",
-      category: "PLACE_WISHLIST",
-      targetDate: place.createdAt || new Date().toISOString(),
-      notes: JSON.stringify({
-        id: place.id,
-        name: place.name,
-        mapUrl: place.mapUrl || "",
-        tiktokUrl: place.tiktokUrl || "",
-        lat: place.lat,
-        lng: place.lng,
-        notes: place.notes || "",
-        visited: place.visited === true,
-        createdAt: place.createdAt || new Date().toISOString()
-      }),
-      completed: place.visited === true
+  queueMemory(mem) {
+    mem.syncState = "pending";
+    const image = String(mem.image || "");
+    return this.sendToBackend({
+      type: "memory", id: mem.id, title: mem.title, date: mem.date, location: mem.location,
+      story: mem.story, placeId: mem.placeId || "",
+      image: image.startsWith("https://") ? image : "",
+      imageBase64: image.startsWith("data:") ? image : ""
     });
+  }
+
+  // Một lần gửi duy nhất cho mỗi địa điểm (upsert), không còn gửi trùng sang bảng Tasks (BUG-06)
+  sendPlaceToBackend(place) {
+    if (!place) return Promise.resolve();
+    place.syncState = "pending";
+    this.saveData("journey_places_v2", this.places);
+    return this.sendToBackend({
+      type: "place", id: place.id, name: place.name, mapUrl: place.mapUrl || "", tiktokUrl: place.tiktokUrl || "",
+      lat: place.lat == null ? null : place.lat, lng: place.lng == null ? null : place.lng,
+      notes: place.notes || "", visited: place.visited === true,
+      createdAt: place.createdAt || new Date().toISOString()
+    });
+  }
+
+  handleWriteConfirmed(entry, result) {
+    const p = entry.payload;
+    const clear = (list, id) => {
+      const item = list.find((x) => String(x.id) === String(id));
+      if (!item) return false;
+      delete item.syncState;
+      if (result.imageUrl && !String(item.image || "").startsWith("https://")) item.image = result.imageUrl;
+      return true;
+    };
+    if (p.type === "memory" && clear(this.memories, p.id)) {
+      this.persistMemories();
+      this.renderTimeline();
+    } else if (p.type === "place" && clear(this.places, p.id)) {
+      this.saveData("journey_places_v2", this.places);
+      this.renderPlaces();
+    } else if (p.type === "chat_message" && clear(this.chatMessages, p.id)) {
+      this.persistChat();
+      this.renderChatMessages();
+    } else if (p.type === "note" && clear(this.notes, p.id)) {
+      this.saveData(NOTES_KEY, this.notes);
+      if (this.notesModal && this.notesModal.open) this.renderNotes();
+    }
+  }
+
+  pendingIdsFor(prefix) {
+    if (!this.syncEngine) return [];
+    return this.syncEngine.keys().filter((k) => k.startsWith(`${prefix}:`)).map((k) => k.slice(prefix.length + 1));
+  }
+
+  async syncFromBackend() {
+    if (!this.config.apiUrl || this.isSyncing) return;
+    this.isSyncing = true;
+    try {
+      if (this.syncEngine) await this.syncEngine.flush();
+      const params = [`since=${this.syncCursor}`];
+      if (this.isAuthenticated) params.push(`passcode=${encodeURIComponent(this.config.passcode || "")}`);
+      const data = await this.fetchJson(`${this.config.apiUrl}?${params.join("&")}`, {}, GET_TIMEOUT_MS);
+      await this.applyPulledData(data);
+    } catch (e) {
+      console.warn("Chưa đồng bộ được từ Google Drive:", e);
+    } finally {
+      this.isSyncing = false;
+      this.scheduleNextPoll();
+    }
+  }
+
+  // ==========================================
+  // THƯ HẸN GIỜ, "BẠN LÀ AI?", HIỆN DIỆN TRONG CHAT
+  // ==========================================
+  initNotes() {
+    this.notesModal = document.getElementById("notes-modal");
+    const openBtn = document.getElementById("open-notes-btn");
+    const closeBtn = document.getElementById("close-notes-modal-btn");
+    const form = document.getElementById("note-form");
+    if (!this.notesModal || !openBtn || !closeBtn || !form) return;
+    openBtn.addEventListener("click", () => this.openNotes());
+    closeBtn.addEventListener("click", () => this.notesModal.close());
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      this.submitNote(form);
+    });
+  }
+
+  toLocalInputValue(date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${formatLocalDate(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  openNotes() {
+    if (!this.isAuthenticated) {
+      this.openAuthModal();
+      return;
+    }
+    document.getElementById("note-open-at-input").min = this.toLocalInputValue(new Date());
+    this.renderNotes();
+    this.notesModal.showModal();
+  }
+
+  submitNote(form) {
+    if (!this.isAuthenticated) return;
+    const text = document.getElementById("note-text-input").value.trim();
+    const openAt = new Date(document.getElementById("note-open-at-input").value);
+    if (!text || Number.isNaN(openAt.getTime()) || openAt <= new Date()) {
+      this.showToast("Hãy chọn thời điểm mở trong tương lai nhé 💕");
+      return;
+    }
+    const note = {
+      id: "note-" + Date.now(), sender: this.currentSender, text: text,
+      openAt: openAt.toISOString(), createdAt: new Date().toISOString(), syncState: "pending"
+    };
+    this.notes.push(note);
+    this.saveData(NOTES_KEY, this.notes);
+    this.sendToBackend({ type: "note", id: note.id, sender: note.sender, text: note.text, openAt: note.openAt });
+    form.reset();
+    this.renderNotes();
+    this.spawnHeartConfetti();
+    this.showToast("💌 Đã gửi vào tương lai! Thư sẽ mở đúng giờ hẹn.");
+  }
+
+  renderNotes() {
+    const list = document.getElementById("notes-list");
+    if (!list) return;
+    const now = Date.now();
+    const sorted = [...this.notes].sort((a, b) => new Date(a.openAt) - new Date(b.openAt));
+    if (sorted.length === 0) {
+      list.innerHTML = `<p class="note-meta">Chưa có thư nào. Hãy viết một lá thư cho tương lai nhé!</p>`;
+      return;
+    }
+    list.innerHTML = sorted.map((n) => {
+      const locked = new Date(n.openAt).getTime() > now;
+      const when = new Date(n.openAt).toLocaleString("vi-VN");
+      const status = locked ? `🔒 Mở lúc ${when}` : `💌 Đã mở (${when})`;
+      const body = locked && n.sender !== this.currentSender ? "🔒 Thư đang được giữ kín" : this.escapeHTML(n.text);
+      const pending = n.syncState === "pending" ? " ⏳" : "";
+      return `<div class="note-item ${locked ? "is-locked" : ""}"><span class="note-meta">${this.escapeHTML(n.sender)} · ${this.escapeHTML(status)}${pending}</span>${body}</div>`;
+    }).join("");
+  }
+
+  mergeNotes(upserts, deletedIds) {
+    const justOpened = upserts.filter((u) => u.locked === false && u.sender !== this.currentSender &&
+      !this.notes.some((n) => n.id === u.id && n.locked === false));
+    const result = applyDelta(this.notes, { upserts: upserts, deletedIds: deletedIds }, {
+      pendingIds: this.pendingIdsFor("note"), keepLocalWhenEmpty: ["text"]
+    });
+    if (!result.changed) return;
+    this.notes = result.items;
+    this.saveData(NOTES_KEY, this.notes);
+    if (this.notesModal && this.notesModal.open) this.renderNotes();
+    if (justOpened.length > 0 && this.syncCursor > 0) {
+      this.showToast("💌 Có một lá thư hẹn giờ vừa được mở!", 5000);
+      if (navigator.vibrate) navigator.vibrate(VIBRATE_PATTERN_MS);
+    }
+  }
+
+  // Hỏi "Bạn là ai?" đúng một lần trên mỗi thiết bị để tin nhắn luôn mang đúng tên (UX-06)
+  promptSenderIfNeeded() {
+    if (!this.isAuthenticated || this.loadData(SENDER_CHOSEN_KEY, false)) return;
+    const modal = document.getElementById("who-am-i-modal");
+    const first = document.getElementById("who-first-btn");
+    const second = document.getElementById("who-second-btn");
+    if (!modal || !first || !second || modal.open) return;
+    first.textContent = this.config.partnerOne || "Kim";
+    second.textContent = this.config.partnerTwo || "Thư";
+    const choose = (name) => {
+      this.currentSender = name;
+      this.saveData("journey_chat_sender_v1", name);
+      this.saveData(SENDER_CHOSEN_KEY, true);
+      this.updateChatHeaderLabels();
+      this.renderChatMessages();
+      modal.close();
+    };
+    first.onclick = () => choose(first.textContent);
+    second.onclick = () => choose(second.textContent);
+    modal.showModal();
+  }
+
+  // "Hiện diện" nhẹ nhàng: lần nhắn gần nhất của người kia (không theo dõi gì thêm)
+  updateChatPresence() {
+    const el = document.getElementById("chat-status-text");
+    if (!el) return;
+    const lastOther = [...this.chatMessages].reverse().find((m) => m.sender !== this.currentSender && m.timestamp);
+    if (!lastOther) {
+      el.textContent = "Đang yêu thương ✨";
+      return;
+    }
+    const when = new Date(lastOther.timestamp);
+    const sameDay = formatLocalDate(when) === formatLocalDate(new Date());
+    const label = sameDay ? when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : when.toLocaleDateString("vi-VN");
+    el.textContent = `💗 ${lastOther.sender} nhắn lúc ${label}`;
+  }
+
+  async applyPulledData(data) {
+    if (this.isAuthenticated && data.isAuth === false) {
+      this.lockForRejectedPasscode();
+      return;
+    }
+    if (this.syncEngine) await this.syncEngine.reconcile(data);
+    const deleted = data.deleted || {};
+    this.mergeMemories(data.memories || [], deleted.memories || []);
+    this.mergePlaces(data.places || [], deleted.places || []);
+    this.mergeChat(data.messages || []);
+    this.mergeNotes(data.notes || [], deleted.notes || []);
+    this.mergePeriod(data.period);
+    if (data.since === 0 && this.isAuthenticated) await this.adoptUnsyncedLocal(data);
+    if (Number.isFinite(Number(data.serverTime))) {
+      this.syncCursor = Math.max(0, Number(data.serverTime) - SYNC_CURSOR_OVERLAP_MS);
+      this.saveData(SYNC_CURSOR_KEY, this.syncCursor);
+    }
+  }
+
+  rememberTombstones(listName, storageKey, ids) {
+    let added = false;
+    ids.forEach((raw) => {
+      const id = String(raw);
+      if (!this[listName].includes(id)) {
+        this[listName].push(id);
+        added = true;
+      }
+    });
+    if (added) this.saveData(storageKey, this[listName]);
+  }
+
+  mergeMemories(upserts, deletedIds) {
+    this.rememberTombstones("deletedMemoryIds", "journey_deleted_mem_ids", deletedIds);
+    const result = applyDelta(this.memories, { upserts: upserts, deletedIds: deletedIds }, {
+      pendingIds: this.pendingIdsFor("memory"),
+      tombstones: this.deletedMemoryIds,
+      keepLocalWhenEmpty: ["image"]
+    });
+    if (!result.changed) return;
+    this.memories = result.items.sort((a, b) => new Date(b.date) - new Date(a.date));
+    this.persistMemories();
+    this.renderTimeline();
+  }
+
+  normalizeServerPlace(place) {
+    const normalized = { ...place };
+    if (normalized.lat != null && normalized.lat !== "") normalized.lat = parseFloat(normalized.lat);
+    if (normalized.lng != null && normalized.lng !== "") normalized.lng = parseFloat(normalized.lng);
+    if ((normalized.lat == null || isNaN(normalized.lat)) && normalized.mapUrl) {
+      const coords = this.extractCoordinates(normalized.mapUrl);
+      if (coords) {
+        normalized.lat = coords.lat;
+        normalized.lng = coords.lng;
+      }
+    }
+    return normalized;
+  }
+
+  mergePlaces(upserts, deletedIds) {
+    this.rememberTombstones("deletedPlaceIds", "journey_deleted_place_ids", deletedIds);
+    const result = applyDelta(this.places, { upserts: upserts.map((p) => this.normalizeServerPlace(p)), deletedIds: deletedIds }, {
+      pendingIds: this.pendingIdsFor("place"),
+      tombstones: this.deletedPlaceIds,
+      keepLocalWhenEmpty: ["lat", "lng"]
+    });
+    if (!result.changed) return;
+    this.places = result.items;
+    this.saveData("journey_places_v2", this.places);
+    this.renderPlaces();
+    this.calculateAllDistancesAndRoutes(false);
+  }
+
+  mergeChat(messages) {
+    const pending = new Set(this.pendingIdsFor("chat"));
+    let hasNew = false;
+    let hasIncoming = false;
+    messages.forEach((serverMsg) => {
+      const existing = this.chatMessages.find((m) => m.id === serverMsg.id);
+      if (!existing) {
+        this.chatMessages.push(serverMsg);
+        hasNew = true;
+        if (serverMsg.sender !== this.currentSender) hasIncoming = true;
+      } else if (!pending.has(String(existing.id)) && serverMsg.image && serverMsg.image !== existing.image) {
+        existing.image = serverMsg.image;
+        hasNew = true;
+      }
+    });
+    if (!hasNew) return;
+    if (hasIncoming && this.syncCursor > 0 && navigator.vibrate) navigator.vibrate(VIBRATE_PATTERN_MS);
+    this.persistChat();
+    this.renderChatMessages();
+    if (this.chatUnreadDot && (!this.chatDrawer || !this.chatDrawer.classList.contains("open"))) {
+      this.chatUnreadDot.style.display = "block";
+    }
+  }
+
+  // Kỳ dâu đồng bộ giữa hai máy: bản mới hơn (updatedAt) thắng, trừ khi máy này đang chờ gửi bản của mình
+  mergePeriod(serverPeriod) {
+    if (!serverPeriod || !serverPeriod.startDate) return;
+    if (this.syncEngine && this.syncEngine.getEntry("period")) return;
+    if (Number(serverPeriod.updatedAt) <= Number(this.period.updatedAt || 0)) return;
+    this.period = this.normalizePeriod({ ...this.period, ...serverPeriod });
+    this.saveData("journey_period_v1", this.period);
+    this.renderPeriodTracker();
+  }
+
+  // Sau lần đồng bộ đầy đủ: đẩy lên những mục chỉ có trên máy này (từ bản cũ từng làm rơi dữ liệu)
+  async adoptUnsyncedLocal(data) {
+    const deleted = data.deleted || {};
+    const memories = findUnsyncedLocal(this.memories, data.memories || [], deleted.memories, {
+      defaultIds: DEFAULT_MEMORY_IDS, pendingIds: this.pendingIdsFor("memory"), tombstones: this.deletedMemoryIds
+    });
+    const places = findUnsyncedLocal(this.places, data.places || [], deleted.places, {
+      defaultIds: DEFAULT_PLACE_IDS, pendingIds: this.pendingIdsFor("place"), tombstones: this.deletedPlaceIds
+    });
+    for (const m of memories) await this.queueMemory(m);
+    for (const p of places) await this.sendPlaceToBackend(p);
+    if (memories.length + places.length > 0) {
+      this.persistMemories();
+      this.renderTimeline();
+      this.renderPlaces();
+    }
   }
 
   // ==========================================
@@ -2897,6 +3459,14 @@ class JourneyApp {
     this.currentChatSenderLabel = document.getElementById("current-chat-sender-label");
     this.chatReceiverName = document.getElementById("chat-receiver-name");
     this.chatMessagesContainer = document.getElementById("chat-messages-container");
+    if (this.chatMessagesContainer) {
+      this.chatMessagesContainer.addEventListener("click", (e) => {
+        const img = e.target.closest ? e.target.closest(".chat-msg-img") : null;
+        if (!img) return;
+        const msg = this.chatMessages.find((m) => String(m.id) === img.dataset.msgId);
+        if (msg) this.viewChatImage(msg.image);
+      });
+    }
     this.chatForm = document.getElementById("chat-form");
     this.chatTextInput = document.getElementById("chat-text-input");
     this.chatImageFileInput = document.getElementById("chat-image-file-input");
@@ -3003,6 +3573,7 @@ class JourneyApp {
     const her = this.config.partnerTwo || "Thư";
     this.currentSender = (this.currentSender === him) ? her : him;
     this.saveData("journey_chat_sender_v1", this.currentSender);
+    this.saveData(SENDER_CHOSEN_KEY, true);
     this.updateChatHeaderLabels();
     this.renderChatMessages();
     this.spawnHeartBurst(window.innerWidth - 60, window.innerHeight - 60);
@@ -3040,23 +3611,22 @@ class JourneyApp {
       sender: this.currentSender,
       text: text || "",
       image: imageBase64 || "",
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      syncState: "pending"
     };
 
     this.chatMessages.push(newMsg);
-    this.saveData("journey_chat_messages_v1", this.chatMessages);
+    this.persistChat();
     this.renderChatMessages();
     this.clearChatPendingImage();
     this.spawnHeartBurst(window.innerWidth - 60, window.innerHeight - 60);
 
     // Lưu vào Google Drive và Google Sheet Backend
-    if (this.config.apiUrl) {
-      this.sendToBackend({
-        type: "chat_message",
-        ...newMsg,
-        imageBase64: imageBase64 || ""
-      });
-    } else if (imageBase64) {
+    this.sendToBackend({
+      type: "chat_message", id: newMsg.id, sender: newMsg.sender, text: newMsg.text,
+      timestamp: newMsg.timestamp, image: "", imageBase64: imageBase64 || ""
+    });
+    if (!this.config.apiUrl && imageBase64) {
       this.showToast("⚠️ Lưu ý: Chưa kết nối link Google Drive trong Cài Đặt nên ảnh này chỉ lưu trên máy bạn!");
     }
   }
@@ -3066,24 +3636,26 @@ class JourneyApp {
     this.chatMessagesContainer.innerHTML = this.chatMessages.map(msg => {
       const isSent = msg.sender === this.currentSender;
       const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+      const chatImageUrl = safeUrl(msg.image, MEMORY_IMAGE_URL_OPTIONS);
       return `
         <div class="chat-msg-row ${isSent ? 'sent' : 'received'}">
           <span class="chat-msg-sender-name">${this.escapeHTML(msg.sender)}</span>
           <div class="chat-bubble">
-            ${msg.image ? `<img src="${msg.image}" alt="Ảnh tin nhắn" class="chat-msg-img" onclick="window.journeyApp.viewChatImage('${msg.image}')">` : ""}
+            ${chatImageUrl ? `<img src="${this.escapeHTML(chatImageUrl)}" alt="Ảnh tin nhắn" class="chat-msg-img" data-msg-id="${this.escapeHTML(msg.id)}">` : ""}
             ${msg.text ? `<div>${this.escapeHTML(msg.text)}</div>` : ""}
           </div>
-          <span class="chat-msg-time">${timeStr}</span>
+          <span class="chat-msg-time">${timeStr}${msg.syncState === "pending" ? " ⏳" : ""}</span>
         </div>
       `;
     }).join("");
 
     this.chatMessagesContainer.scrollTop = this.chatMessagesContainer.scrollHeight;
+    this.updateChatPresence();
   }
 
   viewChatImage(url) {
     if (this.lightboxModal && this.lightboxImg) {
-      this.lightboxImg.src = url;
+      this.lightboxImg.src = safeUrl(url, MEMORY_IMAGE_URL_OPTIONS);
       this.lightboxTitle.textContent = "Ảnh Từ Hộp Thư Chat 💕";
       this.lightboxDate.textContent = "Lưu trữ an toàn trên Google Drive";
       this.lightboxStory.textContent = "";
@@ -3091,198 +3663,15 @@ class JourneyApp {
     }
   }
 
-  syncFromBackend() {
-    if (!this.config.apiUrl) return;
-    const fetchUrl = this.config.apiUrl + (this.isAuthenticated ? `?passcode=${encodeURIComponent(this.config.passcode || "kimthu")}` : "");
-    fetch(fetchUrl)
-      .then(res => res.json())
-      .then(data => {
-        if (data.memories && Array.isArray(data.memories)) {
-          this.syncMemories(data.memories);
-        }
-        if (data.messages && Array.isArray(data.messages) && data.messages.length > 0) {
-          let hasNew = false;
-          data.messages.forEach(serverMsg => {
-            const existingIdx = this.chatMessages.findIndex(m => m.id === serverMsg.id);
-            if (existingIdx === -1) {
-              this.chatMessages.push(serverMsg);
-              hasNew = true;
-            } else if (serverMsg.image && serverMsg.image !== this.chatMessages[existingIdx].image) {
-              this.chatMessages[existingIdx].image = serverMsg.image;
-              hasNew = true;
-            }
-          });
-          if (hasNew) {
-            this.saveData("journey_chat_messages_v1", this.chatMessages);
-            this.renderChatMessages();
-            if (this.chatUnreadDot && (!this.chatDrawer || !this.chatDrawer.classList.contains("open"))) {
-              this.chatUnreadDot.style.display = "block";
-            }
-          }
-        }
-        // TẬP HỢP TẤT CẢ ĐỊA ĐIỂM TỪ BACKEND
-        const incomingPlaces = [];
-
-        // 1. Nguồn 1: data.places (nếu Google Apps Script đã deploy bản có sheet Places)
-        if (data.places && Array.isArray(data.places)) {
-          incomingPlaces.push(...data.places);
-        }
-
-        // 2. Nguồn 2: data.tasks với category PLACE_WISHLIST (Dual-Sync tương thích 100% với cloud backend hiện tại)
-        if (data.tasks && Array.isArray(data.tasks)) {
-          data.tasks.forEach(t => {
-            if (t.category === "PLACE_DELETED" && t.notes) {
-              const delId = String(t.notes).trim();
-              if (!this.deletedPlaceIds.includes(delId)) {
-                this.deletedPlaceIds.push(delId);
-                this.saveData("journey_deleted_place_ids", this.deletedPlaceIds);
-              }
-            } else if (t.category === "PLACE_WISHLIST" && t.notes) {
-              try {
-                const parsed = typeof t.notes === "string" ? JSON.parse(t.notes) : t.notes;
-                if (parsed && (parsed.id || parsed.name)) {
-                  if (t.completed !== undefined) {
-                    parsed.visited = t.completed === true;
-                  }
-                  incomingPlaces.push(parsed);
-                }
-              } catch (errParse) {
-                incomingPlaces.push({
-                  id: String(t.id).replace(/^pw_/, ""),
-                  name: t.title || "Địa điểm",
-                  notes: String(t.notes || ""),
-                  visited: t.completed === true,
-                  createdAt: t.targetDate || ""
-                });
-              }
-            }
-          });
-        }
-
-        if (incomingPlaces.length > 0) {
-          this.syncPlaces(incomingPlaces);
-        }
-      })
-      .catch(e => console.warn("Chưa đồng bộ được từ Google Drive:", e));
-  }
-
-  syncPlaces(serverPlaces) {
-    if (!Array.isArray(serverPlaces)) return;
-
-    // 1. Lọc bỏ các địa điểm mà người dùng đã bấm xóa trên thiết bị này
-    const validServer = serverPlaces.filter(sp => !this.deletedPlaceIds.includes(String(sp.id)));
-
-    // 2. Giữ lại địa điểm mặc định nếu chưa bị xóa
-    const defaultPlaces = DEFAULT_PLACES.filter(dp =>
-      !this.deletedPlaceIds.includes(String(dp.id)) &&
-      !validServer.some(sp => String(sp.id) === String(dp.id))
-    );
-
-    // 3. Giữ lại các địa điểm cục bộ vừa tạo trong vòng 120 giây (chờ đồng bộ)
-    const now = Date.now();
-    const pendingLocal = this.places.filter(p => {
-      const pid = String(p.id);
-      if (this.deletedPlaceIds.includes(pid)) return false;
-      if (validServer.some(sp => String(sp.id) === pid)) return false;
-      if (["place-1", "place-2", "place-3"].includes(pid)) return false;
-      const rawNum = parseInt(pid.replace(/\D/g, "")) || 0;
-      return (now - rawNum) < 120000;
-    });
-
-    const combinedMap = new Map();
-    validServer.forEach(p => {
-      const pid = String(p.id);
-      if (p.lat != null && p.lat !== "") p.lat = parseFloat(p.lat);
-      if (p.lng != null && p.lng !== "") p.lng = parseFloat(p.lng);
-      if ((p.lat == null || isNaN(p.lat)) && p.mapUrl) {
-        const coords = this.extractCoordinates(p.mapUrl);
-        if (coords) {
-          p.lat = coords.lat;
-          p.lng = coords.lng;
-        }
-      }
-      if (combinedMap.has(pid)) {
-        const existing = combinedMap.get(pid);
-        combinedMap.set(pid, { ...existing, ...p, lat: p.lat ?? existing.lat, lng: p.lng ?? existing.lng });
-      } else {
-        combinedMap.set(pid, p);
-      }
-    });
-
-    pendingLocal.forEach(p => {
-      if (!combinedMap.has(String(p.id))) combinedMap.set(String(p.id), p);
-    });
-
-    defaultPlaces.forEach(p => {
-      if (!combinedMap.has(String(p.id))) combinedMap.set(String(p.id), p);
-    });
-
-    const mergedPlaces = Array.from(combinedMap.values());
-    if (JSON.stringify(mergedPlaces) !== JSON.stringify(this.places)) {
-      this.places = mergedPlaces;
-      this.saveData("journey_places_v2", this.places);
-      this.renderPlaces();
-      this.calculateAllDistancesAndRoutes(false);
-      this.autoResolveMissingPlaceCoordinates();
-    }
-  }
-
-  syncMemories(serverMemories) {
-    if (!Array.isArray(serverMemories)) return;
-
-    // 1. Lọc bỏ các kỷ niệm mà người dùng đã bấm xóa trên thiết bị này
-    const validServer = serverMemories.filter(sm => !this.deletedMemoryIds.includes(String(sm.id)));
-
-    // 2. Giữ lại các kỷ niệm mặc định nếu chúng chưa bị xóa (mem-1, mem-2, mem-3)
-    const defaultMems = DEFAULT_MEMORIES.filter(dm => 
-      !this.deletedMemoryIds.includes(String(dm.id)) &&
-      !validServer.some(sm => String(sm.id) === String(dm.id))
-    );
-
-    // 3. Giữ lại các kỷ niệm cục bộ vừa mới được tạo trong vòng 60 giây (đang đợi backend lưu)
-    const now = Date.now();
-    const pendingLocal = this.memories.filter(m => {
-      const mid = String(m.id);
-      if (this.deletedMemoryIds.includes(mid)) return false;
-      if (validServer.some(sm => String(sm.id) === mid)) return false;
-      if (["mem-1", "mem-2", "mem-3"].includes(mid)) return false;
-      // Trích xuất timestamp từ ID nếu dạng 'mem-1792435...'
-      const rawNum = parseInt(mid.replace(/\D/g, "")) || 0;
-      return (now - rawNum) < 60000;
-    });
-
-    // 4. Tổng hợp danh sách kỷ niệm mới
-    const combinedMap = new Map();
-    validServer.forEach(m => combinedMap.set(String(m.id), m));
-    pendingLocal.forEach(m => {
-      if (!combinedMap.has(String(m.id))) combinedMap.set(String(m.id), m);
-    });
-    defaultMems.forEach(m => {
-      if (!combinedMap.has(String(m.id))) combinedMap.set(String(m.id), m);
-    });
-
-    const newMemoriesList = Array.from(combinedMap.values());
-    newMemoriesList.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // 5. So sánh với this.memories hiện tại, chỉ re-render nếu có sự thay đổi
-    const curHash = this.memories.map(m => `${m.id}_${(m.image || "").slice(0, 30)}`).join("|");
-    const newHash = newMemoriesList.map(m => `${m.id}_${(m.image || "").slice(0, 30)}`).join("|");
-
-    if (curHash !== newHash) {
-      this.memories = newMemoriesList;
-      this.saveData("journey_memories_v3", this.memories);
-      this.renderTimeline();
-    }
-  }
-
   formatLocationBadge(locationStr) {
     if (!locationStr) return "";
     const match = locationStr.match(/(https?:\/\/[^\s\)]+)/);
     if (match) {
-      const url = match[1];
+      const url = safeUrl(match[1]);
+      if (!url) return `<span class="locket-loc-badge">📍 ${this.escapeHTML(locationStr)}</span>`;
       let label = locationStr.replace(url, "").replace(/[\(\)]/g, "").trim();
       if (!label || label === "-") label = "Toạ độ Google Maps";
-      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="locket-loc-badge locket-loc-link" title="Xem trên Google Maps" onclick="event.stopPropagation()">📍 ${this.escapeHTML(label)} ↗</a>`;
+      return `<a href="${this.escapeHTML(url)}" target="_blank" rel="noopener noreferrer" class="locket-loc-badge locket-loc-link" title="Xem trên Google Maps">📍 ${this.escapeHTML(label)} ↗</a>`;
     }
     return `<span class="locket-loc-badge">📍 ${this.escapeHTML(locationStr)}</span>`;
   }
@@ -3306,7 +3695,7 @@ class JourneyApp {
 
   escapeHTML(str) {
     if (!str) return "";
-    return str.replace(/[&<>'"]/g, 
+    return String(str).replace(/[&<>'"]/g, 
       tag => ({
         '&': '&amp;',
         '<': '&lt;',

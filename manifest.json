@@ -2,15 +2,14 @@
   "name": "Kim & Thư 💕 Chuyện Tình Chúng Mình",
   "short_name": "Kim & Thư 💕",
   "description": "Nơi lưu giữ từng kỷ niệm ngọt ngào và những mong ước tương lai của Kim và Thư.",
+  "id": "./",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#fffafc",
   "theme_color": "#ff758f",
   "icons": [
-    {
-      "src": "assets/app-icon.jpg",
-      "sizes": "512x512",
-      "type": "image/jpeg"
-    }
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
   ]
 }

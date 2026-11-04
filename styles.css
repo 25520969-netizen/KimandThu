@@ -90,8 +90,6 @@ body {
   top: 0;
   z-index: 100;
   background: rgba(255, 250, 252, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border-delicate);
   padding: 12px 20px;
   transition: var(--transition-smooth);
@@ -148,8 +146,6 @@ body {
   height: 40px;
   border-radius: 50%;
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 240, 245, 0.92) 100%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   border: 1.5px solid rgba(255, 184, 201, 0.7);
   color: var(--pink-deep);
   display: flex;
@@ -195,8 +191,6 @@ body {
   right: 0;
   min-width: 195px;
   background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 184, 201, 0.7);
   border-radius: 18px;
   box-shadow: 0 16px 42px rgba(255, 117, 143, 0.28), 0 4px 16px rgba(0, 0, 0, 0.08);
@@ -392,8 +386,6 @@ body {
   width: 100%;
   max-width: 660px;
   background: var(--bg-card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 255, 255, 0.95);
   outline: 1px solid var(--border-delicate);
   border-radius: var(--radius-lg);
@@ -772,8 +764,6 @@ body {
   grid-template-columns: 290px 1fr;
   gap: 22px;
   background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 184, 201, 0.5);
   border-radius: 22px;
   padding: 18px;
@@ -826,6 +816,17 @@ body {
   transform: scale(1.05);
 }
 
+/* Khoảnh khắc không có ảnh: nền hồng + trái tim thay cho ảnh mẫu (BUG-12) */
+.locket-photo-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4.5rem;
+  background: linear-gradient(135deg, #ffe3ea 0%, #ffc2d1 100%);
+}
+
 .locket-photo-overlay {
   position: absolute;
   top: 10px;
@@ -840,8 +841,6 @@ body {
 
 .locket-sender-badge {
   background: rgba(0, 0, 0, 0.52);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   color: #ffffff;
   font-size: 0.72rem;
   font-weight: 600;
@@ -851,8 +850,6 @@ body {
 
 .locket-loc-badge {
   background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   color: var(--pink-deep);
   font-size: 0.72rem;
   font-weight: 700;
@@ -865,7 +862,6 @@ body {
   bottom: 10px;
   right: 10px;
   background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(6px);
   color: var(--text-main);
   font-size: 0.72rem;
   font-weight: 600;
@@ -1178,8 +1174,6 @@ body {
   right: 0;
   min-width: 215px;
   background: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid rgba(255, 184, 201, 0.6);
   border-radius: 16px;
   box-shadow: 0 12px 32px rgba(255, 117, 143, 0.2), 0 2px 8px rgba(0, 0, 0, 0.04);
@@ -1272,8 +1266,6 @@ body {
 
 .place-card {
   background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 184, 201, 0.55);
   border-radius: 20px;
   padding: 18px 20px;
@@ -1751,8 +1743,6 @@ body {
   top: 8px;
   right: 8px;
   background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(0, 0, 0, 0.08);
   color: var(--text-main);
   font-size: 0.75rem;
@@ -2155,8 +2145,6 @@ body {
   height: 540px;
   max-height: calc(100vh - 120px);
   background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 184, 201, 0.65);
   border-radius: 24px;
   box-shadow: 0 20px 60px rgba(255, 117, 143, 0.28), 0 4px 16px rgba(0, 0, 0, 0.05);
@@ -2701,7 +2689,6 @@ body:not(.is-guest) .nav-dropdown-menu .dropdown-item.guest-only {
   font-size: 0.9rem;
   font-weight: 500;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 117, 143, 0.4);
   z-index: 99999;
   opacity: 0;
@@ -2717,3 +2704,17 @@ body:not(.is-guest) .nav-dropdown-menu .dropdown-item.guest-only {
 }
 
 
+
+/* Mục đang chờ gửi lên máy chủ (BUG-03) */
+.sync-pending-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pink-deep);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px dashed var(--pink-light);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+}
