@@ -7,8 +7,50 @@
 
 var FOLDER_ID = "1dcyUgareKuDTIyj9xmhKKY6Uq0uC6Zuj";
 
-// Danh sách mật mã hợp lệ của Kim & Thư
-var ALLOWED_PASSCODES = ["kimthu", "0204", "1909"];
+// Mật mã KHÔNG nằm trong mã nguồn. Đặt tại: Project Settings → Script properties
+// → thêm thuộc tính APP_PASSCODE (tối thiểu 12 ký tự, ngẫu nhiên). Thiếu thuộc tính = từ chối tất cả.
+var PASSCODE_PROPERTY = "APP_PASSCODE";
+var MIN_PASSCODE_LENGTH = 12;
+
+function normalizePasscode_(value) {
+  return String(value === null || value === undefined ? "" : value).trim().toLowerCase();
+}
+
+/**
+ * So sánh mật mã với bí mật lưu trên server (so sánh thời gian cố định).
+ * Fail-closed: chưa cấu hình hoặc quá ngắn thì không ai được xác thực.
+ */
+function isPasscodeAuthorized_(candidate) {
+  var secret = normalizePasscode_(PropertiesService.getScriptProperties().getProperty(PASSCODE_PROPERTY));
+  if (secret.length < MIN_PASSCODE_LENGTH) return false;
+  var given = normalizePasscode_(candidate);
+  var diff = given.length ^ secret.length;
+  for (var i = 0; i < secret.length; i++) {
+    diff |= (given.charCodeAt(i) || 0) ^ secret.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Chỉ chuyển vào thùng rác các file nằm TRONG thư mục FOLDER_ID của ứng dụng.
+ * @return {boolean} true nếu đã chuyển vào thùng rác.
+ */
+function trashFileInAppFolder_(fileId) {
+  try {
+    var file = DriveApp.getFileById(fileId);
+    var parents = file.getParents();
+    while (parents.hasNext()) {
+      if (parents.next().getId() === FOLDER_ID) {
+        file.setTrashed(true);
+        return true;
+      }
+    }
+    Logger.log("Từ chối xóa file ngoài thư mục ứng dụng: " + fileId);
+  } catch (eTrash) {
+    Logger.log("Lỗi xóa file Drive " + fileId + ": " + eTrash.toString());
+  }
+  return false;
+}
 
 /**
  * HÀM CẤP QUYỀN VÀ KIỂM TRA GOOGLE DRIVE:
@@ -56,8 +98,7 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     
     // BẢO VỆ TUYỆT ĐỐI: Chỉ Kim & Thư có mật mã mới được thực thi thay đổi
-    var reqPass = data.passcode ? String(data.passcode).toLowerCase().trim() : "";
-    if (ALLOWED_PASSCODES.indexOf(reqPass) === -1) {
+    if (!isPasscodeAuthorized_(data.passcode)) {
       return ContentService.createTextOutput(JSON.stringify({
         status: "error",
         message: "Chế độ khách: Bạn chỉ có quyền xem timeline & timer, không thể thực hiện thay đổi."
@@ -185,18 +226,12 @@ function doPost(e) {
         // Lặp ngược từ dưới lên để xóa an toàn không bị lệch dòng
         for (var i = values.length - 1; i >= 1; i--) {
           if (String(values[i][0]).trim() === String(data.id).trim()) {
-            var imgUrl = values[i][4] || data.imageUrl || "";
-            // Tìm file ID trên Google Drive từ link ảnh
+            // Chỉ tin link ảnh lưu trong dòng của sheet, KHÔNG tin fileId do client gửi lên
+            var imgUrl = String(values[i][4] || "");
             if (imgUrl && imgUrl.indexOf("data:") === -1) {
               var match = imgUrl.match(/id=([a-zA-Z0-9_-]+)/) || imgUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-              if (match && match[1]) {
+              if (match && match[1] && trashFileInAppFolder_(match[1])) {
                 deletedFileId = match[1];
-                try {
-                  DriveApp.getFileById(deletedFileId).setTrashed(true);
-                  Logger.log("Đã chuyển ảnh kỷ niệm vào thùng rác Drive: " + deletedFileId);
-                } catch(eTrash) {
-                  Logger.log("Lỗi xóa file Drive: " + eTrash.toString());
-                }
               }
             }
             sheet.deleteRow(i + 1);
@@ -204,24 +239,6 @@ function doPost(e) {
         }
       }
 
-      // Nếu chưa xóa được file qua dòng trong sheet nhưng client có gửi fileId hoặc link Drive
-      if (!deletedFileId && (data.fileId || data.imageUrl)) {
-        var rawTarget = data.fileId || data.imageUrl || "";
-        if (rawTarget.indexOf("data:") === -1) {
-          var matchClient = rawTarget.match(/id=([a-zA-Z0-9_-]+)/) || rawTarget.match(/\/d\/([a-zA-Z0-9_-]+)/);
-          var fId = (matchClient && matchClient[1]) ? matchClient[1] : (data.fileId || "");
-          if (fId && fId.length > 15) {
-            try {
-              DriveApp.getFileById(fId).setTrashed(true);
-              deletedFileId = fId;
-              Logger.log("Đã xóa file Drive trực tiếp từ dữ liệu gửi: " + fId);
-            } catch(eTrashClient) {
-              Logger.log("Lỗi xóa file Drive từ client: " + eTrashClient.toString());
-            }
-          }
-        }
-      }
-      
       return ContentService.createTextOutput(JSON.stringify({
         status: "success", 
         deletedId: data.id, 
@@ -324,8 +341,7 @@ function doGet(e) {
   var placeSheet = ss.getSheetByName("Places");
   
   // Xác thực quyền riêng tư: Nếu có mật mã thì mới trả về tin nhắn riêng tư
-  var reqPass = (e && e.parameter && e.parameter.passcode) ? String(e.parameter.passcode).toLowerCase().trim() : "";
-  var isAuth = ALLOWED_PASSCODES.indexOf(reqPass) !== -1;
+  var isAuth = isPasscodeAuthorized_(e && e.parameter ? e.parameter.passcode : "");
 
   var tasks = [];
   if (taskSheet && taskSheet.getLastRow() > 1) {

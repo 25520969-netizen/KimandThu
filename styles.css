@@ -826,6 +826,17 @@ body {
   transform: scale(1.05);
 }
 
+/* Khoảnh khắc không có ảnh: nền hồng + trái tim thay cho ảnh mẫu (BUG-12) */
+.locket-photo-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 4.5rem;
+  background: linear-gradient(135deg, #ffe3ea 0%, #ffc2d1 100%);
+}
+
 .locket-photo-overlay {
   position: absolute;
   top: 10px;

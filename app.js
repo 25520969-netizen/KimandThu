@@ -12,8 +12,13 @@ const DEFAULT_CONFIG = {
   startDate: "2025-04-02T19:00:00",
   quote: "Iu béeeee:3",
   apiUrl: "https://script.google.com/macros/s/AKfycbxDI9aaD94CTOU8rYk-NRc8Hb3Uajv24LgnPdrTrLXGZGsR7sykPBBUwC7ttesFfxl3PA/exec",
-  passcode: "kimthu"
+  passcode: ""
 };
+
+// Chỉ chấp nhận link backend dạng Google Apps Script Web App (SEC-04)
+const APPS_SCRIPT_URL_PATTERN = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
+const AUTH_REQUEST_TIMEOUT_MS = 10000;
+const MEMORY_IMAGE_URL_OPTIONS = { allowRelative: true, allowDataImage: true };
 
 
 const DEFAULT_MEMORIES = [
@@ -144,6 +149,7 @@ class JourneyApp {
     this.renderPeriodTracker();
     this.renderTimeline();
     this.renderPlaces();
+    this.hasInitialRender = true;
     this.initPetalsCanvas();
     this.syncFromBackend();
     this.checkPeriodAlert();
@@ -266,7 +272,6 @@ class JourneyApp {
     this.closeAuthModalBtn = document.getElementById("close-auth-modal-btn");
     this.cancelAuthBtn = document.getElementById("cancel-auth-btn");
     this.copySecretLinkBtn = document.getElementById("copy-secret-link-btn");
-    this.cfgPasscodeInput = document.getElementById("cfg-passcode");
 
     // Places Wishlist
     this.placesListContainer = document.getElementById("places-list-container");
@@ -337,26 +342,16 @@ class JourneyApp {
     const secretKey = urlParams.get("key") || urlParams.get("code") || urlParams.get("pass");
     const apiUrlParam = urlParams.get("api");
 
-    if (apiUrlParam) {
-      try {
-        const decodedUrl = decodeURIComponent(apiUrlParam);
-        if (decodedUrl.startsWith("http")) {
-          this.config.apiUrl = decodedUrl;
-          this.saveData("journey_config_v3", this.config);
-        }
-      } catch (e) {}
-    }
+    this.applyApiUrlParam(apiUrlParam);
 
-    if (secretKey && this.isPasscodeValid(secretKey)) {
-      this.isAuthenticated = true;
-      this.saveData("journey_auth_token", "unlocked");
+    // 2. Trạng thái đã mở khóa trước đó trên máy này (server sẽ xác nhận lại ở lần đồng bộ đầu tiên)
+    const token = this.loadData("journey_auth_token", null);
+    this.isAuthenticated = (token === "unlocked");
+
+    // 1b. Link tự mở khóa: gỡ mật mã khỏi thanh địa chỉ ngay, rồi xác thực với server
+    if (secretKey) {
       window.history.replaceState({}, document.title, window.location.pathname);
-      this.showToast("Chào mừng Kim & Thư 💕 Đã mở khóa toàn bộ quyền!");
-      this.spawnHeartConfetti();
-    } else {
-      // 2. Kiểm tra token đã lưu trên trình duyệt của máy này trước đó
-      const token = this.loadData("journey_auth_token", null);
-      this.isAuthenticated = (token === "unlocked");
+      this.unlockFromMagicLink(secretKey);
     }
 
     if (this.authUnlockNavBtn) {
@@ -384,12 +379,11 @@ class JourneyApp {
     }
 
     if (this.authForm) {
-      this.authForm.addEventListener("submit", (e) => {
+      this.authForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const inputPass = this.authPasscodeInput ? this.authPasscodeInput.value : "";
-        if (this.isPasscodeValid(inputPass)) {
-          this.isAuthenticated = true;
-          this.saveData("journey_auth_token", "unlocked");
+        const result = await this.tryUnlock(inputPass);
+        if (result === "ok") {
           if (this.authErrorMsg) this.authErrorMsg.style.display = "none";
           this.closeAuthModal();
           this.applyAuthMode();
@@ -403,7 +397,12 @@ class JourneyApp {
             setTimeout(() => cb(), 150);
           }
         } else {
-          if (this.authErrorMsg) this.authErrorMsg.style.display = "block";
+          if (this.authErrorMsg) {
+            this.authErrorMsg.textContent = result === "offline"
+              ? "Chưa kết nối được máy chủ để kiểm tra mật mã. Kiểm tra mạng rồi thử lại nhé! 💕"
+              : "Mật mã chưa đúng nè, thử lại nhé bé yêu! 💕";
+            this.authErrorMsg.style.display = "block";
+          }
           if (this.authPasscodeInput) this.authPasscodeInput.focus();
         }
       });
@@ -411,7 +410,11 @@ class JourneyApp {
 
     if (this.copySecretLinkBtn) {
       this.copySecretLinkBtn.addEventListener("click", () => {
-        const pass = (this.cfgPasscodeInput && this.cfgPasscodeInput.value.trim()) || this.config.passcode || "kimthu";
+        const pass = this.config.passcode;
+        if (!pass) {
+          this.showToast("Hãy mở khóa trước khi sao chép link tự mở khóa nhé 💕");
+          return;
+        }
         let secretLink = `${window.location.origin}${window.location.pathname}?key=${encodeURIComponent(pass)}`;
         if (this.config.apiUrl) {
           secretLink += `&api=${encodeURIComponent(this.config.apiUrl)}`;
@@ -427,22 +430,80 @@ class JourneyApp {
     this.applyAuthMode();
   }
 
-  isPasscodeValid(pass) {
-    if (!pass) return false;
-    const raw = String(pass).trim().toLowerCase();
-    const clean = raw.replace(/\s+/g, "");
-    const normalized = clean.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const currentPass = String(this.config.passcode || "kimthu").trim().toLowerCase().replace(/\s+/g, "");
-    return (
-      raw === currentPass ||
-      clean === currentPass ||
-      normalized === "kimthu" ||
-      clean === "kimthu" ||
-      clean === "0204" ||
-      clean === "1909" ||
-      clean === "24" ||
-      clean === "199"
-    );
+  // Link ?api=: ch\u1ec9 nh\u1eadn \u0111\u00fang d\u1ea1ng Apps Script Web App v\u00e0 ph\u1ea3i \u0111\u01b0\u1ee3c ng\u01b0\u1eddi d\u00f9ng x\u00e1c nh\u1eadn (SEC-04)
+  applyApiUrlParam(rawParam) {
+    if (!rawParam) return;
+    let candidate = "";
+    try {
+      candidate = decodeURIComponent(rawParam).trim();
+    } catch (e) {
+      console.warn("Tham s\u1ed1 api trong link kh\u00f4ng h\u1ee3p l\u1ec7:", e);
+      return;
+    }
+    if (!APPS_SCRIPT_URL_PATTERN.test(candidate)) {
+      console.warn("B\u1ecf qua tham s\u1ed1 api: kh\u00f4ng ph\u1ea3i link Google Apps Script Web App.");
+      return;
+    }
+    if (candidate === this.config.apiUrl) return;
+    const accepted = confirm(`Link n\u00e0y mu\u1ed1n \u0111\u1ed5i n\u01a1i l\u01b0u d\u1eef li\u1ec7u sang:\n${candidate}\n\nCh\u1ec9 \u0111\u1ed3ng \u00fd n\u1ebfu ch\u00ednh Kim ho\u1eb7c Th\u01b0 g\u1eedi link n\u00e0y. \u0110\u1ed5i nh\u00e9?`);
+    if (!accepted) return;
+    this.config.apiUrl = candidate;
+    this.saveData("journey_config_v3", this.config);
+  }
+
+  // H\u1ecfi m\u00e1y ch\u1ee7 xem m\u1eadt m\u00e3 c\u00f3 \u0111\u00fang kh\u00f4ng. N\u00e9m l\u1ed7i n\u1ebfu kh\u00f4ng li\u00ean l\u1ea1c \u0111\u01b0\u1ee3c m\u00e1y ch\u1ee7.
+  async verifyPasscode(pass) {
+    const candidate = String(pass || "").trim();
+    if (!candidate) return false;
+    if (!this.config.apiUrl) throw new Error("Ch\u01b0a c\u1ea5u h\u00ecnh link backend");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${this.config.apiUrl}?passcode=${encodeURIComponent(candidate)}`, { signal: controller.signal });
+      const data = await res.json();
+      return data.isAuth === true;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // @returns {"ok" | "wrong" | "offline"}
+  async tryUnlock(pass) {
+    try {
+      if (!(await this.verifyPasscode(pass))) return "wrong";
+    } catch (e) {
+      console.warn("Kh\u00f4ng x\u00e1c th\u1ef1c \u0111\u01b0\u1ee3c m\u1eadt m\u00e3 v\u1edbi m\u00e1y ch\u1ee7:", e);
+      return "offline";
+    }
+    this.config.passcode = String(pass).trim();
+    this.saveData("journey_config_v3", this.config);
+    this.isAuthenticated = true;
+    this.saveData("journey_auth_token", "unlocked");
+    return "ok";
+  }
+
+  async unlockFromMagicLink(secretKey) {
+    const result = await this.tryUnlock(secretKey);
+    if (result === "ok") {
+      this.applyAuthMode();
+      this.showToast("Ch\u00e0o m\u1eebng Kim & Th\u01b0 \ud83d\udc95 \u0110\u00e3 m\u1edf kh\u00f3a to\u00e0n b\u1ed9 quy\u1ec1n!");
+      this.spawnHeartConfetti();
+      this.syncFromBackend();
+      return;
+    }
+    this.showToast(result === "offline"
+      ? "Ch\u01b0a k\u1ebft n\u1ed1i \u0111\u01b0\u1ee3c m\u00e1y ch\u1ee7 \u0111\u1ec3 m\u1edf kh\u00f3a. Th\u1eed l\u1ea1i sau nh\u00e9 \ud83d\udc95"
+      : "Link m\u1edf kh\u00f3a kh\u00f4ng \u0111\u00fang ho\u1eb7c \u0111\u00e3 h\u1ebft h\u1ea1n \ud83d\udc95");
+  }
+
+  // M\u00e1y ch\u1ee7 b\u00e1o m\u1eadt m\u00e3 kh\u00f4ng c\u00f2n h\u1ee3p l\u1ec7 (\u0111\u00e3 \u0111\u1ed5i) \u2192 quay v\u1ec1 ch\u1ebf \u0111\u1ed9 kh\u00e1ch
+  lockForRejectedPasscode() {
+    this.isAuthenticated = false;
+    this.config.passcode = "";
+    this.saveData("journey_config_v3", this.config);
+    this.saveData("journey_auth_token", "locked");
+    this.applyAuthMode();
+    this.showToast("M\u1eadt m\u00e3 \u0111\u00e3 thay \u0111\u1ed5i. H\u00e3y nh\u1eadp l\u1ea1i m\u1eadt m\u00e3 m\u1edbi \u0111\u1ec3 m\u1edf kh\u00f3a \ud83d\udd10", 5000);
   }
 
   openAuthModal(callback = null, customMessage = null) {
@@ -451,7 +512,7 @@ class JourneyApp {
     const descEl = document.getElementById("auth-modal-desc");
     if (descEl) {
       if (customMessage) {
-        descEl.innerHTML = `<strong>${customMessage}</strong><br><small style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; display: inline-block;">Gợi ý: Mật mã là kimthu hoặc ngày kỷ niệm của tụi mình 💕</small>`;
+        descEl.innerHTML = `<strong>${customMessage}</strong><br><small style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; display: inline-block;">Nhập mật mã riêng của tụi mình nhé 💕</small>`;
       } else {
         descEl.innerHTML = `Trang web đang ở chế độ công khai (chỉ xem kỷ niệm & đếm ngày yêu).<br>Nhập mật mã tình yêu để mở khóa nhắn tin, gửi ảnh và chăm sóc bé nhé!`;
       }
@@ -490,6 +551,12 @@ class JourneyApp {
       if (this.settingsModal && this.settingsModal.open) this.settingsModal.close();
       if (this.memoryModal && this.memoryModal.open) this.memoryModal.close();
       if (this.placeModal && this.placeModal.open) this.placeModal.close();
+    }
+
+    // Nút xóa được chọn lúc render nên phải vẽ lại khi trạng thái khóa/mở thay đổi (BUG-09)
+    if (this.hasInitialRender) {
+      this.renderTimeline();
+      this.renderPlaces();
     }
   }
 
@@ -572,7 +639,7 @@ class JourneyApp {
       this.removePreviewBtn.addEventListener("click", () => {
         if (this.memoryFileInput) this.memoryFileInput.value = "";
         if (this.memoryCameraInput) this.memoryCameraInput.value = "";
-        this.memoryImageInput.value = "assets/images/memory1.jpg";
+        this.memoryImageInput.value = "";
         this.uploadPreviewWrapper.style.display = "none";
         if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "grid";
         this.stopInAppCamera();
@@ -803,7 +870,7 @@ class JourneyApp {
       if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "grid";
       if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "none";
       if (this.uploadPreviewWrapper) this.uploadPreviewWrapper.style.display = "none";
-      if (this.memoryImageInput) this.memoryImageInput.value = "assets/images/memory1.jpg";
+      if (this.memoryImageInput) this.memoryImageInput.value = "";
 
       // Tự động kích hoạt định vị GPS Google Maps
       this.autoFetchGpsLocation();
@@ -812,6 +879,8 @@ class JourneyApp {
     };
 
     if (this.openAddMemoryBtn) this.openAddMemoryBtn.addEventListener("click", openMemoryDialog);
+    // Esc / cử chỉ quay lại đóng <dialog> mà không qua nút nào → vẫn phải tắt camera (BUG-10)
+    this.memoryModal.addEventListener("close", () => this.stopInAppCamera());
     if (this.closeMemoryBtn) this.closeMemoryBtn.addEventListener("click", () => {
       this.stopInAppCamera();
       this.memoryModal.close();
@@ -831,7 +900,7 @@ class JourneyApp {
       const title = document.getElementById("memory-title-input").value.trim();
       const date = document.getElementById("memory-date-input").value;
       const location = document.getElementById("memory-location-input").value.trim() || "Cùng Nhau";
-      const image = this.memoryImageInput.value.trim() || "assets/images/memory1.jpg";
+      const image = this.memoryImageInput.value.trim();
       const story = document.getElementById("memory-story-input").value.trim();
 
       if (!title || !date) return;
@@ -874,8 +943,6 @@ class JourneyApp {
       document.getElementById("cfg-her-name").value = this.config.partnerTwo;
       document.getElementById("cfg-start-date").value = this.config.startDate.slice(0, 16);
       document.getElementById("cfg-quote").value = this.config.quote;
-      const passField = document.getElementById("cfg-passcode");
-      if (passField) passField.value = this.config.passcode || "kimthu";
       const apiInput = document.getElementById("cfg-api-url");
       if (apiInput) apiInput.value = this.config.apiUrl || "";
 
@@ -905,8 +972,6 @@ class JourneyApp {
         this.config.startDate = dateVal.length === 16 ? `${dateVal}:00` : dateVal;
       }
       this.config.quote = document.getElementById("cfg-quote").value.trim();
-      const passField = document.getElementById("cfg-passcode");
-      if (passField) this.config.passcode = passField.value.trim() || "kimthu";
       const apiInput = document.getElementById("cfg-api-url");
       if (apiInput) {
         this.config.apiUrl = apiInput.value.trim();
@@ -1057,7 +1122,7 @@ class JourneyApp {
         this.openAuthModal();
         return;
       }
-      this.periodStartDateInput.value = this.period.startDate || new Date().toISOString().split("T")[0];
+      this.periodStartDateInput.value = this.period.startDate || formatLocalDate(new Date());
       this.periodCycleLengthInput.value = this.period.cycleLength || 28;
       this.periodModal.showModal();
     };
@@ -1079,7 +1144,7 @@ class JourneyApp {
           this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
           return;
         }
-        const todayStr = new Date().toISOString().split("T")[0];
+        const todayStr = formatLocalDate(new Date());
         this.periodStartDateInput.value = todayStr;
         this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
       });
@@ -1116,46 +1181,20 @@ class JourneyApp {
       return;
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [y, m, d] = this.period.startDate.split("-").map(Number);
-    const start = new Date(y, m - 1, d);
-    start.setHours(0, 0, 0, 0);
-
-    const cycleLength = Number(this.period.cycleLength) || 28;
     const durationDays = Number(this.period.durationDays) || 5;
-
-    // Tính chu kỳ tiếp theo dựa trên ngày bắt đầu
-    let nextStart = new Date(start.getTime());
-    while (nextStart < today && (today - nextStart) >= durationDays * 86400000) {
-      nextStart = new Date(nextStart.getTime() + cycleLength * 86400000);
+    const cycle = computeCycle(this.period.startDate, this.period.cycleLength, durationDays, new Date());
+    if (!cycle) {
+      this.periodPhaseText.textContent = "Chưa cài đặt";
+      this.periodStatusMessage.textContent = "Ngày bắt đầu chưa hợp lệ, bấm vào để cài đặt lại 💕";
+      return;
     }
-
-    const daysUntilNext = Math.ceil((nextStart - today) / 86400000);
+    const { isDuring: isDuringPeriod, periodDay, nextStart, daysUntilNext } = cycle;
 
     const formatShortDate = (dt) => {
       const day = dt.getDate();
       const month = dt.getMonth() + 1;
       return `${day < 10 ? '0' + day : day}/${month < 10 ? '0' + month : month}`;
     };
-
-    // Kiểm tra xem hiện tại có đang trong kỳ dâu không
-    let isDuringPeriod = false;
-    let periodDay = 1;
-
-    const currentPeriodStart = new Date(nextStart.getTime() - cycleLength * 86400000);
-    if (today >= currentPeriodStart) {
-      const daysSinceCurrent = Math.floor((today - currentPeriodStart) / 86400000);
-      if (daysSinceCurrent >= 0 && daysSinceCurrent < durationDays) {
-        isDuringPeriod = true;
-        periodDay = daysSinceCurrent + 1;
-      }
-    }
-    if (daysUntilNext === 0) {
-      isDuringPeriod = true;
-      periodDay = 1;
-    }
 
     if (isDuringPeriod) {
       this.periodPhaseText.textContent = `🌸 Đang kỳ dâu (Ngày ${periodDay}/${durationDays})`;
@@ -1169,10 +1208,6 @@ class JourneyApp {
       this.periodPhaseText.textContent = `✨ Dự kiến: ${formatShortDate(nextStart)} (còn ${daysUntilNext} ngày)`;
       this.periodStatusMessage.textContent = "Bé Thư nhớ uống đủ nước, ngủ thật ngon và luôn cười thật rạng rỡ nha cô gái nhỏ! 🌸";
       if (this.periodNavBtn) this.periodNavBtn.title = `Góc chăm sóc bé Thư 🍓 (Dự kiến: ${formatShortDate(nextStart)})`;
-    } else {
-      this.periodPhaseText.textContent = `🍓 Dự kiến: Hôm nay`;
-      this.periodStatusMessage.textContent = "Nhớ giữ ấm bụng và nghỉ ngơi thoải mái nha bé iu của anh 💕";
-      if (this.periodNavBtn) this.periodNavBtn.title = "Hôm nay là kỳ dâu của bé Thư 🍓";
     }
   }
 
@@ -1200,44 +1235,16 @@ class JourneyApp {
       };
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [y, m, d] = this.period.startDate.split("-").map(Number);
-    const start = new Date(y, m - 1, d);
-    start.setHours(0, 0, 0, 0);
-
-    const cycleLength = Number(this.period.cycleLength) || 28;
     const durationDays = Number(this.period.durationDays) || 5;
-
-    let nextStart = new Date(start.getTime());
-    while (nextStart < today && (today - nextStart) >= durationDays * 86400000) {
-      nextStart = new Date(nextStart.getTime() + cycleLength * 86400000);
-    }
-
-    const daysUntilNext = Math.ceil((nextStart - today) / 86400000);
+    const cycle = computeCycle(this.period.startDate, this.period.cycleLength, durationDays, new Date());
+    if (!cycle) return;
+    const { isDuring: isDuringPeriod, periodDay, nextStart, daysUntilNext } = cycle;
 
     const formatShortDate = (dt) => {
       const day = dt.getDate();
       const month = dt.getMonth() + 1;
       return `${day < 10 ? '0' + day : day}/${month < 10 ? '0' + month : month}`;
     };
-
-    let isDuringPeriod = false;
-    let periodDay = 1;
-
-    const currentPeriodStart = new Date(nextStart.getTime() - cycleLength * 86400000);
-    if (today >= currentPeriodStart) {
-      const daysSinceCurrent = Math.floor((today - currentPeriodStart) / 86400000);
-      if (daysSinceCurrent >= 0 && daysSinceCurrent < durationDays) {
-        isDuringPeriod = true;
-        periodDay = daysSinceCurrent + 1;
-      }
-    }
-    if (daysUntilNext === 0) {
-      isDuringPeriod = true;
-      periodDay = 1;
-    }
 
     // Kiểm tra điều kiện: trước ba ngày kỳ dâu dự đoán (còn <= 3 ngày) hoặc đang trong kỳ dâu
     let shouldAlert = false;
@@ -1251,11 +1258,6 @@ class JourneyApp {
       this.periodAlertTitle.textContent = "🍓 Sắp Đến Kỳ Dâu Của Bé Thư!";
       this.periodAlertCountdownPill.innerHTML = `Chỉ còn <strong style="color: var(--pink-deep); font-size: 1.25rem;">${daysUntilNext}</strong> ngày nữa (Dự kiến: ${formatShortDate(nextStart)})`;
       this.periodAlertMessage.textContent = `Chỉ còn ${daysUntilNext} ngày nữa là đến kỳ dâu rồi nè! Bé iu nhớ chuẩn bị giữ ấm bụng, uống nước ấm, tránh đồ lạnh và ngủ sớm nhé. Anh luôn ở cạnh chăm sóc em! 🌸💕`;
-      shouldAlert = true;
-    } else if (daysUntilNext === 0) {
-      this.periodAlertTitle.textContent = "🍓 Hôm Nay Là Ngày Dâu Của Bé Thư!";
-      this.periodAlertCountdownPill.innerHTML = `Kỳ dâu dự kiến bắt đầu: <strong style="color: var(--pink-deep);">Hôm Nay</strong>`;
-      this.periodAlertMessage.textContent = "Hôm nay là ngày dâu của bé nè. Bé nhớ giữ ấm, nghỉ ngơi thoải mái và để anh thương em nhiều hơn nha! 💕";
       shouldAlert = true;
     }
 
@@ -1293,15 +1295,19 @@ class JourneyApp {
     this.timelineContainer.innerHTML = visibleMemories.map((mem) => {
       const dateFormatted = this.formatMemoryDate(mem.date);
       const locBadgeHtml = this.formatLocationBadge(mem.location);
+      const imageUrl = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
+      const photoHtml = imageUrl
+        ? `<img src="${this.escapeHTML(imageUrl)}" alt="${this.escapeHTML(mem.title)}" loading="lazy">`
+        : `<div class="locket-photo-placeholder" aria-hidden="true">❤️</div>`;
 
       return `
-        <article class="locket-card" data-id="${mem.id}">
+        <article class="locket-card" data-id="${this.escapeHTML(mem.id)}">
           <!-- Khung 1: Khung chứa ảnh (Locket Photo Widget) -->
           <div class="locket-photo-frame" title="Chạm để xem ảnh phóng to">
             <div class="locket-photo-inner">
-              <img src="${mem.image}" alt="${this.escapeHTML(mem.title)}" loading="lazy">
+              ${photoHtml}
               <div class="locket-photo-overlay">
-                <span class="locket-sender-badge">💕 ${this.config.partnerOne} & ${this.config.partnerTwo}</span>
+                <span class="locket-sender-badge">💕 ${this.escapeHTML(this.config.partnerOne)} & ${this.escapeHTML(this.config.partnerTwo)}</span>
                 ${locBadgeHtml}
               </div>
               <div class="locket-zoom-hint">🔍 Phóng to</div>
@@ -1315,7 +1321,7 @@ class JourneyApp {
                 <span class="locket-cal-icon">🗓️</span>
                 <span class="locket-date-text">${dateFormatted}</span>
               </div>
-              ${this.isAuthenticated ? `<button class="locket-delete-btn" data-id="${mem.id}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>` : ""}
+              ${this.isAuthenticated ? `<button class="locket-delete-btn couple-only" data-id="${this.escapeHTML(mem.id)}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>` : ""}
             </div>
 
             <h3 class="locket-story-title">${this.escapeHTML(mem.title)}</h3>
@@ -1329,7 +1335,7 @@ class JourneyApp {
                 <span class="mini-heart-pulse">❤️</span>
                 <span class="locket-footer-note">Lưu giữ theo thời gian</span>
               </div>
-              <button class="locket-expand-story-btn" data-id="${mem.id}">Xem chi tiết 🌸</button>
+              <button class="locket-expand-story-btn" data-id="${this.escapeHTML(mem.id)}">Xem chi tiết 🌸</button>
             </div>
           </div>
         </article>
@@ -1360,7 +1366,7 @@ class JourneyApp {
         const card = el.closest(".locket-card");
         const mem = this.memories.find(m => m.id === card.dataset.id);
         if (mem) {
-          this.lightboxImg.src = mem.image;
+          this.lightboxImg.src = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
           this.lightboxTitle.textContent = mem.title;
           const dateFormatted = this.formatMemoryDate(mem.date);
           const locBadgeHtml = this.formatLocationBadge(mem.location);
@@ -1894,7 +1900,7 @@ class JourneyApp {
     }
 
     // 4. Link Apple Maps hoặc query dạng lat=...&lon=...
-    const latLonMatch = clean.match(/[?&]lat=(-?\d+\.\d+)&[?&](?:lon|lng)=(-?\d+\.\d+)/);
+    const latLonMatch = clean.match(/[?&]lat=(-?\d+(?:\.\d+)?)&(?:lon|lng)=(-?\d+(?:\.\d+)?)/);
     if (latLonMatch) {
       return { lat: parseFloat(latLonMatch[1]), lng: parseFloat(latLonMatch[2]) };
     }
@@ -2606,13 +2612,14 @@ class JourneyApp {
 
       // Link gọi API Google Maps của thiết bị và điều hướng đường ngắn nhất
       const deviceMapsUrl = this.getDeviceGoogleMapsUrl(place);
+      const tiktokUrl = safeUrl(place.tiktokUrl);
 
       return `
-        <article class="place-card ${place.visited ? "is-visited" : ""}" data-id="${place.id}">
+        <article class="place-card ${place.visited ? "is-visited" : ""}" data-id="${this.escapeHTML(place.id)}">
           <div>
             <div class="place-card-top">
               <h3 class="place-title">${this.escapeHTML(place.name)}</h3>
-              ${this.isAuthenticated ? `<button class="place-delete-btn couple-only" data-id="${place.id}" title="Xóa địa điểm này" aria-label="Xóa địa điểm">&times;</button>` : ""}
+              ${this.isAuthenticated ? `<button class="place-delete-btn couple-only" data-id="${this.escapeHTML(place.id)}" title="Xóa địa điểm này" aria-label="Xóa địa điểm">&times;</button>` : ""}
             </div>
 
             <div class="place-meta-row">
@@ -2627,17 +2634,17 @@ class JourneyApp {
 
           <div class="place-actions-row">
             <div class="place-links-group">
-              <a href="${deviceMapsUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-maps" title="Mở ứng dụng Google Maps của thiết bị và dẫn đường ngắn nhất">
+              <a href="${this.escapeHTML(deviceMapsUrl)}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-maps" title="Mở ứng dụng Google Maps của thiết bị và dẫn đường ngắn nhất">
                 🗺️ Chỉ đường
               </a>
-              ${place.tiktokUrl ? `
-                <a href="${place.tiktokUrl}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-tiktok" title="Xem video review trên TikTok">
+              ${tiktokUrl ? `
+                <a href="${this.escapeHTML(tiktokUrl)}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-tiktok" title="Xem video review trên TikTok">
                   🎵 TikTok
                 </a>
               ` : ""}
             </div>
 
-            <button class="btn-place-toggle-visited couple-only" data-id="${place.id}" title="${place.visited ? "Đánh dấu muốn đi lại" : "Đánh dấu đã đến cùng nhau"}">
+            <button class="btn-place-toggle-visited couple-only" data-id="${this.escapeHTML(place.id)}" title="${place.visited ? "Đánh dấu muốn đi lại" : "Đánh dấu đã đến cùng nhau"}">
               ${place.visited ? "✓ Đã đến" : "+ Đánh dấu đã đi"}
             </button>
           </div>
@@ -2837,7 +2844,7 @@ class JourneyApp {
     try {
       const dataWithAuth = {
         ...payload,
-        passcode: this.config.passcode || "kimthu"
+        passcode: this.config.passcode || ""
       };
 
       // Gửi text/plain để không bị chặn bởi CORS Preflight OPTIONS trên browser
@@ -2897,6 +2904,14 @@ class JourneyApp {
     this.currentChatSenderLabel = document.getElementById("current-chat-sender-label");
     this.chatReceiverName = document.getElementById("chat-receiver-name");
     this.chatMessagesContainer = document.getElementById("chat-messages-container");
+    if (this.chatMessagesContainer) {
+      this.chatMessagesContainer.addEventListener("click", (e) => {
+        const img = e.target.closest ? e.target.closest(".chat-msg-img") : null;
+        if (!img) return;
+        const msg = this.chatMessages.find((m) => String(m.id) === img.dataset.msgId);
+        if (msg) this.viewChatImage(msg.image);
+      });
+    }
     this.chatForm = document.getElementById("chat-form");
     this.chatTextInput = document.getElementById("chat-text-input");
     this.chatImageFileInput = document.getElementById("chat-image-file-input");
@@ -3066,11 +3081,12 @@ class JourneyApp {
     this.chatMessagesContainer.innerHTML = this.chatMessages.map(msg => {
       const isSent = msg.sender === this.currentSender;
       const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
+      const chatImageUrl = safeUrl(msg.image, MEMORY_IMAGE_URL_OPTIONS);
       return `
         <div class="chat-msg-row ${isSent ? 'sent' : 'received'}">
           <span class="chat-msg-sender-name">${this.escapeHTML(msg.sender)}</span>
           <div class="chat-bubble">
-            ${msg.image ? `<img src="${msg.image}" alt="Ảnh tin nhắn" class="chat-msg-img" onclick="window.journeyApp.viewChatImage('${msg.image}')">` : ""}
+            ${chatImageUrl ? `<img src="${this.escapeHTML(chatImageUrl)}" alt="Ảnh tin nhắn" class="chat-msg-img" data-msg-id="${this.escapeHTML(msg.id)}">` : ""}
             ${msg.text ? `<div>${this.escapeHTML(msg.text)}</div>` : ""}
           </div>
           <span class="chat-msg-time">${timeStr}</span>
@@ -3083,7 +3099,7 @@ class JourneyApp {
 
   viewChatImage(url) {
     if (this.lightboxModal && this.lightboxImg) {
-      this.lightboxImg.src = url;
+      this.lightboxImg.src = safeUrl(url, MEMORY_IMAGE_URL_OPTIONS);
       this.lightboxTitle.textContent = "Ảnh Từ Hộp Thư Chat 💕";
       this.lightboxDate.textContent = "Lưu trữ an toàn trên Google Drive";
       this.lightboxStory.textContent = "";
@@ -3093,10 +3109,14 @@ class JourneyApp {
 
   syncFromBackend() {
     if (!this.config.apiUrl) return;
-    const fetchUrl = this.config.apiUrl + (this.isAuthenticated ? `?passcode=${encodeURIComponent(this.config.passcode || "kimthu")}` : "");
+    const fetchUrl = this.config.apiUrl + (this.isAuthenticated ? `?passcode=${encodeURIComponent(this.config.passcode || "")}` : "");
     fetch(fetchUrl)
       .then(res => res.json())
       .then(data => {
+        if (this.isAuthenticated && data.isAuth === false) {
+          this.lockForRejectedPasscode();
+          return;
+        }
         if (data.memories && Array.isArray(data.memories)) {
           this.syncMemories(data.memories);
         }
@@ -3279,10 +3299,11 @@ class JourneyApp {
     if (!locationStr) return "";
     const match = locationStr.match(/(https?:\/\/[^\s\)]+)/);
     if (match) {
-      const url = match[1];
+      const url = safeUrl(match[1]);
+      if (!url) return `<span class="locket-loc-badge">📍 ${this.escapeHTML(locationStr)}</span>`;
       let label = locationStr.replace(url, "").replace(/[\(\)]/g, "").trim();
       if (!label || label === "-") label = "Toạ độ Google Maps";
-      return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="locket-loc-badge locket-loc-link" title="Xem trên Google Maps" onclick="event.stopPropagation()">📍 ${this.escapeHTML(label)} ↗</a>`;
+      return `<a href="${this.escapeHTML(url)}" target="_blank" rel="noopener noreferrer" class="locket-loc-badge locket-loc-link" title="Xem trên Google Maps" onclick="event.stopPropagation()">📍 ${this.escapeHTML(label)} ↗</a>`;
     }
     return `<span class="locket-loc-badge">📍 ${this.escapeHTML(locationStr)}</span>`;
   }
@@ -3306,7 +3327,7 @@ class JourneyApp {
 
   escapeHTML(str) {
     if (!str) return "";
-    return str.replace(/[&<>'"]/g, 
+    return String(str).replace(/[&<>'"]/g, 
       tag => ({
         '&': '&amp;',
         '<': '&lt;',

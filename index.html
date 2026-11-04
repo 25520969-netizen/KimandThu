@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400;1,600&display=swap" rel="stylesheet">
   
-  <link rel="stylesheet" href="styles.css?v=4.5">
+  <link rel="stylesheet" href="styles.css?v=4.6">
 </head>
 <body>
   <!-- Ambient Floating Petals Background Canvas -->
@@ -293,7 +293,7 @@
           </div>
         </div>
 
-        <input type="hidden" id="memory-image-input" value="assets/images/memory1.jpg">
+        <input type="hidden" id="memory-image-input" value="">
 
         <!-- Tiêu đề -->
         <div class="form-group">
@@ -562,15 +562,14 @@
         </div>
 
         <div class="form-group">
-          <label for="cfg-passcode">Mật mã mở khóa quyền riêng tư (Kim & Thư)</label>
+          <label for="copy-secret-link-btn">Mật mã mở khóa quyền riêng tư (Kim & Thư)</label>
           <div style="display: flex; gap: 8px;">
-            <input type="text" id="cfg-passcode" value="kimthu" style="flex: 1;" placeholder="Mật mã bí mật">
             <button type="button" class="btn btn-secondary btn-sm" id="copy-secret-link-btn" title="Sao chép link tự động mở khóa gửi cho Thư">
               📋 Link Tự Mở Khóa
             </button>
           </div>
           <small style="color: var(--text-muted); font-size: 0.78rem;">
-            Bấm "Link Tự Mở Khóa" rồi gửi cho Thư. Thư chỉ cần click vào là máy của Thư tự mở full quyền mãi mãi!
+            Mật mã được đặt trên máy chủ (Apps Script → Script properties), không lưu trong trang web. Bấm "Link Tự Mở Khóa" rồi gửi riêng cho Thư (đừng đăng công khai).
           </small>
         </div>
 
@@ -608,7 +607,7 @@
         </div>
         <div class="form-group">
           <label for="auth-passcode-input">Mật mã tình yêu 💕</label>
-          <input type="text" id="auth-passcode-input" placeholder="Nhập mật mã (kimthu hoặc ngày kỷ niệm)..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required>
+          <input type="text" id="auth-passcode-input" placeholder="Nhập mật mã tình yêu..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" required>
           <small id="auth-error-msg" style="color: #e11d48; font-size: 0.82rem; margin-top: 6px; display: none;">Mật mã chưa đúng nè, thử lại nhé bé yêu! 💕</small>
         </div>
         <div class="modal-actions" style="margin-top: 18px;">
@@ -685,6 +684,9 @@
     </form>
   </div>
 
-  <script src="app.js?v=4.4"></script>
+  <script src="src/utils/safe_url.js?v=4.6"></script>
+  <script src="src/utils/local_date.js?v=4.6"></script>
+  <script src="src/services/period_cycle.js?v=4.6"></script>
+  <script src="app.js?v=4.6"></script>
 </body>
 </html>
