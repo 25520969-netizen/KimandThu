@@ -191,3 +191,196 @@
     transform: none;
   }
 }
+
+/* ======================= Phase B ======================= */
+
+/* ---------- Compact hero + one-line section header (UI-03) ---------- */
+@media (max-width: 640px) {
+  .hero-section { padding: 0 0 4px; }
+  .hero-title { font-size: 1.75rem; margin: 0; }
+  .hero-quote { margin-bottom: 6px; font-size: 0.95rem; }
+
+  .love-counter-card { padding: 10px 12px; }
+  .love-counter-card .counter-header { margin-bottom: 6px; }
+  .love-counter-card .counter-title { font-size: 0.68rem; }
+  .counter-grid { gap: 6px; }
+  .counter-box { padding: 6px 4px; }
+  .counter-number { font-size: 1.5rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .counter-unit { font-size: 0.65rem; }
+  .milestone-line { margin-top: 6px; font-size: 0.8rem; }
+
+  .timeline-section .section-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    text-align: left;
+  }
+  .timeline-section .pill-tag { display: none; }
+  .timeline-section .section-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+    text-align: left;
+  }
+  /* The heart FAB proxies to this button for couples; it stays in the DOM, just not drawn. */
+  body:not(.is-guest) #open-add-memory-modal-btn {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  body.is-guest #open-add-memory-modal-btn {
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 0.8125rem;
+  }
+  .timeline-section .view-toggle { margin: 0; flex: none; }
+
+  /* Places header */
+  #view-places .section-header { margin-bottom: 8px; }
+  #view-places .pill-tag { display: none; }
+  #view-places .section-title { font-size: 1.25rem; margin: 0 0 4px; }
+  #view-places .section-desc,
+  #view-places .section-header > p { display: none; }
+}
+
+/* ---------- Chat: full-screen sheet on phones (UI-05) ---------- */
+@media (max-width: 640px) {
+  .chat-drawer {
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border: none;
+    border-radius: 0;
+    padding-top: env(safe-area-inset-top, 0px);
+    background: #fff8fa;
+    transform: translateY(100%);
+    transition: transform 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.24s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0.24s;
+  }
+  .chat-drawer.open { transform: translateY(0); }
+  body.chat-open .bottom-nav,
+  body.chat-open #floating-chat-btn,
+  body.chat-open .sticky-counter-pill { display: none; }
+  body.chat-open { overflow: hidden; }
+
+  .chat-header { min-height: 56px; padding: 8px 12px; gap: 8px; }
+  .chat-title-wrap { min-width: 0; }
+  .chat-status-text {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+  }
+  .chat-header-actions { flex: none; gap: 4px; }
+  .chat-sender-toggle-btn { white-space: nowrap; min-height: 44px; padding: 0 10px; font-size: 0.75rem; }
+  .chat-close-btn { min-width: 44px; min-height: 44px; }
+
+  .chat-input-bar { padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); gap: 8px; }
+  .chat-input-bar input[type="text"] { flex: 1 1 auto; min-width: 0; }
+  /* heart when empty, send when there is text */
+  .chat-input-bar .chat-send-btn { display: none; }
+  .chat-input-bar.has-text .chat-send-btn { display: inline-flex; }
+  .chat-input-bar.has-text .chat-quick-heart-btn { display: none; }
+}
+
+/* ---------- Sheets: one primary action, close with x / swipe / backdrop (UI-06) ---------- */
+.sheet-close-btn { display: none; }
+
+@media (max-width: 640px) {
+  .custom-modal:not(.photo-lightbox-modal) .modal-card { position: relative; touch-action: pan-y; }
+  .sheet-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;
+    color: var(--text-soft, #7a5f6c);
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+  }
+  #cancel-memory-btn,
+  #cancel-place-btn,
+  #cancel-current-loc-btn,
+  #cancel-period-btn {
+    display: none;
+  }
+  .custom-modal:not(.photo-lightbox-modal) .modal-actions {
+    position: sticky;
+    bottom: calc(-20px - var(--safe-bottom, 0px));
+    padding-top: 8px;
+    background: linear-gradient(to top, #ffffff 80%, rgba(255, 255, 255, 0));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-drawer { transition: none; }
+}
+
+/* ---------- Icons, background and blur (UI-11, UI-12) ---------- */
+.ui-icon { display: block; width: 24px; height: 24px; }
+.header-icon-btn { color: var(--pink-deep, #c9184a); }
+.bottom-tab .tab-icon { display: inline-flex; font-size: 0; }
+.bottom-tab { color: var(--text-soft, #7a5f6c); }
+.bottom-tab.active .ui-icon { fill: rgba(201, 24, 74, 0.14); }
+
+/* Page background: solid colour plus one fixed pseudo-layer instead of background-attachment: fixed. */
+body {
+  background-image: none;
+  background-attachment: scroll;
+  background-color: #fff8fa;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 10% 15%, rgba(255, 220, 229, 0.35) 0%, transparent 45%),
+    radial-gradient(circle at 90% 80%, rgba(255, 184, 201, 0.22) 0%, transparent 50%);
+}
+
+/* Solid bars on phones: no blur under scrolling content. */
+@media (max-width: 767px) {
+  .nav-bar,
+  .bottom-nav {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(255, 255, 255, 0.97);
+  }
+}
+
+/* Phase B tuning: guests get an icon-only add button so the title stays on one line. */
+@media (max-width: 640px) {
+  .timeline-section .section-title { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 1.15rem; }
+  body.is-guest #open-add-memory-modal-btn { width: 44px; padding: 0; flex: none; }
+  body.is-guest #open-add-memory-modal-btn span { display: none; }
+  .timeline-section .view-toggle-btn { min-height: 36px; padding: 0 10px; }
+  .main-content { padding-top: 8px; }
+  .love-counter-card { margin-top: 0; }
+  .counter-box { padding: 4px; }
+  .counter-header { gap: 4px; }
+}
+
+/* Long location text must never widen the page. */
+.locket-card,
+.locket-story-frame,
+.locket-meta-row { min-width: 0; max-width: 100%; }
