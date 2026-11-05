@@ -12,10 +12,16 @@
 }
 
 /* Solid deep-pink fill for primary actions (white text = 5.66:1) */
-.btn-primary,
+.btn-primary {
+  background: var(--action-fill);
+  color: #ffffff;
+}
+
+@media (hover: hover) and (pointer: fine) {
 .btn-primary:hover {
   background: var(--action-fill);
   color: #ffffff;
+}
 }
 
 /* ---------- Legacy controls replaced by the tab bar ---------- */

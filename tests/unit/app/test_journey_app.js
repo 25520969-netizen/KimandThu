@@ -3,9 +3,9 @@
 const journeyAppSource = readText("app.js");
 const noop = () => {};
 const JourneyAppClass = new Function(
-  "document", "window", "localStorage", "safeUrl", "computeCycle", "formatLocalDate",
+  "document", "window", "localStorage", "safeUrl", "computeCycle", "formatLocalDate", "resizeDriveThumbnail",
   `${journeyAppSource}\n;return JourneyApp;`
-)({ addEventListener: noop }, { addEventListener: noop }, {}, safeUrl, computeCycle, formatLocalDate);
+)({ addEventListener: noop }, { addEventListener: noop }, {}, safeUrl, computeCycle, formatLocalDate, resizeDriveThumbnail);
 const app = Object.create(JourneyAppClass.prototype);
 
 test("extractCoordinates: lat/lon query (BUG-05)", () => {
@@ -78,4 +78,11 @@ test("applyApiUrlParam: malformed percent-encoding does not throw", () => {
   ctx.config = { apiUrl: "u" };
   ctx.applyApiUrlParam("%E0%A4%A");
   assertEqual(ctx.config.apiUrl, "u");
+});
+
+test("formatMemoryDateShort: compact date and time for the meta row (UI-02)", () => {
+  const year = new Date().getFullYear();
+  assertEqual(app.formatMemoryDateShort(`${year}-10-25T17:09`), "25/10 · 17:09");
+  assertEqual(app.formatMemoryDateShort("2020-01-05"), "5/1/2020");
+  assertEqual(app.formatMemoryDateShort(""), "");
 });

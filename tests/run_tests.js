@@ -18,6 +18,7 @@ if (typeof console === "undefined") {
 const SOURCE_FILES = [
   "src/utils/safe_url.js",
   "src/utils/local_date.js",
+  "src/utils/drive_image.js",
   "src/services/period_cycle.js",
   "src/services/sync_merge.js",
   "src/services/sync_policy.js",
@@ -31,6 +32,7 @@ const SOURCE_FILES = [
 const TEST_FILES = [
   "tests/unit/utils/test_safe_url.js",
   "tests/unit/utils/test_local_date.js",
+  "tests/unit/utils/test_drive_image.js",
   "tests/unit/services/test_period_cycle.js",
   "tests/unit/services/test_sync_merge.js",
   "tests/unit/services/test_sync_policy.js",

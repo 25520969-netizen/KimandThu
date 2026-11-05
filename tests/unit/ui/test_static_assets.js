@@ -87,3 +87,27 @@ test("backdrop-filter is limited to the header, tab bar and modal backdrop (UX-0
   const css = readText("styles.css");
   assertEqual((css.match(/backdrop-filter/g) || []).length <= 2, true);
 });
+
+test("UI-10: no 'transition: all' in the stylesheets", () => {
+  ["styles.css", "src/styles/app_shell.css", "src/styles/redesign.css"].forEach((f) => {
+    assertEqual(/transition:\s*all\b/.test(readText(f)), false, f);
+  });
+});
+
+test("UI-08: every :hover rule is inside a (hover: hover) media query", () => {
+  ["styles.css", "src/styles/app_shell.css", "src/styles/redesign.css"].forEach((f) => {
+    let depthInHover = 0;
+    let bad = 0;
+    readText(f).split("\n").forEach((line) => {
+      if (/@media\s*\(hover:\s*hover\)/.test(line)) depthInHover = 1;
+      if (line.indexOf(":hover") !== -1 && depthInHover === 0) bad += 1;
+      if (/^}/.test(line) && depthInHover === 1 && !/^\s/.test(line)) depthInHover = 0;
+    });
+    assertEqual(bad, 0, `${f} has unguarded :hover rules`);
+  });
+});
+
+test("UI-03: the FAB proxy targets still exist in index.html", () => {
+  assertTrue(indexHtml.indexOf('id="open-add-memory-modal-btn"') !== -1, "add memory button");
+  assertTrue(indexHtml.indexOf('id="open-add-place-modal-btn"') !== -1, "add place button");
+});

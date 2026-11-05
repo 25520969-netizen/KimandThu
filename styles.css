@@ -117,9 +117,11 @@ body {
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .logo:hover {
   transform: scale(1.03);
   opacity: 0.95;
+}
 }
 
 .logo-heart {
@@ -158,13 +160,22 @@ body {
   padding: 0;
 }
 
-.circle-menu-btn:hover,
 .circle-menu-btn:focus-visible {
   background: #ffffff;
   color: var(--pink-accent);
   border-color: var(--pink-primary);
   transform: translateY(-2px) scale(1.06);
   box-shadow: 0 6px 20px rgba(255, 117, 143, 0.32);
+}
+
+@media (hover: hover) and (pointer: fine) {
+.circle-menu-btn:hover {
+  background: #ffffff;
+  color: var(--pink-accent);
+  border-color: var(--pink-primary);
+  transform: translateY(-2px) scale(1.06);
+  box-shadow: 0 6px 20px rgba(255, 117, 143, 0.32);
+}
 }
 
 .circle-menu-btn .chevron-down-icon {
@@ -232,10 +243,12 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .dropdown-item:hover {
   background: var(--pink-lightest);
   color: var(--pink-deep);
   transform: translateX(3px);
+}
 }
 
 .dropdown-item.active {
@@ -293,9 +306,11 @@ body {
   box-shadow: 0 8px 24px rgba(255, 77, 109, 0.32);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-primary:hover {
   transform: translateY(-2px) scale(1.02);
   box-shadow: 0 12px 28px rgba(255, 77, 109, 0.42);
+}
 }
 
 .btn-secondary {
@@ -305,11 +320,13 @@ body {
   box-shadow: var(--shadow-subtle);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-secondary:hover {
   background: var(--pink-lightest);
   border-color: var(--pink-primary);
   transform: translateY(-2px);
   box-shadow: var(--shadow-card);
+}
 }
 
 
@@ -319,10 +336,12 @@ body {
   border: 1px solid rgba(125, 101, 113, 0.25);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-outline:hover {
   border-color: var(--pink-primary);
   color: var(--pink-deep);
   background: var(--pink-lightest);
+}
 }
 
 .btn-sm {
@@ -407,9 +426,11 @@ body {
   background: linear-gradient(90deg, #ffb8c9, #ff4d6d, #ffb8c9);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .love-counter-card:hover {
   box-shadow: var(--shadow-hover);
   transform: translateY(-3px);
+}
 }
 
 .counter-header {
@@ -447,9 +468,11 @@ body {
   min-width: 0;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .counter-box:hover {
   transform: translateY(-2px);
   border-color: var(--pink-soft);
+}
 }
 
 .counter-number {
@@ -481,12 +504,14 @@ body {
   box-shadow: 0 2px 10px rgba(255, 117, 143, 0.15);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .period-nav-btn:hover {
   background: #ffffff;
   color: var(--pink-accent);
   border-color: var(--pink-primary);
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(255, 117, 143, 0.28);
+}
 }
 
 .period-modal-status-card {
@@ -721,9 +746,10 @@ body {
   font-weight: 600;
   box-shadow: 0 3px 12px rgba(255, 117, 143, 0.12);
   cursor: pointer;
-  transition: all 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-add-memory:hover {
   background: linear-gradient(135deg, #fff0f4 0%, #ffe4ec 100%);
   border-color: var(--pink-primary);
@@ -731,14 +757,17 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(255, 117, 143, 0.22);
 }
+}
 
 .btn-add-memory svg {
   stroke: var(--pink-primary);
   transition: transform 0.25s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-add-memory:hover svg {
   transform: rotate(90deg);
+}
 }
 
 /* ===================================================================
@@ -773,10 +802,12 @@ body {
   position: relative;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .locket-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 14px 34px rgba(255, 117, 143, 0.16);
   border-color: var(--pink-soft);
+}
 }
 
 /* KHUNG 1: KHUNG CHỨA ẢNH */
@@ -812,8 +843,10 @@ body {
   transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .locket-card:hover .locket-photo-inner img {
   transform: scale(1.05);
+}
 }
 
 /* Khoảnh khắc không có ảnh: nền hồng + trái tim thay cho ảnh mẫu (BUG-12) */
@@ -872,9 +905,11 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .locket-photo-frame:hover .locket-zoom-hint {
   opacity: 1;
   transform: translateY(0);
+}
 }
 
 /* KHUNG 2: KHUNG KẾ BÊN ẢNH MÔ TẢ CÂU CHUYỆN (STORY FRAME) */
@@ -921,9 +956,11 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .locket-delete-btn:hover {
   color: #ff3366;
   background: rgba(255, 51, 102, 0.1);
+}
 }
 
 .locket-story-title {
@@ -984,9 +1021,11 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .locket-expand-story-btn:hover {
   background: var(--pink-lightest);
   color: var(--pink-deep);
+}
 }
 
 .timeline-toggle-wrapper {
@@ -1073,12 +1112,14 @@ body {
   min-height: 44px;
   border-radius: var(--radius-pill);
   cursor: pointer;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   -webkit-tap-highlight-color: transparent;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .place-tab:hover {
   color: var(--pink-deep);
+}
 }
 
 .place-tab.active {
@@ -1109,7 +1150,7 @@ body {
   border-radius: var(--radius-pill);
   background: rgba(255, 117, 143, 0.14);
   color: var(--pink-deep);
-  transition: all 0.22s ease;
+  transition: transform 0.22s ease, opacity 0.22s ease, background-color 0.22s ease, border-color 0.22s ease, color 0.22s ease, box-shadow 0.22s ease;
 }
 
 .place-tab.active .place-tab-badge {
@@ -1144,15 +1185,23 @@ body {
   font-weight: 600;
   box-shadow: 0 2px 8px rgba(255, 117, 143, 0.1);
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.btn-gps-utility:hover,
 .places-gps-dropdown-wrap.open .btn-gps-utility {
   background: #ffffff;
   border-color: var(--pink-primary);
   color: var(--pink-accent);
   box-shadow: 0 4px 14px rgba(255, 117, 143, 0.22);
+}
+
+@media (hover: hover) and (pointer: fine) {
+.btn-gps-utility:hover {
+  background: #ffffff;
+  border-color: var(--pink-primary);
+  color: var(--pink-accent);
+  box-shadow: 0 4px 14px rgba(255, 117, 143, 0.22);
+}
 }
 
 .btn-gps-utility svg {
@@ -1215,10 +1264,12 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .places-gps-menu-item:hover {
   background: var(--pink-lightest);
   color: var(--pink-deep);
   transform: translateX(2px);
+}
 }
 
 .places-gps-menu-item svg {
@@ -1244,12 +1295,14 @@ body {
   font-weight: 600;
   box-shadow: 0 3px 12px rgba(255, 117, 143, 0.28);
   cursor: pointer;
-  transition: all 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-add-place:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(255, 117, 143, 0.38);
+}
 }
 
 .btn-add-place svg {
@@ -1277,10 +1330,12 @@ body {
   position: relative;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .place-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 12px 30px rgba(255, 117, 143, 0.16);
   border-color: var(--pink-soft);
+}
 }
 
 .place-card.is-visited {
@@ -1338,9 +1393,11 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .place-delete-btn:hover {
   color: #ff3366;
   background: rgba(255, 51, 102, 0.1);
+}
 }
 
 .place-meta-row {
@@ -1458,12 +1515,14 @@ body {
   box-shadow: 0 2px 6px rgba(255, 117, 143, 0.12);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-place-maps:hover {
   background: linear-gradient(135deg, var(--pink-primary) 0%, #ff5277 100%);
   color: #ffffff;
   border-color: var(--pink-primary);
   box-shadow: 0 4px 14px rgba(255, 117, 143, 0.35);
   transform: translateY(-1px);
+}
 }
 
 .btn-place-tiktok {
@@ -1472,10 +1531,12 @@ body {
   border: 1px solid #333333;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-place-tiktok:hover {
   background: #fe2c55;
   border-color: #fe2c55;
   transform: translateY(-1px);
+}
 }
 
 .btn-place-toggle-visited {
@@ -1490,10 +1551,12 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-place-toggle-visited:hover {
   border-color: var(--pink-primary);
   color: var(--pink-deep);
   background: var(--pink-lightest);
+}
 }
 
 /* ===================================================================
@@ -1555,9 +1618,11 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .modal-close-btn:hover {
   background: var(--pink-accent);
   color: #ffffff;
+}
 }
 
 .modal-form {
@@ -1634,16 +1699,18 @@ body {
   font-size: 0.92rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 2px 8px rgba(255, 117, 143, 0.08);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .photo-source-card:hover {
   background: linear-gradient(135deg, #ffffff 0%, #ffeef2 100%);
   border-color: var(--pink-primary);
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(255, 117, 143, 0.22);
   color: var(--pink-primary);
+}
 }
 
 .photo-source-card:active {
@@ -1659,9 +1726,11 @@ body {
   transition: transform 0.25s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .photo-source-card:hover .source-card-icon {
   transform: scale(1.12);
   color: var(--pink-deep);
+}
 }
 
 .source-card-text {
@@ -1708,8 +1777,10 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-shutter-capture:hover {
   transform: scale(1.03);
+}
 }
 
 .btn-close-camera-view {
@@ -1753,9 +1824,11 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .remove-preview-btn:hover {
   background: #ffffff;
   color: var(--pink-deep);
+}
 }
 
 .label-with-action {
@@ -1776,17 +1849,19 @@ body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1), color 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0;
   flex-shrink: 0;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .btn-circular-reset:hover {
   background: var(--pink-primary);
   color: #ffffff;
   border-color: var(--pink-primary);
   transform: rotate(180deg);
   box-shadow: 0 3px 8px rgba(255, 117, 143, 0.35);
+}
 }
 
 .btn-circular-reset:active {
@@ -1811,10 +1886,12 @@ body {
   gap: 3px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .locket-loc-link:hover {
   background: var(--pink-primary) !important;
   color: #ffffff !important;
   transform: translateY(-1px);
+}
 }
 
 .modal-actions {
@@ -2114,9 +2191,11 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .floating-chat-btn:hover {
   transform: translateY(-4px) scale(1.08);
   box-shadow: 0 12px 30px rgba(255, 77, 109, 0.5);
+}
 }
 
 .chat-btn-icon {
@@ -2156,7 +2235,7 @@ body {
   visibility: hidden;
   transform: translateY(20px) scale(0.94);
   transform-origin: bottom right;
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   pointer-events: none;
 }
 
@@ -2242,9 +2321,11 @@ body {
   transition: var(--transition-smooth);
 }
 
+@media (hover: hover) and (pointer: fine) {
 .chat-sender-toggle-btn:hover {
   background: #ffffff;
   border-color: var(--pink-primary);
+}
 }
 
 .chat-close-btn {
@@ -2257,8 +2338,10 @@ body {
   padding: 0 4px;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .chat-close-btn:hover {
   color: var(--pink-primary);
+}
 }
 
 /* Messages container */
@@ -2396,9 +2479,11 @@ body {
   transition: transform 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .chat-attach-btn:hover,
 .chat-quick-heart-btn:hover {
   transform: scale(1.15);
+}
 }
 
 .chat-input-bar input[type="text"] {
@@ -2436,8 +2521,10 @@ body {
   transition: transform 0.2s ease;
 }
 
+@media (hover: hover) and (pointer: fine) {
 .chat-send-btn:hover {
   transform: scale(1.08);
+}
 }
 
 @media (max-width: 768px) {
@@ -2693,7 +2780,7 @@ body:not(.is-guest) .nav-dropdown-menu .dropdown-item.guest-only {
   z-index: 99999;
   opacity: 0;
   pointer-events: none;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   text-align: center;
   max-width: 90vw;
 }

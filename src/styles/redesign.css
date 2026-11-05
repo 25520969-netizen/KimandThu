@@ -1,0 +1,193 @@
+/* UI redesign Phase A: photo-first cards, one-line chips, touch press feedback (UI-02/03/04/08). */
+
+/* ---------- Moments card: one surface, metadata under the photo ---------- */
+.locket-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #ffd1dc;
+  box-shadow: 0 1px 2px rgba(201, 24, 74, 0.06), 0 4px 12px rgba(201, 24, 74, 0.06);
+}
+
+.locket-photo-inner {
+  aspect-ratio: 6 / 5;
+  border-radius: 14px;
+}
+
+.locket-photo-placeholder {
+  background: linear-gradient(135deg, #ffeef3 0%, #ffd1dc 100%);
+}
+
+/* The date chip floats on the photo only in grid view; the feed shows it in the meta row. */
+.locket-photo-overlay,
+.locket-zoom-hint,
+.locket-sender-badge {
+  display: none;
+}
+
+.locket-photo-overlay:has(.sync-pending-badge) {
+  display: flex;
+}
+
+.locket-photo-overlay .locket-date-chip {
+  display: none;
+}
+
+.locket-story-frame {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.locket-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  max-width: 100%;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-soft, #7a5f6c);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.locket-meta-date {
+  flex: none;
+}
+
+.locket-meta-row .locket-loc-badge {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+  background: transparent;
+  color: var(--pink-deep, #c9184a);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.locket-meta-row .locket-loc-link {
+  /* keep the link tappable (>= 44px tall hit area) without growing the row */
+  padding: 10px 0;
+  margin: -10px 0;
+}
+
+.locket-story-title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.locket-story-text {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 1.25rem;
+  line-height: 1.35;
+}
+
+.locket-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.locket-expand-story-btn {
+  min-height: 44px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  color: var(--pink-deep, #c9184a);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.locket-delete-btn {
+  position: static;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Grid view keeps the photo only, with the date chip on it. */
+.locket-list.is-grid .locket-card {
+  padding: 0;
+  gap: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.locket-list.is-grid .locket-photo-inner {
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+}
+
+.locket-list.is-grid .locket-photo-overlay {
+  display: flex;
+}
+
+.locket-list.is-grid .locket-photo-overlay .locket-date-chip {
+  display: none;
+}
+
+/* ---------- Places: GPS tools as one scrollable row of single-line chips ---------- */
+.places-controls-bar {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.places-gps-dropdown-menu {
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.places-gps-dropdown-menu::-webkit-scrollbar {
+  display: none;
+}
+
+.places-gps-menu-item {
+  flex: 0 0 auto;
+  flex-direction: row;
+  min-height: 44px;
+  padding: 0 14px;
+  gap: 6px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ---------- Touch press feedback (hover effects now only run on real pointers) ---------- */
+.locket-card:active,
+.btn:active,
+.circle-menu-btn:active,
+.places-gps-menu-item:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .locket-card:active,
+  .btn:active,
+  .circle-menu-btn:active,
+  .places-gps-menu-item:active {
+    transform: none;
+  }
+}

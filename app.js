@@ -1430,52 +1430,38 @@ class JourneyApp {
       lastMonthKey = monthKey;
       const imageUrl = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
       const photoHtml = imageUrl
-        ? `<img src="${this.escapeHTML(imageUrl)}" alt="${this.escapeHTML(mem.title)}" loading="lazy">`
+        ? `<img src="${this.escapeHTML(resizeDriveThumbnail(imageUrl, this.timelineView === "grid" ? 400 : 800))}" alt="" decoding="async" loading="lazy" data-fallback-src="${this.escapeHTML(imageUrl)}">`
         : `<div class="locket-photo-placeholder" aria-hidden="true">❤️</div>`;
+      const locationHtml = locBadgeHtml ? `<span class="locket-meta-sep" aria-hidden="true">·</span>${locBadgeHtml}` : "";
 
       return `${monthSeparator}
         <article class="locket-card" data-id="${this.escapeHTML(mem.id)}">
-          <!-- Khung 1: Khung chứa ảnh (Locket Photo Widget) -->
-          <div class="locket-photo-frame" title="Chạm để xem ảnh phóng to">
+          <div class="locket-photo-frame" title="Chạm để xem ảnh phóng to" role="img" aria-label="${this.escapeHTML(mem.title)}">
             <div class="locket-photo-inner">
               ${photoHtml}
               <div class="locket-photo-overlay">
                 ${mem.syncState === "pending" ? '<span class="sync-pending-badge">⏳ chưa đồng bộ</span>' : ""}
-                <span class="locket-date-chip">🗓️ ${this.escapeHTML(dateFormatted)}</span>
-                <span class="locket-sender-badge">💕 ${this.escapeHTML(this.config.partnerOne)} & ${this.escapeHTML(this.config.partnerTwo)}</span>
-                ${locBadgeHtml}
+                <span class="locket-date-chip">${this.escapeHTML(dateFormatted)}</span>
               </div>
-              <div class="locket-zoom-hint">🔍 Phóng to</div>
             </div>
           </div>
 
-          <!-- Khung 2: Khung kế bên ảnh mô tả câu chuyện (Story Frame) -->
           <div class="locket-story-frame">
-            <div class="locket-story-header">
-              <div class="locket-time-tag">
-                <span class="locket-cal-icon">🗓️</span>
-                <span class="locket-date-text">${dateFormatted}</span>
-              </div>
-              ${this.isAuthenticated ? `<button class="locket-delete-btn couple-only" data-id="${this.escapeHTML(mem.id)}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>` : ""}
+            <div class="locket-meta-row">
+              <span class="locket-meta-date">${this.escapeHTML(this.formatMemoryDateShort(mem.date))}</span>${locationHtml}
             </div>
-
             <h3 class="locket-story-title">${this.escapeHTML(mem.title)}</h3>
-
-            <div class="locket-story-body">
-              <p class="locket-story-text">"${this.escapeHTML(mem.story || "Khoảnh khắc ngọt ngào của hai đứa...")}"</p>
-            </div>
-
-            <div class="locket-story-footer">
-              <div class="locket-footer-heart">
-                <span class="mini-heart-pulse">❤️</span>
-                <span class="locket-footer-note">Lưu giữ theo thời gian</span>
-              </div>
-              <button class="locket-expand-story-btn" data-id="${this.escapeHTML(mem.id)}">Xem chi tiết 🌸</button>
+            <p class="locket-story-text">"${this.escapeHTML(mem.story || "Khoảnh khắc ngọt ngào của hai đứa...")}"</p>
+            <div class="locket-card-actions">
+              <button type="button" class="locket-expand-story-btn" data-id="${this.escapeHTML(mem.id)}">Xem thêm</button>
+              ${this.isAuthenticated ? `<button type="button" class="locket-delete-btn couple-only" data-id="${this.escapeHTML(mem.id)}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>` : ""}
             </div>
           </div>
         </article>
       `;
     }).join("");
+
+    this.attachImageFallbacks(this.timelineContainer);
 
     // Nút mở rộng nếu có nhiều hơn 6 kỷ niệm để trang không bị quá dài
     if (this.memories.length > 6) {
@@ -1924,6 +1910,8 @@ class JourneyApp {
   // ==========================================
   switchView(viewName, updateHistory = true) {
     const isPlaces = (viewName === "places");
+    this.viewScroll = this.viewScroll || {};
+    if (this.currentView) this.viewScroll[this.currentView] = window.scrollY || 0;
     this.currentView = isPlaces ? "places" : "moments";
     document.dispatchEvent(new CustomEvent("journey:viewchange", { detail: { view: this.currentView } }));
 
@@ -1951,7 +1939,7 @@ class JourneyApp {
       this.renderPlaces();
       this.calculateAllDistancesAndRoutes(false);
 
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: this.viewScroll.places || 0, behavior: "instant" });
 
       if (updateHistory) {
         window.history.pushState({ view: "places" }, "", "#places");
@@ -1975,7 +1963,7 @@ class JourneyApp {
         if (this.navMenuToggleBtn) this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
       }
 
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: this.viewScroll.moments || 0, behavior: "instant" });
 
       if (updateHistory) {
         const cleanUrl = window.location.pathname + window.location.search;
@@ -3663,6 +3651,25 @@ class JourneyApp {
     }
   }
 
+  // UI-01: ảnh Drive lỗi → thử lại ảnh gốc một lần, rồi hiện ô hồng có trái tim.
+  attachImageFallbacks(root) {
+    root.querySelectorAll("img[data-fallback-src]").forEach((img) => {
+      img.addEventListener("error", () => {
+        const original = img.dataset.fallbackSrc;
+        if (original && img.getAttribute("src") !== original && !img.dataset.retried) {
+          img.dataset.retried = "1";
+          img.src = original;
+          return;
+        }
+        const placeholder = document.createElement("div");
+        placeholder.className = "locket-photo-placeholder";
+        placeholder.setAttribute("aria-hidden", "true");
+        placeholder.textContent = "❤️";
+        img.replaceWith(placeholder);
+      });
+    });
+  }
+
   formatLocationBadge(locationStr) {
     if (!locationStr) return "";
     const match = locationStr.match(/(https?:\/\/[^\s\)]+)/);
@@ -3674,6 +3681,19 @@ class JourneyApp {
       return `<a href="${this.escapeHTML(url)}" target="_blank" rel="noopener noreferrer" class="locket-loc-badge locket-loc-link" title="Xem trên Google Maps">📍 ${this.escapeHTML(label)} ↗</a>`;
     }
     return `<span class="locket-loc-badge">📍 ${this.escapeHTML(locationStr)}</span>`;
+  }
+
+  // Ngày gọn cho dòng meta dưới ảnh: "25/10 · 17:09" (cùng năm) hoặc "25/10/2025 · 17:09".
+  formatMemoryDateShort(dateStr) {
+    if (!dateStr) return "";
+    const [datePart, timePart] = String(dateStr).split("T");
+    const [year, month, day] = datePart.split("-");
+    if (!year || !month || !day) return datePart;
+    const sameYear = String(new Date().getFullYear()) === year;
+    let out = `${parseInt(day, 10)}/${parseInt(month, 10)}${sameYear ? "" : `/${year}`}`;
+    const time = timePart ? timePart.split(":").slice(0, 2).join(":") : "";
+    if (time.length === 5) out += ` · ${time}`;
+    return out;
   }
 
   formatMemoryDate(dateStr) {
