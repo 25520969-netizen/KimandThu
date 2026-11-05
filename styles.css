@@ -125,7 +125,7 @@ body {
 }
 
 .logo-heart {
-  animation: gentlePulse 2.5s infinite ease-in-out;
+  animation: none;
   display: inline-block;
 }
 
@@ -540,7 +540,7 @@ body {
 
 .period-strawberry-icon {
   font-size: 1.45rem;
-  animation: gentlePulse 3s infinite ease-in-out;
+  animation: none;
   display: inline-block;
 }
 
@@ -626,7 +626,7 @@ body {
 
 .period-alert-icon {
   font-size: 1.5rem;
-  animation: gentlePulse 2s infinite ease-in-out;
+  animation: none;
   display: inline-block;
 }
 
@@ -1005,7 +1005,7 @@ body {
 }
 
 .mini-heart-pulse {
-  animation: heartBeat 2s infinite ease-in-out;
+  animation: none;
   display: inline-block;
 }
 
@@ -2041,7 +2041,7 @@ body {
   border-radius: 50%;
   background: #28a745;
   box-shadow: 0 0 6px rgba(40, 167, 69, 0.6);
-  animation: pulseDot 1.8s infinite;
+  animation: none;
 }
 
 .modal-title-with-subtitle h3 {
@@ -2115,7 +2115,7 @@ body {
 
 .footer-heart {
   font-size: 1.8rem;
-  animation: gentlePulse 2s infinite ease-in-out;
+  animation: none;
   margin-bottom: 8px;
 }
 
@@ -2200,7 +2200,7 @@ body {
 
 .chat-btn-icon {
   font-size: 1.6rem;
-  animation: gentlePulse 2.5s infinite ease-in-out;
+  animation: none;
 }
 
 .chat-badge-pulse {

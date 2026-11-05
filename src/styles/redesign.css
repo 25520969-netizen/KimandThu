@@ -384,3 +384,21 @@ body::before {
 .locket-card,
 .locket-story-frame,
 .locket-meta-row { min-width: 0; max-width: 100%; }
+
+/* ======================= Phase C ======================= */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 150ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Long feeds: let the browser skip layout/paint of off-screen cards (progressive enhancement). */
+.locket-list:not(.is-grid) .locket-card {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 460px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none; }
+}

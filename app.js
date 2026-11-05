@@ -1909,6 +1909,18 @@ class JourneyApp {
   // ĐIỀU HƯỚNG CHUYỂN TRANG (KHOẢNH KHẮC VS NƠI MUỐN ĐẾN)
   // ==========================================
   switchView(viewName, updateHistory = true) {
+    // Cross-fade between tabs where supported (progressive enhancement); otherwise switch instantly.
+    const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (typeof document.startViewTransition === "function" && !reduceMotion && this.currentView) {
+      const transition = document.startViewTransition(() => this.applyView(viewName, updateHistory));
+      // A skipped transition (hidden tab, rapid taps) is harmless: the view is still switched.
+      [transition.ready, transition.finished, transition.updateCallbackDone].forEach((p) => { if (p && p.catch) p.catch(() => {}); });
+      return;
+    }
+    this.applyView(viewName, updateHistory);
+  }
+
+  applyView(viewName, updateHistory) {
     const isPlaces = (viewName === "places");
     this.viewScroll = this.viewScroll || {};
     if (this.currentView) this.viewScroll[this.currentView] = window.scrollY || 0;
@@ -2859,7 +2871,7 @@ class JourneyApp {
     });
 
     const petals = [];
-    const PETAL_COUNT = 12;
+    const PETAL_COUNT = 6;
 
     for (let i = 0; i < PETAL_COUNT; i++) {
       petals.push({

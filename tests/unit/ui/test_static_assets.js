@@ -111,3 +111,13 @@ test("UI-03: the FAB proxy targets still exist in index.html", () => {
   assertTrue(indexHtml.indexOf('id="open-add-memory-modal-btn"') !== -1, "add memory button");
   assertTrue(indexHtml.indexOf('id="open-add-place-modal-btn"') !== -1, "add place button");
 });
+
+test("UI-09: at most 4 infinite animations (hero heart + loading spinners)", () => {
+  const count = (readText("styles.css").match(/infinite/g) || []).length
+    + (readText("src/styles/app_shell.css").match(/infinite/g) || []).length;
+  assertTrue(count <= 4, `infinite animations: ${count}`);
+});
+
+test("UI-09: petal count is 6", () => {
+  assertTrue(/PETAL_COUNT = 6;/.test(appSource));
+});
