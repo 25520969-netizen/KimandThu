@@ -1,0 +1,84 @@
+/* Design tokens (D-07) and the dark theme (D-09). Loaded first; the dark blocks use :root + attribute
+   selectors, which out-rank the plain :root blocks in the other stylesheets whatever the file order. */
+:root {
+  color-scheme: light;
+  --surface: #fff8fa;
+  --surface-card: #ffffff;
+  --surface-glass: rgba(255, 255, 255, 0.94);
+  --surface-tint: #fff0f5;
+  --pink-line: #ffd1dc;
+  --pink-action: #c9184a;
+  --shadow-1: 0 1px 2px rgba(201, 24, 74, 0.06), 0 4px 12px rgba(201, 24, 74, 0.06);
+  --shadow-2: 0 8px 24px rgba(201, 24, 74, 0.16);
+  --r-card: 16px;
+  --r-photo: 14px;
+  --r-sheet: 24px;
+  --dur-fast: 150ms;
+  --dur-med: 240ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Dark values, written once as a block and applied for "dark" and for "auto" on dark systems. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #1f1418;
+  --surface-card: #2a1b21;
+  --surface-glass: rgba(42, 27, 33, 0.94);
+  --surface-tint: #33202a;
+  --pink-line: #4a2c35;
+  --pink-action: #ff8fab;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --bg-primary: #1f1418;
+  --bg-secondary: #281a20;
+  --bg-card: rgba(42, 27, 33, 0.9);
+  --bg-card-hover: rgba(52, 33, 41, 0.96);
+  --bg-glass: rgba(42, 27, 33, 0.8);
+  --pink-lightest: #33202a;
+  --pink-light: #4a2c35;
+  --pink-soft: #7a3a50;
+  --pink-primary: #ff8fab;
+  --pink-accent: #ff8fab;
+  --pink-deep: #ff8fab;
+  --text-main: #f6e9ee;
+  --text-muted: #cdb4c0;
+  --text-soft: #c9adb9;
+  --border-delicate: rgba(255, 143, 171, 0.25);
+  --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --shadow-card: 0 12px 36px -6px rgba(0, 0, 0, 0.5);
+  --shadow-hover: 0 18px 45px -4px rgba(0, 0, 0, 0.55);
+  --shadow-glow: 0 0 25px rgba(255, 143, 171, 0.25);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    color-scheme: dark;
+    --surface: #1f1418;
+    --surface-card: #2a1b21;
+    --surface-glass: rgba(42, 27, 33, 0.94);
+    --surface-tint: #33202a;
+    --pink-line: #4a2c35;
+    --pink-action: #ff8fab;
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.5);
+    --bg-primary: #1f1418;
+    --bg-secondary: #281a20;
+    --bg-card: rgba(42, 27, 33, 0.9);
+    --bg-card-hover: rgba(52, 33, 41, 0.96);
+    --bg-glass: rgba(42, 27, 33, 0.8);
+    --pink-lightest: #33202a;
+    --pink-light: #4a2c35;
+    --pink-soft: #7a3a50;
+    --pink-primary: #ff8fab;
+    --pink-accent: #ff8fab;
+    --pink-deep: #ff8fab;
+    --text-main: #f6e9ee;
+    --text-muted: #cdb4c0;
+    --text-soft: #c9adb9;
+    --border-delicate: rgba(255, 143, 171, 0.25);
+    --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.35);
+    --shadow-card: 0 12px 36px -6px rgba(0, 0, 0, 0.5);
+    --shadow-hover: 0 18px 45px -4px rgba(0, 0, 0, 0.55);
+    --shadow-glow: 0 0 25px rgba(255, 143, 171, 0.25);
+  }
+}

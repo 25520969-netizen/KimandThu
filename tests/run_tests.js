@@ -27,7 +27,8 @@ const SOURCE_FILES = [
   "src/services/geo_policy.js",
   "src/services/period_history.js",
   "src/services/milestones.js",
-  "src/adapters/outbox_store.js"
+  "src/adapters/outbox_store.js",
+  "src/ui/overlay_stack.js"
 ];
 const TEST_FILES = [
   "tests/unit/utils/test_safe_url.js",
@@ -42,6 +43,7 @@ const TEST_FILES = [
   "tests/unit/services/test_period_history.js",
   "tests/unit/services/test_milestones.js",
   "tests/unit/backend/test_apps_script.js",
+  "tests/unit/ui/test_overlay_stack.js",
   "tests/unit/ui/test_static_assets.js",
   "tests/unit/app/test_journey_app.js"
 ];

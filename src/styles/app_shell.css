@@ -103,7 +103,7 @@ body.counter-stuck .logo-text {
   align-items: stretch;
   height: calc(var(--bottom-nav-height) + var(--safe-bottom));
   padding: 0 4px var(--safe-bottom);
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--surface-tint);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   border-top: 1px solid var(--border-delicate);
@@ -257,7 +257,7 @@ body.is-guest .period-chip {
 .on-this-day-card {
   margin: 0 0 18px;
   padding: 14px 16px;
-  background: linear-gradient(135deg, #fff0f4 0%, #ffe3ea 100%);
+  background: linear-gradient(135deg, var(--surface-tint) 0%, #ffe3ea 100%);
   border: 1px solid var(--pink-light);
   border-radius: var(--radius-md);
 }
@@ -312,7 +312,7 @@ body.is-guest .period-chip {
 .view-toggle-btn {
   min-height: 44px;
   padding: 0 14px;
-  background: #ffffff;
+  background: var(--surface-card);
   border: none;
   font-family: var(--font-body);
   font-size: 0.85rem;
@@ -357,7 +357,7 @@ body.is-guest .period-chip {
     font-size: 0.75rem;
     font-weight: 600;
     color: var(--pink-deep);
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--surface-tint);
     padding: 3px 10px;
     border-radius: var(--radius-pill);
   }

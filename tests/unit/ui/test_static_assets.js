@@ -121,3 +121,70 @@ test("UI-09: at most 4 infinite animations (hero heart + loading spinners)", () 
 test("UI-09: petal count is 6", () => {
   assertTrue(/PETAL_COUNT = 6;/.test(appSource));
 });
+
+test("D-02: app shell does not inject a second close button into sheets", () => {
+  assertEqual(/sheet-close-btn/.test(readText("src/ui/app_shell.js")), false);
+  assertEqual(/sheet-close-btn/.test(readText("src/styles/redesign.css")), false);
+});
+
+test("D-13: the who-am-i prompt cannot be dismissed by backdrop tap", () => {
+  assertEqual(/:not\(#who-am-i-modal\)/.test(readText("src/ui/app_shell.js")), true);
+});
+
+test("D-01: places action row is not a two-column grid on phones", () => {
+  const css = readText("src/styles/redesign.css");
+  assertEqual(/\.places-action-btns\s*\{[^}]*flex-direction:\s*column/.test(css), true);
+});
+
+test("D-04: form fields are 16px so iOS does not zoom on focus", () => {
+  const css = readText("src/styles/redesign.css");
+  assertEqual(/\.chat-input-bar input\[type="text"\]\s*\{\s*font-size:\s*16px/.test(css), true);
+  assertEqual(/\.form-group textarea,[\s\S]*?font-size:\s*16px/.test(css), true);
+});
+
+test("D-11: chat input asks for a send key", () => {
+  assertEqual(/id="chat-text-input"[^>]*enterkeyhint="send"/.test(indexHtml), true);
+});
+
+test("D-03: sheets drag by a handle with touch-action none, not the whole card", () => {
+  const css = readText("src/styles/redesign.css");
+  assertEqual(/\.sheet-handle\s*\{[^}]*touch-action:\s*none/.test(css), true);
+  assertEqual(/modal-card\s*\{[^}]*touch-action:\s*pan-y/.test(css), false);
+});
+
+test("D-05: chat is announced as a modal dialog", () => {
+  assertEqual(/id="chat-drawer"[^>]*role="dialog"[^>]*aria-modal="true"/.test(indexHtml), true);
+});
+
+test("D-07/D-09: tokens.css defines light and dark themes and loads first", () => {
+  const tokens = readText("src/styles/tokens.css");
+  assertEqual(/\[data-theme="dark"\]/.test(tokens), true);
+  assertEqual(/prefers-color-scheme:\s*dark/.test(tokens), true);
+  assertEqual(indexHtml.indexOf("tokens.css") < indexHtml.indexOf('href="styles.css'), true);
+});
+
+test("D-09: dark text/background pairs keep >= 4.5:1 contrast", () => {
+  const lum = (hex) => {
+    const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  };
+  const ratio = (a, b) => { const x = lum(a); const y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  [["#f6e9ee", "#1f1418"], ["#f6e9ee", "#2a1b21"], ["#cdb4c0", "#2a1b21"], ["#c9adb9", "#2a1b21"],
+    ["#ff8fab", "#2a1b21"], ["#ff8fab", "#1f1418"], ["#ffffff", "#c9184a"]].forEach(([fg, bg]) => {
+    assertEqual(ratio(fg, bg) >= 4.5, true, `${fg} on ${bg} = ${ratio(fg, bg).toFixed(2)}`);
+  });
+});
+
+test("D-10: petal canvas is DPR-aware and pauses under overlays", () => {
+  assertEqual(/devicePixelRatio/.test(appSource), true);
+  assertEqual(/chat-open/.test(appSource), true);
+});
+
+test("D-08: renderPlaces skips identical renders", () => {
+  assertEqual(/placesRenderSignature/.test(appSource), true);
+});
+
+test("theme defaults to light; dark/auto only when the user chooses it", () => {
+  assertEqual(/getItem\("kimthu_theme"\) \|\| "light"/.test(readText("src/ui/theme_init.js")), true);
+});

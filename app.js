@@ -1835,6 +1835,7 @@ class JourneyApp {
 
     // Xử lý nút Back/Forward trên điện thoại và trình duyệt
     window.addEventListener("popstate", () => {
+      if (window.appShell && window.appShell.consumeBack()) return; // Back closed chat or a sheet first
       const isPlaces = window.location.hash === "#places";
       this.switchView(isPlaces ? "places" : "moments", false);
     });
@@ -2747,6 +2748,15 @@ class JourneyApp {
       filtered = this.places.filter(p => p.visited);
     }
 
+    // D-08: skip the DOM rebuild when nothing that the list shows has changed (tab switches, repeated merges)
+    const signature = JSON.stringify([
+      this.placesFilter, hasJustSorted, this.isAuthenticated, filtered,
+      Array.from(this.placeDistances.entries()), Array.from(this.placeRoutes.entries()),
+      this.memories.filter((m) => m.placeId).map((m) => m.placeId)
+    ]);
+    if (signature === this.placesRenderSignature && this.placesListContainer.childElementCount > 0) return;
+    this.placesRenderSignature = signature;
+
     if (filtered.length === 0) {
       this.placesListContainer.innerHTML = `
         <div style="grid-column: 1 / -1; text-align: center; padding: 36px 16px; background: rgba(255,255,255,0.7); border-radius: 18px; border: 1px dashed var(--pink-soft); color: var(--text-muted);">
@@ -2862,13 +2872,25 @@ class JourneyApp {
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ctx = canvas.getContext("2d");
 
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    // D-10: render at device resolution, capped at 2x
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+    const fit = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
+    fit();
+    window.addEventListener("resize", fit);
 
-    window.addEventListener("resize", () => {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-    });
+    // Idle while the user scrolls or an overlay covers the page: no drawing, no battery
+    let lastScrollAt = 0;
+    window.addEventListener("scroll", () => { lastScrollAt = Date.now(); }, { passive: true });
+    let frameCount = 0;
+    let covered = false;
 
     const petals = [];
     const PETAL_COUNT = 6;
@@ -2888,6 +2910,12 @@ class JourneyApp {
     }
 
     const animate = () => {
+      frameCount += 1;
+      if (frameCount % 15 === 0) covered = document.body.classList.contains("chat-open") || !!document.querySelector("dialog[open]");
+      if (covered || Date.now() - lastScrollAt < 150) {
+        frameId = requestAnimationFrame(animate);
+        return;
+      }
       ctx.clearRect(0, 0, width, height);
 
       petals.forEach(p => {

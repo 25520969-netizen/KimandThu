@@ -12,6 +12,7 @@
     /** @param {Document} doc */
     constructor(doc) {
       this.doc = doc;
+      this.overlays = new root.OverlayStack(root.history);
       this.bindProxyButtons();
       this.bindFab();
       this.bindViewState();
@@ -20,6 +21,7 @@
       this.bindStickyCounter();
       this.bindSheets();
       this.bindChatState();
+      this.bindThemeChoice();
     }
 
     byId(id) {
@@ -75,10 +77,12 @@
       new MutationObserver(sync).observe(source, { attributes: true, attributeFilter: ["class"] });
     }
 
-    // UI-06: × button, backdrop tap and swipe-down on phone bottom sheets. Every path goes through the
-    // sheet's own cancel button (or dialog.close()), so the camera still stops on the dialog's close event.
+    // D-03/D-05: bottom sheets close with the header x, a backdrop tap, Esc, the phone Back gesture, or by
+    // dragging the handle. Every path ends in the sheet's own cancel button (or dialog.close()), so the
+    // camera still stops on the dialog's close event.
     bindSheets() {
-      this.doc.querySelectorAll("dialog.custom-modal:not(.photo-lightbox-modal)").forEach((dialog) => {
+      const reduce = () => root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      this.doc.querySelectorAll("dialog.custom-modal:not(.photo-lightbox-modal):not(#who-am-i-modal)").forEach((dialog) => {
         const card = dialog.querySelector(".modal-card");
         if (!card) return;
         const closeSheet = () => {
@@ -86,51 +90,84 @@
           if (cancel) cancel.click();
           if (dialog.open) dialog.close();
         };
-        const x = this.doc.createElement("button");
-        x.type = "button";
-        x.className = "sheet-close-btn";
-        x.setAttribute("aria-label", "Đóng");
-        x.textContent = "×";
-        x.addEventListener("click", closeSheet);
-        card.insertBefore(x, card.firstChild);
 
         dialog.addEventListener("click", (event) => { if (event.target === dialog) closeSheet(); });
+
+        // Back gesture: one history entry per open sheet (see overlay_stack.js)
+        new MutationObserver(() => {
+          if (dialog.open) this.overlays.open(dialog.id, closeSheet);
+          else this.overlays.closed(dialog.id);
+        }).observe(dialog, { attributes: true, attributeFilter: ["open"] });
+
+        // Handle-only drag: touch-action none on the handle, so the browser never claims the gesture.
+        const handle = this.doc.createElement("div");
+        handle.className = "sheet-handle";
+        handle.setAttribute("aria-hidden", "true");
+        handle.innerHTML = "<span></span>";
+        card.insertBefore(handle, card.firstChild);
 
         let startY = null;
         let dy = 0;
         let startTime = 0;
-        const reduce = () => root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        card.addEventListener("pointerdown", (event) => {
-          if (event.target.closest("input, textarea, select, button, a, label")) return;
-          if (card.scrollTop > 0) return;
+        handle.addEventListener("pointerdown", (event) => {
           startY = event.clientY; dy = 0; startTime = Date.now();
+          card.style.transition = "none";
+          if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId);
         });
-        card.addEventListener("pointermove", (event) => {
+        handle.addEventListener("pointermove", (event) => {
           if (startY === null) return;
           dy = Math.max(0, event.clientY - startY);
-          if (dy > 6) card.style.transform = `translateY(${dy}px)`;
+          card.style.transform = `translateY(${dy}px)`;
         });
         const end = () => {
           if (startY === null) return;
           const fast = dy / Math.max(1, Date.now() - startTime) > 0.6;
           const far = dy > card.offsetHeight * 0.3;
+          const dismiss = dy > 6 && (far || (fast && dy > 40));
           startY = null;
-          card.style.transform = "";
-          if (dy > 6 && (far || (fast && dy > 40))) closeSheet();
           dy = 0;
-          if (reduce()) card.style.transition = "none";
+          const finish = () => { card.style.transition = ""; card.style.transform = ""; };
+          if (reduce()) {
+            finish();
+            if (dismiss) closeSheet();
+            return;
+          }
+          card.style.transition = "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)";
+          if (dismiss) {
+            card.style.transform = "translateY(100%)";
+            root.setTimeout(() => { finish(); closeSheet(); }, 200);
+          } else {
+            card.style.transform = "translateY(0)";
+            root.setTimeout(finish, 240);
+          }
         };
-        card.addEventListener("pointerup", end);
-        card.addEventListener("pointercancel", end);
+        handle.addEventListener("pointerup", end);
+        handle.addEventListener("pointercancel", end);
       });
     }
 
-    // UI-05: chat is a full-screen sheet on phones; hide the tab bar and swap send/heart by typed text.
+    // UI-05/D-05: chat is a full-screen sheet on phones. While open the page behind it is inert, Back/Esc close it,
+    // focus moves into the input and returns to the opener; the send/heart button swaps by typed text.
     bindChatState() {
       const drawer = this.byId("chat-drawer");
       const input = this.byId("chat-text-input");
       if (drawer) {
-        const sync = () => this.doc.body.classList.toggle("chat-open", drawer.classList.contains("open"));
+        const background = () => Array.from(this.doc.querySelectorAll("main, .nav-bar, .bottom-nav, footer"));
+        let opener = null;
+        const sync = () => {
+          const open = drawer.classList.contains("open");
+          this.doc.body.classList.toggle("chat-open", open);
+          background().forEach((el) => { el.inert = open; });
+          if (open) {
+            opener = this.doc.activeElement && this.doc.activeElement !== this.doc.body ? this.doc.activeElement : null;
+            this.overlays.open("chat", () => { const close = this.byId("close-chat-btn"); if (close) close.click(); });
+            root.setTimeout(() => { if (input && drawer.classList.contains("open")) input.focus({ preventScroll: true }); }, 260);
+          } else {
+            this.overlays.closed("chat");
+            if (opener && opener.isConnected && typeof opener.focus === "function") opener.focus({ preventScroll: true });
+            opener = null;
+          }
+        };
         new MutationObserver(sync).observe(drawer, { attributes: true, attributeFilter: ["class"] });
         this.doc.addEventListener("keydown", (event) => {
           if (event.key === "Escape" && drawer.classList.contains("open")) {
@@ -145,6 +182,26 @@
         input.form.addEventListener("submit", () => root.setTimeout(sync, 0));
         sync();
       }
+    }
+
+    // D-09: Auto / Light / Dark choice, stored on this device only (theme_init.js applies it before first paint)
+    bindThemeChoice() {
+      const buttons = Array.from(this.doc.querySelectorAll("[data-theme-choice]"));
+      if (!buttons.length) return;
+      const current = () => { try { return root.localStorage.getItem("kimthu_theme") || "light"; } catch (err) { return "light"; } };
+      const paint = () => buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeChoice === current())));
+      buttons.forEach((button) => button.addEventListener("click", () => {
+        const choice = button.dataset.themeChoice;
+        try { root.localStorage.setItem("kimthu_theme", choice); } catch (err) { /* private mode: not persisted */ }
+        if (root.applyTheme) root.applyTheme(choice);
+        paint();
+      }));
+      paint();
+    }
+
+    // Called from app.js on popstate: true when the Back gesture closed an overlay and nothing else should happen
+    consumeBack() {
+      return this.overlays.handlePop();
     }
 
     // Once the big counter scrolls away, a compact pill keeps the day count visible
