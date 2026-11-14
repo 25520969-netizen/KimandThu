@@ -88,3 +88,36 @@ asyncTest("SyncEngine: unsupported 'ignored' responses are dropped, not retried 
   await h.engine.flush();
   assertEqual(h.engine.keys(), []);
 });
+
+asyncTest("SyncEngine: retryNow sends a backed-off entry immediately", async () => {
+  const clock = { t: 0 };
+  let online = false;
+  const sent = [];
+  const h = makeEngine(async (payload) => {
+    if (!online) throw new TypeError("network down");
+    sent.push(payload.id);
+    return { status: "success" };
+  }, clock);
+  await h.engine.enqueue("chat:c1", { type: "chat_message", id: "c1" });
+  await h.engine.flush();
+  assertTrue(h.engine.getEntry("chat:c1").nextAttemptAt > clock.t, "backed off");
+  online = true;
+  await h.engine.flush();
+  assertEqual(sent, [], "not due yet");
+  await h.engine.retryNow("chat:c1");
+  assertEqual(sent, ["c1"]);
+  assertEqual(h.engine.keys(), []);
+});
+
+asyncTest("SyncEngine: a failed attempt calls onRetry once with attempts === 1", async () => {
+  const clock = { t: 0 };
+  const retries = [];
+  const store = createMemoryOutboxStore();
+  const engine = new SyncEngine({
+    store: store, send: async () => { throw new TypeError("offline"); }, now: () => clock.t,
+    onRetry: (entry) => retries.push([entry.key, entry.attempts])
+  });
+  await engine.enqueue("chat:c1", { type: "chat_message", id: "c1" });
+  await engine.flush();
+  assertEqual(retries, [["chat:c1", 1]]);
+});

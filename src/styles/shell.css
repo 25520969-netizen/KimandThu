@@ -1,0 +1,145 @@
+/* App shell: glass header, sticky counter pill, tab bar, FAB. */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: calc(var(--header-h) + var(--safe-top));
+  padding-top: var(--safe-top);
+  background: var(--c-glass);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-bottom: 1px solid transparent;
+}
+body.is-scrolled .app-header { border-bottom-color: var(--c-divider); }
+
+.app-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  height: var(--header-h);
+  max-width: 560px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.app-header__actions { display: flex; align-items: center; gap: var(--s-1); }
+
+.wordmark {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-text);
+  font: 700 var(--t-title-size)/1 var(--font-display);
+  cursor: pointer;
+}
+body.counter-stuck .wordmark { display: none; }
+
+.sticky-counter-pill {
+  flex: 1;
+  max-width: 230px;
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--r-pill);
+  background: var(--c-sunken);
+  color: var(--c-muted);
+  font: 500 var(--t-meta-size)/var(--t-meta-lh) var(--font-body);
+  text-align: center;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.sticky-counter-pill strong { color: var(--c-primary); font-weight: 600; }
+.sticky-counter-pill[hidden] { display: none; }
+
+#music-toggle-btn[aria-pressed="true"] { color: var(--c-primary); }
+#auth-unlock-nav-btn .ui-icon { width: 20px; height: 20px; }
+@media (max-width: 359px) { #auth-unlock-nav-btn .unlock-label { display: none; } }
+
+/* ---------- Tab bar ---------- */
+.tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  height: var(--bottom-nav-height);
+  padding-bottom: var(--safe-bottom);
+  padding-inline: var(--safe-left) var(--safe-right);
+  background: var(--c-glass);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border-top: 1px solid var(--c-divider);
+}
+.tab {
+  position: relative;
+  flex: 1;
+  max-width: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--c-muted);
+  cursor: pointer;
+}
+.tab .ui-icon { width: 24px; height: 24px; }
+.tab__label { font: 500 0.6875rem/1.2 var(--font-body); }
+.tab[aria-current="page"] { color: var(--c-primary); }
+.tab[aria-current="page"] svg { fill: currentColor; }
+.tab-dot {
+  position: absolute;
+  top: 6px;
+  left: calc(50% + 6px);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  border: 2px solid var(--c-bg);
+}
+
+body.chat-open .sticky-counter-pill { display: none; }
+
+/* ---------- FAB ---------- */
+.fab {
+  position: fixed;
+  right: max(var(--gutter), var(--safe-right));
+  bottom: calc(var(--s-4) + var(--bottom-nav-height));
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--c-primary);
+  color: var(--c-on-primary);
+  box-shadow: var(--e-2);
+  cursor: pointer;
+  transition: width var(--m-base) var(--ease-spring), height var(--m-base) var(--ease-spring), transform var(--m-fast) var(--ease-out);
+}
+.fab.is-compact { width: 48px; height: 48px; }
+.fab[hidden] { display: none; }
+body.chat-open .fab { display: none; }
+
+.offline-banner { position: sticky; top: calc(var(--header-h) + var(--safe-top)); z-index: 40; margin: 0 var(--gutter); }
+.offline-banner[hidden] { display: none; }
+.offline-banner span { flex: 1; font: 500 var(--t-meta-size)/var(--t-meta-lh) var(--font-body); }
+.status--warn { transition: opacity var(--m-base) var(--ease-out); }
+
+/* ---------- Page column ---------- */
+.main-content {
+  position: relative;
+  z-index: 10;
+  max-width: 1060px;
+  margin: 0 auto;
+  padding: var(--s-2) 0 calc(var(--bottom-nav-height) + var(--s-8));
+}

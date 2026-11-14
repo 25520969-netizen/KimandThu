@@ -1,0 +1,122 @@
+/* Base: reset, type scale, page layout, focus ring, press feedback, reduced motion. */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html { font-size: 100%; overflow-x: clip; }
+
+button, input, textarea, select { font-family: inherit; color: inherit; }
+a { color: var(--c-primary); }
+
+/* Fixed canvas for the hero petals and the celebration burst. */
+#petal-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 150ms;
+  animation-timing-function: var(--ease-out);
+}
+
+body {
+  min-height: 100dvh;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font: 400 var(--t-body-size)/var(--t-body-lh) var(--font-body);
+}
+
+[hidden] { display: none !important; }
+
+.page {
+  max-width: 560px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.large-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--t-display-size);
+  line-height: var(--t-display-lh);
+}
+.t-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--t-title-size);
+  line-height: var(--t-title-lh);
+}
+.t-headline {
+  font-weight: 600;
+  font-size: var(--t-headline-size);
+  line-height: var(--t-headline-lh);
+}
+.t-meta {
+  font-weight: 500;
+  font-size: var(--t-meta-size);
+  line-height: var(--t-meta-lh);
+}
+.muted { color: var(--c-muted); }
+
+:root { --clamp-title: 2; --clamp-excerpt: 3; }
+html[data-large-text] { --clamp-title: 3; --clamp-excerpt: 5; }
+.clamp-2, .clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-2 { -webkit-line-clamp: var(--clamp-title); line-clamp: var(--clamp-title); }
+.clamp-3 { -webkit-line-clamp: var(--clamp-excerpt); line-clamp: var(--clamp-excerpt); }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Access rules: guests never see couple-only controls, the couple never sees guest-only ones. */
+body.is-guest .couple-only { display: none !important; }
+body:not(.is-guest) .guest-only { display: none !important; }
+
+:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--c-bg);
+}
+
+:where(button, a, [role="button"], .tappable):active { transform: scale(0.97); }
+:where(button, a, [role="button"], .tappable) { transition: transform var(--m-fast) var(--ease-out); }
+
+.hand {
+  font-family: var(--font-hand);
+  font-weight: 500;
+  font-size: var(--t-hand-size);
+  line-height: var(--t-hand-lh);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+  #petal-canvas { display: none; }
+  *, *::before, *::after {
+    animation: none !important;
+    transition: opacity var(--m-fast) linear !important;
+    transform: none !important;
+    scroll-behavior: auto !important;
+  }
+}

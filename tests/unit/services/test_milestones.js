@@ -12,14 +12,14 @@ test("nextMilestone: next 100-day multiple with a countdown", () => {
   assertEqual(m.kind, "days");
   assertEqual(m.label, "600 ngày");
   assertEqual(m.daysLeft, 19);
-  assertEqual(milestoneText(m), "💕 Còn 19 ngày nữa là tròn 600 ngày");
+  assertEqual(milestoneText(m), "Còn 19 ngày nữa là tròn 600 ngày");
 });
 
 test("nextMilestone: today counts and anniversaries win ties", () => {
   const start = "2025-04-02T19:00:00";
   const exact = nextMilestone(start, new Date(2025, 3, 2 + 500, 12));
   assertEqual([exact.label, exact.daysLeft], ["500 ngày", 0]);
-  assertEqual(milestoneText(exact), "🎉 Hôm nay tròn 500 ngày bên nhau!");
+  assertEqual(milestoneText(exact), "Hôm nay tròn 500 ngày 💕");
   const nearYear = nextMilestone(start, day(2026, 3, 30));
   assertEqual([nearYear.kind, nearYear.label, nearYear.daysLeft], ["year", "1 năm", 3]);
 });
@@ -39,4 +39,20 @@ test("memoriesOnThisDay: same month/day in earlier years only", () => {
   assertEqual(out.map((x) => [x.memory.id, x.yearsAgo]), [["a", 1], ["b", 2]]);
   assertEqual(memoriesOnThisDay([], day(2026, 11, 4)), []);
   assertEqual(memoriesOnThisDay(null, day(2026, 11, 4)), []);
+});
+
+test("nextMilestone: fromDays and targetDays drive the progress bar", () => {
+  const start = "2025-04-02T19:00:00";
+  const m = nextMilestone(start, new Date(2025, 3, 2 + 591, 12)); // day 591
+  assertEqual([m.fromDays, m.targetDays], [500, 600]);
+  assertEqual(Math.round(milestoneProgress(m, 591) * 100) / 100, 0.91);
+  const today = nextMilestone(start, new Date(2025, 3, 2 + 500, 12));
+  assertEqual(milestoneProgress(today, 500), 1);
+});
+
+test("nextMilestone: anniversary milestone spans from the previous anniversary", () => {
+  const near = nextMilestone("2025-04-02T19:00:00", day(2026, 3, 30));
+  assertEqual(near.fromDays, 0);
+  assertEqual(near.targetDays, 365);
+  assertTrue(milestoneProgress(near, 362) > 0.99);
 });

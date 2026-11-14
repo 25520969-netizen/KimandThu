@@ -19,6 +19,36 @@ const DEFAULT_CONFIG = {
 const APPS_SCRIPT_URL_PATTERN = /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/;
 const AUTH_REQUEST_TIMEOUT_MS = 10000;
 const MEMORY_IMAGE_URL_OPTIONS = { allowRelative: true, allowDataImage: true };
+const DEFAULT_PERIOD_DAYS = 5;
+const MS_PER_DAY = 86400000;
+const MS_PER_HOUR = 3600000;
+const MS_PER_MINUTE = 60000;
+const MS_PER_SECOND = 1000;
+const DEFAULT_CYCLE_DAYS = 28;
+const BE_RING_SIZE_PX = 200;
+const BE_CARE_TEXT = {
+  during: "Uống nhiều nước ấm, chườm ấm bụng và nghỉ ngơi thật nhiều nhé.",
+  soon: "Kỳ sắp tới rồi, nhớ mang theo đồ cần thiết và giữ ấm bụng nhé.",
+  before: "Uống đủ nước, ngủ đủ giấc và cười thật nhiều nhé."
+};
+const LAST_SYNC_KEY = "journey_last_sync_at";
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+const STORY_MAX_HEIGHT_PX = 240;
+const HIGHLIGHT_MS = 360;
+const SYNC_TOAST_GAP_MS = 60000;
+const PLACES_SKELETON_ROWS = 3;
+const FLIP_MS = 220;
+const HAPTIC_TICK_MS = 10;
+const CHAT_VIBRATE_KEY = "journey_chat_vibrate_v1";
+const PETALS_SETTING_KEY = "kimthu_petals";
+const CELEBRATED_KEY = "journey_celebrated_v1";
+const CELEBRATE_MS = 1200;
+const CELEBRATE_BANNER_MS = 4000;
+const ROLL_UP_FROM_DAYS = 30;
+const TOAST_DEFAULT_MS = 4000;
+const TOAST_ACTION_MS = 5000;
+const DIALOG_PRIORITY = { whoAmI: 1, periodAlert: 2, other: 3 };
+const VIEW_NAMES = ["moments", "places", "be"];
 const SYNC_CURSOR_KEY = "journey_sync_cursor_v2";
 const SYNC_CURSOR_OVERLAP_MS = 5000;
 const POST_TIMEOUT_MS = 60000;
@@ -135,6 +165,11 @@ class JourneyApp {
     this.places = this.loadData("journey_places_v2", DEFAULT_PLACES);
     this.deletedPlaceIds = this.loadData("journey_deleted_place_ids", []);
     this.placesFilter = "unvisited";
+    this.dialogQueue = new DialogQueue({ setTimeout: (fn, ms) => window.setTimeout(fn, ms) });
+    this.undo = new UndoQueue({ setTimeout: (fn, ms) => window.setTimeout(fn, ms), clearTimeout: (id) => window.clearTimeout(id) });
+    this.pendingDeleteIds = { memory: new Set(), place: new Set() };
+    window.addEventListener("pagehide", () => this.undo.flushAll());
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") this.undo.flushAll(); });
     this.lastUserPosition = this.loadData("journey_last_user_pos", null);
     this.placeDistances = new Map();
     this.placeRoutes = new Map();
@@ -145,7 +180,6 @@ class JourneyApp {
     this.chatMessages = this.loadData("journey_chat_messages_v1", DEFAULT_CHAT_MESSAGES);
     this.currentSender = this.loadData("journey_chat_sender_v1", "Kim");
     this.chatPendingImage = null;
-    this.showAllMemories = false;
     this.audioContext = null;
     this.isPlayingMelody = false;
     this.melodyTimer = null;
@@ -176,6 +210,7 @@ class JourneyApp {
     this.renderPlaces();
     this.hasInitialRender = true;
     this.initPetalsCanvas();
+    this.bindOfflineBanner();
     this.checkPeriodAlert();
     this.syncReady = this.initSync();
   }
@@ -221,9 +256,6 @@ class JourneyApp {
     this.partnerOneName = document.getElementById("partner-one-name");
     this.partnerTwoName = document.getElementById("partner-two-name");
     this.heroQuote = document.getElementById("hero-custom-quote");
-    this.navDropdownWrap = document.getElementById("nav-dropdown-wrap");
-    this.navMenuToggleBtn = document.getElementById("nav-menu-toggle-btn");
-    this.navDropdownMenu = document.getElementById("nav-dropdown-menu");
 
     // Live Counter
     this.countDays = document.getElementById("count-days");
@@ -233,28 +265,23 @@ class JourneyApp {
 
     // Timeline & Modals
     this.timelineContainer = document.getElementById("timeline-list-container");
-    this.openAddMemoryBtn = document.getElementById("open-add-memory-modal-btn");
     this.memoryModal = document.getElementById("memory-modal");
     this.memoryForm = document.getElementById("memory-form");
     this.closeMemoryBtn = document.getElementById("close-memory-modal-btn");
-    this.cancelMemoryBtn = document.getElementById("cancel-memory-btn");
 
     // Period Tracker (Thanh công cụ & Modal & Alert)
-    this.periodNavBtn = document.getElementById("period-nav-btn");
-    this.periodNavLabel = document.getElementById("period-nav-label");
     this.periodChipText = document.getElementById("period-chip-text");
-    this.periodAccuracy = document.getElementById("period-accuracy");
+    this.periodChip = document.getElementById("period-chip");
     this.milestoneLine = document.getElementById("milestone-line");
+    this.milestoneFill = document.getElementById("milestone-fill");
+    this.milestoneBar = document.getElementById("milestone-bar");
+    this.heroDays = document.getElementById("hero-days");
     this.onThisDayCard = document.getElementById("on-this-day-card");
-    this.periodPhaseText = document.getElementById("period-phase-text");
-    this.periodStatusMessage = document.getElementById("period-status-message");
     this.periodModal = document.getElementById("period-modal");
     this.periodForm = document.getElementById("period-form");
     this.closePeriodBtn = document.getElementById("close-period-modal-btn");
-    this.cancelPeriodBtn = document.getElementById("cancel-period-btn");
     this.periodStartDateInput = document.getElementById("period-start-date-input");
-    this.periodCycleLengthInput = document.getElementById("period-cycle-length-input");
-    this.setPeriodTodayBtn = document.getElementById("set-period-today-btn");
+    this.periodDurationInput = document.getElementById("period-duration-input");
 
     // Period Alert Modal (Thông báo khi gần trước 3 ngày)
     this.periodAlertModal = document.getElementById("period-alert-modal");
@@ -269,30 +296,19 @@ class JourneyApp {
     this.settingsForm = document.getElementById("settings-form");
     this.openSettingsBtn = document.getElementById("edit-profile-btn");
     this.closeSettingsBtn = document.getElementById("close-settings-modal-btn");
-    this.resetDataBtn = document.getElementById("reset-default-data-btn");
 
     // Lightbox
     this.lightboxModal = document.getElementById("photo-lightbox");
     this.lightboxImg = document.getElementById("lightbox-img");
-    this.lightboxTitle = document.getElementById("lightbox-title");
-    this.lightboxDate = document.getElementById("lightbox-date");
-    this.lightboxStory = document.getElementById("lightbox-story");
+    this.memoryDetailModal = document.getElementById("memory-detail-modal");
     this.closeLightboxBtn = document.getElementById("close-lightbox-btn");
 
     // Audio & Hearts
     this.musicToggleBtn = document.getElementById("music-toggle-btn");
-    this.musicStatus = document.getElementById("music-status");
 
     // Photo Upload, Camera & GPS Elements
     this.memoryFileInput = document.getElementById("memory-file-input");
-    this.memoryCameraInput = document.getElementById("memory-camera-input");
-    this.btnCameraTrigger = document.getElementById("btn-camera-trigger");
     this.btnGalleryTrigger = document.getElementById("btn-gallery-trigger");
-    this.photoActionButtonsGrid = document.getElementById("photo-action-buttons-grid");
-    this.inappCameraWrapper = document.getElementById("inapp-camera-wrapper");
-    this.inappCameraVideo = document.getElementById("inapp-camera-video");
-    this.btnCaptureInapp = document.getElementById("btn-capture-inapp");
-    this.btnCloseInapp = document.getElementById("btn-close-inapp");
     this.memoryImageInput = document.getElementById("memory-image-input");
     this.uploadPreviewWrapper = document.getElementById("upload-preview-wrapper");
     this.uploadPreviewImg = document.getElementById("upload-preview-img");
@@ -300,7 +316,6 @@ class JourneyApp {
     this.btnRefreshGps = document.getElementById("btn-refresh-gps");
     this.memoryDateInput = document.getElementById("memory-date-input");
     this.memoryLocationInput = document.getElementById("memory-location-input");
-    this.cameraStream = null;
 
     // Auth & Access Control
     this.authUnlockNavBtn = document.getElementById("auth-unlock-nav-btn");
@@ -316,24 +331,18 @@ class JourneyApp {
     // Places Wishlist
     this.placesListContainer = document.getElementById("places-list-container");
     this.reloadPlacesGpsBtn = document.getElementById("reload-places-gps-btn");
-    this.openAddPlaceModalBtn = document.getElementById("open-add-place-modal-btn");
     this.placeModal = document.getElementById("place-modal");
     this.placeForm = document.getElementById("place-form");
     this.closePlaceModalBtn = document.getElementById("close-place-modal-btn");
-    this.cancelPlaceBtn = document.getElementById("cancel-place-btn");
     this.placeNameInput = document.getElementById("place-name-input");
     this.placeMapInput = document.getElementById("place-map-input");
     this.placeTiktokInput = document.getElementById("place-tiktok-input");
     this.placeNotesInput = document.getElementById("place-notes-input");
     this.btnPlaceUseCurrentGps = document.getElementById("btn-place-use-current-gps");
-    this.navPlacesBtn = document.getElementById("nav-places-btn");
     this.countPlacesUnvisited = document.getElementById("count-places-unvisited");
     this.countPlacesVisited = document.getElementById("count-places-visited");
 
     // Nút Tiện ích GPS & Thêm nơi đang đứng
-    this.placesGpsDropdownWrap = document.getElementById("places-gps-dropdown-wrap");
-    this.placesGpsMenuToggleBtn = document.getElementById("places-gps-menu-toggle-btn");
-    this.placesGpsDropdownMenu = document.getElementById("places-gps-dropdown-menu");
     this.checkVisitedGpsBtn = document.getElementById("check-visited-gps-btn");
     this.addCurrentLocationBtn = document.getElementById("add-current-location-btn");
 
@@ -343,20 +352,12 @@ class JourneyApp {
     this.checkResultCloseActionBtn = document.getElementById("check-result-close-action-btn");
     this.checkResultPrimaryBtn = document.getElementById("check-result-primary-btn");
     this.checkResultPrimaryText = document.getElementById("check-result-primary-text");
-    this.checkResultIcon = document.getElementById("check-result-icon");
-    this.checkResultStatusTag = document.getElementById("check-result-status-tag");
     this.checkResultTitle = document.getElementById("check-result-title");
     this.checkResultDesc = document.getElementById("check-result-desc");
-    this.checkResultPlaceCard = document.getElementById("check-result-place-card");
-    this.checkMatchTag = document.getElementById("check-match-tag");
-    this.checkMatchDistance = document.getElementById("check-match-distance");
-    this.checkMatchName = document.getElementById("check-match-name");
-    this.checkMatchNotes = document.getElementById("check-match-notes");
 
     // Modal: Thêm vị trí đang đứng vào Đã Đến
     this.addCurrentLocModal = document.getElementById("add-current-location-modal");
     this.closeAddCurrentLocBtn = document.getElementById("close-current-loc-modal-btn");
-    this.cancelAddCurrentLocBtn = document.getElementById("cancel-current-loc-btn");
     this.addCurrentLocForm = document.getElementById("add-current-loc-form");
     this.currentLocCoordsDisplay = document.getElementById("current-loc-coords-display");
     this.currentLocNameInput = document.getElementById("current-loc-name-input");
@@ -368,7 +369,7 @@ class JourneyApp {
     // SPA Views & Navigation
     this.viewMoments = document.getElementById("view-moments");
     this.viewPlaces = document.getElementById("view-places");
-    this.navMomentsBtn = document.getElementById("nav-moments-btn");
+    this.viewBe = document.getElementById("view-be");
     this.navLogoBtn = document.getElementById("nav-logo-btn");
     this.currentView = "moments";
   }
@@ -396,18 +397,25 @@ class JourneyApp {
 
     if (this.authUnlockNavBtn) {
       this.authUnlockNavBtn.addEventListener("click", () => {
-        if (this.navDropdownWrap) this.navDropdownWrap.classList.remove("open");
         this.openAuthModal();
       });
     }
 
     if (this.authLockNavBtn) {
-      this.authLockNavBtn.addEventListener("click", () => {
-        if (this.navDropdownWrap) this.navDropdownWrap.classList.remove("open");
+      this.authLockNavBtn.addEventListener("click", async () => {
+        const confirmed = await confirmSheet({
+          title: "Chuyển sang chế độ khách?",
+          body: "Trên máy này sẽ chỉ xem được khoảnh khắc và địa điểm cho đến khi mở khóa lại.",
+          confirmLabel: "Chuyển",
+          cancelLabel: "Ở lại",
+          danger: true
+        });
+        if (!confirmed) return;
         this.isAuthenticated = false;
         this.saveData("journey_auth_token", "locked");
         this.applyAuthMode();
-        this.showToast("Đã chuyển sang Chế độ Khách (Chỉ xem) 🔒");
+        if (this.settingsModal && this.settingsModal.open) this.settingsModal.close();
+        this.showToast("Đã chuyển sang chế độ khách.");
       });
     }
 
@@ -418,17 +426,26 @@ class JourneyApp {
       this.cancelAuthBtn.addEventListener("click", () => this.closeAuthModal());
     }
 
+    const toggleBtn = document.getElementById("auth-toggle-password-btn");
+    if (toggleBtn && this.authPasscodeInput) {
+      toggleBtn.addEventListener("click", () => {
+        const show = this.authPasscodeInput.type === "password";
+        this.authPasscodeInput.type = show ? "text" : "password";
+        toggleBtn.setAttribute("aria-label", show ? "Ẩn mật mã" : "Hiện mật mã");
+        toggleBtn.innerHTML = icon(show ? "eye-off" : "eye");
+      });
+    }
+
     if (this.authForm) {
       this.authForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const inputPass = this.authPasscodeInput ? this.authPasscodeInput.value : "";
         const result = await this.tryUnlock(inputPass);
         if (result === "ok") {
-          if (this.authErrorMsg) this.authErrorMsg.style.display = "none";
+          if (this.authErrorMsg) this.authErrorMsg.hidden = true;
           this.closeAuthModal();
           this.applyAuthMode();
-          this.showToast("Mở khóa thành công! Chào mừng Kim & Thư 💕");
-          this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
+          this.showToast("Đã mở khóa. Chào mừng Kim & Thư.");
           this.syncFromBackend();
 
           if (typeof this.pendingAuthSuccessCallback === "function") {
@@ -438,12 +455,15 @@ class JourneyApp {
           }
         } else {
           if (this.authErrorMsg) {
-            this.authErrorMsg.textContent = result === "offline"
-              ? "Chưa kết nối được máy chủ để kiểm tra mật mã. Kiểm tra mạng rồi thử lại nhé! 💕"
-              : "Mật mã chưa đúng nè, thử lại nhé bé yêu! 💕";
-            this.authErrorMsg.style.display = "block";
+            this.authErrorMsg.querySelector("span").textContent = result === "offline"
+              ? "Chưa kết nối được máy chủ để kiểm tra mật mã. Kiểm tra mạng rồi thử lại nhé."
+              : "Mật mã chưa đúng. Thử lại nhé.";
+            this.authErrorMsg.hidden = false;
           }
-          if (this.authPasscodeInput) this.authPasscodeInput.focus();
+          if (this.authPasscodeInput) {
+            this.authPasscodeInput.focus();
+            this.authPasscodeInput.select();
+          }
         }
       });
     }
@@ -528,7 +548,6 @@ class JourneyApp {
     if (result === "ok") {
       this.applyAuthMode();
       this.showToast("Ch\u00e0o m\u1eebng Kim & Th\u01b0 \ud83d\udc95 \u0110\u00e3 m\u1edf kh\u00f3a to\u00e0n b\u1ed9 quy\u1ec1n!");
-      this.spawnHeartConfetti();
       this.syncFromBackend();
       return;
     }
@@ -552,14 +571,13 @@ class JourneyApp {
     this.pendingAuthSuccessCallback = (typeof callback === "function") ? callback : null;
     const descEl = document.getElementById("auth-modal-desc");
     if (descEl) {
-      if (customMessage) {
-        descEl.innerHTML = `<strong>${customMessage}</strong><br><small style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px; display: inline-block;">Nhập mật mã riêng của tụi mình nhé 💕</small>`;
-      } else {
-        descEl.innerHTML = `Trang web đang ở chế độ công khai (chỉ xem kỷ niệm & đếm ngày yêu).<br>Nhập mật mã tình yêu để mở khóa nhắn tin, gửi ảnh và chăm sóc bé nhé!`;
-      }
+      descEl.textContent = customMessage || "Nhập mật mã để nhắn tin, gửi ảnh và dùng góc chăm sóc bé.";
     }
-    if (this.authErrorMsg) this.authErrorMsg.style.display = "none";
-    if (this.authPasscodeInput) this.authPasscodeInput.value = "";
+    if (this.authErrorMsg) this.authErrorMsg.hidden = true;
+    if (this.authPasscodeInput) {
+      this.authPasscodeInput.value = "";
+      this.authPasscodeInput.type = "password";
+    }
     this.authModal.showModal();
     if (this.authPasscodeInput) {
       setTimeout(() => this.authPasscodeInput.focus(), 100);
@@ -574,16 +592,10 @@ class JourneyApp {
   applyAuthMode() {
     if (this.isAuthenticated) {
       document.body.classList.remove("is-guest");
-      if (this.authUnlockNavBtn) this.authUnlockNavBtn.style.display = "none";
-      if (this.authLockNavBtn) this.authLockNavBtn.style.display = "flex";
-      if (this.floatingChatBtn) this.floatingChatBtn.style.display = "flex";
       this.checkPeriodAlert();
       this.promptSenderIfNeeded();
     } else {
       document.body.classList.add("is-guest");
-      if (this.authUnlockNavBtn) this.authUnlockNavBtn.style.display = "flex";
-      if (this.authLockNavBtn) this.authLockNavBtn.style.display = "none";
-      if (this.floatingChatBtn) this.floatingChatBtn.style.display = "none";
 
       if (this.chatDrawer && this.chatDrawer.classList.contains("open")) {
         this.toggleChatDrawer(false);
@@ -602,12 +614,214 @@ class JourneyApp {
     }
   }
 
-  showToast(message, duration = 3000, action = null) {
+  autoGrow(textarea) {
+    textarea.style.height = "auto";
+    textarea.style.height = Math.min(textarea.scrollHeight, STORY_MAX_HEIGHT_PX) + "px";
+  }
+
+  /** The memory form's values as one string, to detect unsaved changes. */
+  memoryFormSnapshot() {
+    const ids = ["memory-title-input", "memory-date-input", "memory-location-input", "memory-story-input", "memory-image-input"];
+    return ids.map((id) => document.getElementById(id).value).join("\u0001");
+  }
+
+  /** @returns {Promise<boolean>} true when the sheet may close (nothing changed, or the user chose "Bỏ"). */
+  async confirmDiscardMemory() {
+    if (this.memoryFormSnapshot() === this.memorySnapshot) return true;
+    return confirmSheet({
+      title: "Bỏ khoảnh khắc đang viết?",
+      confirmLabel: "Bỏ",
+      cancelLabel: "Viết tiếp",
+      danger: true
+    });
+  }
+
+  /**
+   * Opens the add / edit moment sheet.
+   * @param {{prefill?: {title: string, location: string, placeId: string}, edit?: object}} [opts]
+   */
+  openMemoryDialog(opts = {}) {
+    if (!this.isAuthenticated) {
+      this.openAuthModal(() => this.openMemoryDialog(opts), "Nhập mật mã để gửi khoảnh khắc mới.");
+      return;
+    }
+    const edit = opts.edit || null;
+    const prefill = opts.prefill || null;
+    this.editingMemoryId = edit ? String(edit.id) : "";
+    this.pendingMemoryPlaceId = prefill ? prefill.placeId : "";
+    this.memoryForm.reset();
+    ["memory-title-error", "memory-photo-error"].forEach((id) => { document.getElementById(id).hidden = true; });
+    document.getElementById("memory-modal-title").textContent = edit ? "Sửa khoảnh khắc" : "Khoảnh khắc mới";
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    this.memoryDateInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    this.clearMemoryPhoto();
+    this.removePreviewBtn.hidden = false;
+    const note = document.getElementById("memory-photo-note");
+    note.hidden = true;
+    document.getElementById("photo-drop").hidden = false;
+    if (edit) this.fillMemoryFormForEdit(edit, note);
+    if (prefill) {
+      document.getElementById("memory-title-input").value = prefill.title;
+      this.memoryLocationInput.value = prefill.location;
+    }
+    this.autoGrow(document.getElementById("memory-story-input"));
+    const save = document.getElementById("save-memory-btn");
+    save.setAttribute("aria-busy", "false");
+    save.textContent = "Lưu khoảnh khắc";
+    this.memorySnapshot = this.memoryFormSnapshot();
+    this.memoryModal.showModal();
+  }
+
+  fillMemoryFormForEdit(mem, note) {
+    document.getElementById("memory-title-input").value = mem.title || "";
+    this.memoryDateInput.value = String(mem.date || "").slice(0, 16);
+    this.memoryLocationInput.value = mem.location || "";
+    document.getElementById("memory-story-input").value = mem.story || "";
+    const image = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
+    if (!image) return;
+    this.uploadPreviewImg.src = image;
+    document.getElementById("photo-drop").hidden = true;
+    this.uploadPreviewWrapper.hidden = false;
+    this.removePreviewBtn.hidden = true;
+    note.hidden = false;
+  }
+
+  /** Validates and saves the add / edit form (edit keeps the photo, id and place link). */
+  submitMemoryForm() {
+    if (!this.isAuthenticated) {
+      this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
+      return;
+    }
+    const titleInput = document.getElementById("memory-title-input");
+    const title = titleInput.value.trim();
+    const date = this.memoryDateInput.value;
+    if (!title) {
+      document.getElementById("memory-title-error").hidden = false;
+      titleInput.focus();
+      return;
+    }
+    if (!date) return;
+    const save = document.getElementById("save-memory-btn");
+    save.setAttribute("aria-busy", "true");
+    save.textContent = "Đang lưu…";
+    const location = this.memoryLocationInput.value.trim() || "Cùng Nhau";
+    const story = document.getElementById("memory-story-input").value.trim();
+    const editing = this.editingMemoryId !== "";
+    const saved = editing
+      ? this.saveEditedMemory(this.editingMemoryId, { title, date, location, story })
+      : this.saveNewMemory({ title, date, location, story, image: this.memoryImageInput.value.trim() });
+    if (!saved) return;
+    this.memoryModal.close();
+    this.afterMemorySaved(saved.id, editing);
+  }
+
+  saveNewMemory(fields) {
+    const newMemory = Object.assign({ id: "mem-" + Date.now(), placeId: this.pendingMemoryPlaceId || "", syncState: "pending" }, fields);
+    this.memories.push(newMemory);
+    this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
+    this.persistMemories();
+    this.queueMemory(newMemory);
+    return newMemory;
+  }
+
+  saveEditedMemory(id, fields) {
+    const mem = this.memories.find((m) => String(m.id) === String(id));
+    if (!mem) return null;
+    Object.assign(mem, fields, { syncState: "pending" });
+    this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
+    this.persistMemories();
+    this.queueMemory(mem);
+    return mem;
+  }
+
+  afterMemorySaved(id, editing) {
+    this.renderTimeline();
+    const block = this.timelineContainer.querySelector(`[data-id="${CSS.escape(String(id))}"]`);
+    if (block) {
+      block.scrollIntoView({ block: "center", behavior: "instant" });
+      block.classList.add("is-highlighted");
+      setTimeout(() => block.classList.remove("is-highlighted"), HIGHLIGHT_MS);
+    }
+    if (!editing) this.celebrate({ reason: "save" });
+    this.showToast(editing ? "Đã lưu thay đổi" : "Đã lưu khoảnh khắc");
+    if (!this.config.apiUrl) {
+      this.showToast("Chưa có link đồng bộ trong Cài đặt nên khoảnh khắc chỉ lưu trên máy này.", 6000);
+    }
+  }
+
+  /** The editable settings values, as one string, so "Lưu" can stay disabled until something changes. */
+  settingsSnapshot() {
+    return ["cfg-him-name", "cfg-her-name", "cfg-start-date", "cfg-quote", "cfg-api-url"]
+      .map((id) => { const el = document.getElementById(id); return el ? el.value : ""; }).join("\u0001");
+  }
+
+  syncSettingsSaveState() {
+    const button = document.getElementById("save-settings-btn");
+    if (button) button.disabled = this.settingsSnapshot() === this.settingsBaseline;
+  }
+
+  /** Theme, petals and music apply at once (no "Lưu"); this wires the two switches and "Đồng bộ ngay". */
+  bindSettingsControls() {
+    const petals = document.getElementById("cfg-petals");
+    const music = document.getElementById("cfg-music");
+    const syncNow = document.getElementById("sync-now-btn");
+    if (petals) {
+      petals.addEventListener("click", () => {
+        const on = petals.getAttribute("aria-checked") !== "true";
+        petals.setAttribute("aria-checked", String(on));
+        this.saveData(PETALS_SETTING_KEY, on ? "on" : "off");
+        if (this.petals) this.petals.update();
+      });
+    }
+    if (music) music.addEventListener("click", () => this.toggleMelody());
+    if (syncNow) {
+      syncNow.addEventListener("click", async () => {
+        await this.syncFromBackend();
+        this.renderSyncStatus();
+      });
+    }
+  }
+
+  syncSettingSwitches() {
+    const petals = document.getElementById("cfg-petals");
+    if (petals) petals.setAttribute("aria-checked", String(this.loadData(PETALS_SETTING_KEY, "on") !== "off"));
+    this.syncMusicSwitch();
+  }
+
+  syncMusicSwitch() {
+    const music = document.getElementById("cfg-music");
+    if (music) music.setAttribute("aria-checked", String(!!this.isPlayingMelody));
+  }
+
+  /** "Đã đồng bộ lúc 15:39" or "3 mục chưa đồng bộ". */
+  renderSyncStatus() {
+    const el = document.getElementById("sync-status-text");
+    if (!el) return;
+    const pending = this.syncEngine ? this.syncEngine.keys().length : 0;
+    if (pending > 0) {
+      el.textContent = `${pending} mục chưa đồng bộ`;
+      return;
+    }
+    const last = this.loadData(LAST_SYNC_KEY, 0);
+    if (!last) {
+      el.textContent = this.config.apiUrl ? "Chưa đồng bộ lần nào" : "Chưa kết nối";
+      return;
+    }
+    const when = new Date(last);
+    const sameDay = formatLocalDate(when) === formatLocalDate(new Date());
+    el.textContent = `Đã đồng bộ lúc ${sameDay ? formatTime24(when) : formatDateVi(when)}`;
+  }
+
+  showToast(message, duration = null, action = null) {
+    if (duration === null) duration = action ? TOAST_ACTION_MS : TOAST_DEFAULT_MS;
     let toast = document.getElementById("journey-toast");
     if (!toast) {
       toast = document.createElement("div");
       toast.id = "journey-toast";
       toast.className = "journey-toast";
+      toast.setAttribute("role", "status");
+      toast.setAttribute("aria-live", "polite");
       document.body.appendChild(toast);
     }
     toast.textContent = message;
@@ -635,37 +849,14 @@ class JourneyApp {
   // XỬ LÝ CHỤP & CHỌN ẢNH, TỰ ĐỘNG NGÀY GIỜ & GOOGLE MAPS GPS
   // ==========================================
   initPhotoUpload() {
-    // 1. Mở camera chụp ảnh
-    if (this.btnCameraTrigger) {
-      this.btnCameraTrigger.addEventListener("click", () => {
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        if (isMobile) {
-          // Trên điện thoại, mở trực tiếp camera native của máy
-          if (this.memoryCameraInput) this.memoryCameraInput.click();
-        } else {
-          // Trên máy tính bàn / laptop, khởi động camera in-app từ webcam
-          this.startInAppCamera();
-        }
-      });
-    }
-
-    // 2. Mở thư viện chọn ảnh
+    // 1. Mở thư viện chọn ảnh
     if (this.btnGalleryTrigger) {
       this.btnGalleryTrigger.addEventListener("click", () => {
         if (this.memoryFileInput) this.memoryFileInput.click();
       });
     }
 
-    // 3. Xử lý ảnh từ input camera (điện thoại)
-    if (this.memoryCameraInput) {
-      this.memoryCameraInput.addEventListener("change", (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        this.processUploadedFile(file);
-      });
-    }
-
-    // 4. Xử lý ảnh từ input thư viện
+    // 2. Xử lý ảnh đã chọn
     if (this.memoryFileInput) {
       this.memoryFileInput.addEventListener("change", (e) => {
         const file = e.target.files[0];
@@ -674,33 +865,12 @@ class JourneyApp {
       });
     }
 
-    // 5. Nút chụp ảnh từ webcam in-app (máy tính)
-    if (this.btnCaptureInapp) {
-      this.btnCaptureInapp.addEventListener("click", () => {
-        this.captureInAppPhoto();
-      });
-    }
-
-    // 6. Nút đóng camera in-app
-    if (this.btnCloseInapp) {
-      this.btnCloseInapp.addEventListener("click", () => {
-        this.stopInAppCamera();
-      });
-    }
-
-    // 7. Nút đổi ảnh khác
+    // 3. Nút đổi ảnh khác
     if (this.removePreviewBtn) {
-      this.removePreviewBtn.addEventListener("click", () => {
-        if (this.memoryFileInput) this.memoryFileInput.value = "";
-        if (this.memoryCameraInput) this.memoryCameraInput.value = "";
-        this.memoryImageInput.value = "";
-        this.uploadPreviewWrapper.style.display = "none";
-        if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "grid";
-        this.stopInAppCamera();
-      });
+      this.removePreviewBtn.addEventListener("click", () => this.clearMemoryPhoto());
     }
 
-    // 8. Nút lấy lại toạ độ vị trí
+    // 4. Nút lấy lại toạ độ vị trí
     if (this.btnRefreshGps) {
       this.btnRefreshGps.addEventListener("click", (e) => {
         e.preventDefault();
@@ -709,7 +879,18 @@ class JourneyApp {
     }
   }
 
+  /** Reads a chosen photo (max 10 MB), compresses it and shows the preview. */
   processUploadedFile(file) {
+    const error = document.getElementById("memory-photo-error");
+    if (error) error.hidden = true;
+    if (file.size > MAX_PHOTO_BYTES) {
+      if (error) {
+        error.textContent = "Ảnh lớn quá (tối đa 10 MB). Chọn ảnh khác nhé.";
+        error.hidden = false;
+      }
+      if (this.memoryFileInput) this.memoryFileInput.value = "";
+      return;
+    }
     const lastMod = file.lastModified || Date.now();
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -721,80 +902,39 @@ class JourneyApp {
     reader.readAsDataURL(file);
   }
 
-  async startInAppCamera() {
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        this.cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" }
-        });
-        if (this.inappCameraVideo) {
-          this.inappCameraVideo.srcObject = this.cameraStream;
-        }
-        if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "block";
-        if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "none";
-        return;
-      }
-    } catch (err) {
-      console.warn("Không mở được webcam in-app, chuyển qua file picker:", err);
-    }
-    // Nếu webcam bị từ chối hoặc lỗi, chuyển qua input camera
-    if (this.memoryCameraInput) this.memoryCameraInput.click();
-  }
-
-  stopInAppCamera() {
-    if (this.cameraStream) {
-      this.cameraStream.getTracks().forEach(track => track.stop());
-      this.cameraStream = null;
-    }
-    if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "none";
-    if (this.photoActionButtonsGrid && (!this.uploadPreviewWrapper || this.uploadPreviewWrapper.style.display === "none")) {
-      this.photoActionButtonsGrid.style.display = "grid";
-    }
-  }
-
-  captureInAppPhoto() {
-    if (!this.inappCameraVideo || !this.cameraStream) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = this.inappCameraVideo.videoWidth || 1280;
-    canvas.height = this.inappCameraVideo.videoHeight || 720;
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(this.inappCameraVideo, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
-    this.stopInAppCamera();
-    this.setProcessedPhoto(dataUrl, Date.now());
+  clearMemoryPhoto() {
+    if (this.memoryFileInput) this.memoryFileInput.value = "";
+    if (this.memoryImageInput) this.memoryImageInput.value = "";
+    if (this.uploadPreviewWrapper) this.uploadPreviewWrapper.hidden = true;
+    const drop = document.getElementById("photo-drop");
+    if (drop) drop.hidden = false;
   }
 
   setProcessedPhoto(imgUrl, timestamp) {
     if (this.uploadPreviewImg) this.uploadPreviewImg.src = imgUrl;
     if (this.memoryImageInput) this.memoryImageInput.value = imgUrl;
-    if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "none";
-    if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "none";
-    if (this.uploadPreviewWrapper) this.uploadPreviewWrapper.style.display = "block";
+    const drop = document.getElementById("photo-drop");
+    if (drop) drop.hidden = true;
+    if (this.uploadPreviewWrapper) this.uploadPreviewWrapper.hidden = false;
 
-    // 1. Tự động gán ngày và giờ theo thời điểm chụp
+    // Tự động gán ngày và giờ theo thời điểm chụp
     const d = new Date(timestamp || Date.now());
     const pad = (n) => String(n).padStart(2, "0");
     const dtLocal = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    
-    if (this.memoryDateInput) {
-      this.memoryDateInput.value = dtLocal;
-    }
-
-    // 2. Tự động định vị toạ độ Google Maps
-    this.autoFetchGpsLocation();
+    if (this.memoryDateInput) this.memoryDateInput.value = dtLocal;
   }
 
   autoFetchGpsLocation(isUserInitiated = false) {
     const locInput = this.memoryLocationInput || document.getElementById("memory-location-input");
     const refreshBtn = this.btnRefreshGps || document.getElementById("btn-refresh-gps");
 
-    if (refreshBtn) refreshBtn.classList.add("spinning");
+    if (refreshBtn) refreshBtn.setAttribute("aria-busy", "true");
     if (locInput && !locInput.value) {
       locInput.placeholder = "Đang định vị toạ độ...";
     }
 
     if (!navigator.geolocation) {
-      if (refreshBtn) refreshBtn.classList.remove("spinning");
+      if (refreshBtn) refreshBtn.setAttribute("aria-busy", "false");
       if (locInput && !locInput.value) locInput.placeholder = "Trình duyệt không hỗ trợ GPS";
       if (isUserInitiated) this.showToast("Trình duyệt không hỗ trợ định vị GPS", 3000);
       return;
@@ -808,7 +948,7 @@ class JourneyApp {
 
       // Gán toạ độ Google Maps ngay tức thì vào ô nhập vị trí
       if (locInput) locInput.value = mapsUrl;
-      if (refreshBtn) refreshBtn.classList.remove("spinning");
+      if (refreshBtn) refreshBtn.setAttribute("aria-busy", "false");
       if (isUserInitiated) this.showToast("📍 Đã định vị toạ độ thành công!", 2500);
 
       // Tra cứu địa chỉ đường phố/phường xã ở chế độ nền (không làm trễ toạ độ)
@@ -840,7 +980,7 @@ class JourneyApp {
 
     const onPositionFail = (err) => {
       console.warn("GPS error:", err);
-      if (refreshBtn) refreshBtn.classList.remove("spinning");
+      if (refreshBtn) refreshBtn.setAttribute("aria-busy", "false");
 
       // Mã 1: PERMISSION_DENIED (Người dùng hoặc Chrome iPhone chưa cấp quyền)
       if (err && err.code === 1) {
@@ -906,96 +1046,20 @@ class JourneyApp {
   // LẮNG NGHE SỰ KIỆN (EVENT LISTENERS)
   // ==========================================
   initEvents() {
-    // prefill: { title, location, placeId } khi mở từ một địa điểm vừa ghé thăm
-    const openMemoryDialog = (prefill = null) => {
-      if (!this.isAuthenticated) {
-        this.openAuthModal(() => {
-          openMemoryDialog(prefill);
-        }, "Bé Thư nhập mật mã tình yêu để gửi khoảnh khắc mới nhé 💕");
-        return;
-      }
-
-      // Mặc định tự động điền ngày giờ hiện tại
-      const d = new Date();
-      const pad = (n) => String(n).padStart(2, "0");
-      const currentDt = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      if (this.memoryDateInput) this.memoryDateInput.value = currentDt;
-
-      // Reset các chế độ chụp/chọn ảnh
-      if (this.photoActionButtonsGrid) this.photoActionButtonsGrid.style.display = "grid";
-      if (this.inappCameraWrapper) this.inappCameraWrapper.style.display = "none";
-      if (this.uploadPreviewWrapper) this.uploadPreviewWrapper.style.display = "none";
-      if (this.memoryImageInput) this.memoryImageInput.value = "";
-
-      this.pendingMemoryPlaceId = prefill ? prefill.placeId : "";
-      if (prefill) {
-        document.getElementById("memory-title-input").value = prefill.title;
-        document.getElementById("memory-location-input").value = prefill.location;
-      } else {
-        // Tự động kích hoạt định vị GPS Google Maps
-        this.autoFetchGpsLocation();
-      }
-
-      this.memoryModal.showModal();
-    };
-    this.openMemoryDialog = openMemoryDialog;
-
-    if (this.openAddMemoryBtn) this.openAddMemoryBtn.addEventListener("click", () => openMemoryDialog());
-    // Esc / cử chỉ quay lại đóng <dialog> mà không qua nút nào → vẫn phải tắt camera (BUG-10)
+    // Esc / cử chỉ quay lại đóng <dialog> mà không qua nút nào → xóa trạng thái sửa
     this.memoryModal.addEventListener("close", () => {
-      this.stopInAppCamera();
       this.pendingMemoryPlaceId = "";
+      this.editingMemoryId = "";
     });
-    if (this.closeMemoryBtn) this.closeMemoryBtn.addEventListener("click", () => {
-      this.stopInAppCamera();
-      this.memoryModal.close();
-    });
-    if (this.cancelMemoryBtn) this.cancelMemoryBtn.addEventListener("click", () => {
-      this.stopInAppCamera();
-      this.memoryModal.close();
-    });
+    this.memoryModal.beforeClose = () => this.confirmDiscardMemory();
+    if (this.closeMemoryBtn) this.closeMemoryBtn.addEventListener("click", () => window.appShell.requestClose(this.memoryModal));
+    const storyInput = document.getElementById("memory-story-input");
+    storyInput.addEventListener("input", () => this.autoGrow(storyInput));
 
-    // Submit form thêm kỷ niệm
+    // Submit form thêm / sửa kỷ niệm
     this.memoryForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      if (!this.isAuthenticated) {
-        this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
-        return;
-      }
-      const title = document.getElementById("memory-title-input").value.trim();
-      const date = document.getElementById("memory-date-input").value;
-      const location = document.getElementById("memory-location-input").value.trim() || "Cùng Nhau";
-      const image = this.memoryImageInput.value.trim();
-      const story = document.getElementById("memory-story-input").value.trim();
-
-      if (!title || !date) return;
-
-      const newMemory = {
-        id: "mem-" + Date.now(),
-        title,
-        date,
-        location,
-        image,
-        story,
-        placeId: this.pendingMemoryPlaceId || "",
-        syncState: "pending"
-      };
-
-      this.memories.push(newMemory);
-      // Sắp xếp sự kiện gần nhất lên đầu
-      this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
-      this.persistMemories();
-      this.renderTimeline();
-      this.memoryForm.reset();
-      this.memoryModal.close();
-      this.spawnHeartConfetti();
-
-      this.queueMemory(newMemory);
-      if (this.config.apiUrl) {
-        this.showToast("Đang đồng bộ ảnh lên Google Drive cho cả hai... ☁️");
-      } else {
-        this.showToast("⚠️ Chưa kết nối link Google Drive trong Cài Đặt nên ảnh này chỉ xem được trên máy này!", 6000);
-      }
+      this.submitMemoryForm();
     });
 
     // Cài đặt thông tin
@@ -1003,7 +1067,7 @@ class JourneyApp {
       if (!this.isAuthenticated) {
         this.openAuthModal(() => {
           this.openSettingsBtn.click();
-        }, "Khu vực cài đặt chỉ dành cho Kim & Thư 💕");
+        }, "Khu vực cài đặt chỉ dành cho Kim & Thư.");
         return;
       }
       document.getElementById("cfg-him-name").value = this.config.partnerOne;
@@ -1012,19 +1076,15 @@ class JourneyApp {
       document.getElementById("cfg-quote").value = this.config.quote;
       const apiInput = document.getElementById("cfg-api-url");
       if (apiInput) apiInput.value = this.config.apiUrl || "";
-
-      const statusHint = document.getElementById("backend-status-hint");
-      if (statusHint) {
-        if (this.config.apiUrl && this.config.apiUrl.startsWith("http")) {
-          statusHint.innerHTML = `<span style="color: #10b981; font-weight: 600;">🟢 Đã kết nối Google Drive & Sheets</span>`;
-        } else {
-          statusHint.innerHTML = `<span style="color: #e11d48; font-weight: 600;">🔴 Chưa kết nối: Hãy dán link Web App để 2 người xem chung ảnh!</span>`;
-        }
-      }
-
+      this.settingsBaseline = this.settingsSnapshot();
+      this.syncSettingsSaveState();
+      this.syncSettingSwitches();
+      this.renderSyncStatus();
       this.settingsModal.showModal();
     });
     this.closeSettingsBtn.addEventListener("click", () => this.settingsModal.close());
+    this.settingsForm.addEventListener("input", () => this.syncSettingsSaveState());
+    this.bindSettingsControls();
 
     this.settingsForm.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -1047,96 +1107,19 @@ class JourneyApp {
 
       this.saveData("journey_config_v3", this.config);
       this.renderProfile();
+      this.lastCounterDays = null;
       this.updateCounter();
       this.settingsModal.close();
-      this.spawnHeartConfetti();
-    });
-
-    this.resetDataBtn.addEventListener("click", () => {
-      if (!this.isAuthenticated) {
-        this.showToast("Chế độ chỉ xem: Không thể đặt lại dữ liệu! 💕");
-        return;
-      }
-      if (confirm("Em có muốn đặt lại các kỷ niệm mẫu mặc định không?")) {
-        localStorage.removeItem("journey_config_v3");
-        localStorage.removeItem("journey_memories_v3");
-        localStorage.removeItem("journey_deleted_mem_ids");
-        localStorage.removeItem("journey_places_v2");
-        localStorage.removeItem("journey_deleted_place_ids");
-        localStorage.removeItem("journey_period_v1");
-        localStorage.removeItem("journey_chat_messages_v1");
-        this.config = { ...DEFAULT_CONFIG };
-        this.memories = [ ...DEFAULT_MEMORIES ];
-        this.deletedMemoryIds = [];
-        this.places = [ ...DEFAULT_PLACES ];
-        this.deletedPlaceIds = [];
-        this.period = { ...DEFAULT_PERIOD };
-        this.chatMessages = [ ...DEFAULT_CHAT_MESSAGES ];
-        this.renderProfile();
-        this.renderPeriodTracker();
-        this.renderTimeline();
-        this.renderPlaces();
-        this.renderChatMessages();
-        this.settingsModal.close();
-      }
+      this.showToast("Đã lưu cài đặt");
     });
 
     // Lightbox đóng
     this.closeLightboxBtn.addEventListener("click", () => this.lightboxModal.close());
-
-    // Chạm 2 lần vào ảnh để bắn tim (không bắn khi đang bôi đen chữ)
-    document.addEventListener("dblclick", (e) => {
-      if (!e.target.closest || !e.target.closest(".locket-photo-frame, .chat-msg-img")) return;
-      this.spawnHeartBurst(e.clientX, e.clientY);
-    });
+    this.lightboxModal.addEventListener("click", (e) => { if (e.target === this.lightboxModal) this.lightboxModal.close(); });
+    this.bindMemoryDetail();
 
     // Bật/tắt nhạc
     this.musicToggleBtn.addEventListener("click", () => this.toggleMelody());
-
-    // Nút mũi tên tròn xổ dọc xuống menu các chức năng
-    if (this.navMenuToggleBtn && this.navDropdownWrap) {
-      this.navMenuToggleBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const isOpen = this.navDropdownWrap.classList.toggle("open");
-        this.navMenuToggleBtn.setAttribute("aria-expanded", isOpen);
-        if (this.navDropdownMenu) {
-          this.navDropdownMenu.setAttribute("aria-hidden", !isOpen);
-        }
-      });
-
-      // Đóng dropdown khi bấm bất kỳ đâu bên ngoài
-      document.addEventListener("click", (e) => {
-        if (!this.navDropdownWrap.contains(e.target)) {
-          this.navDropdownWrap.classList.remove("open");
-          this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
-          if (this.navDropdownMenu) {
-            this.navDropdownMenu.setAttribute("aria-hidden", "true");
-          }
-        }
-      });
-
-      // Đóng dropdown khi bấm Esc
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && this.navDropdownWrap.classList.contains("open")) {
-          this.navDropdownWrap.classList.remove("open");
-          this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
-          if (this.navDropdownMenu) {
-            this.navDropdownMenu.setAttribute("aria-hidden", "true");
-          }
-        }
-      });
-
-      // Đóng dropdown khi chọn bất kỳ chức năng nào
-      if (this.navDropdownMenu) {
-        this.navDropdownMenu.querySelectorAll(".dropdown-item").forEach(item => {
-          item.addEventListener("click", () => {
-            this.navDropdownWrap.classList.remove("open");
-            this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
-            this.navDropdownMenu.setAttribute("aria-hidden", "true");
-          });
-        });
-      }
-    }
   }
 
   // ==========================================
@@ -1155,34 +1138,47 @@ class JourneyApp {
     setInterval(() => this.updateCounter(), 1000);
   }
 
+  /**
+   * Calendar days together (changes at local midnight, so it always agrees with the milestone line) and the
+   * clock time elapsed since the start time of day.
+   * @returns {{days: number, hours: number, minutes: number, seconds: number}}
+   */
+  counterParts(startDate, now) {
+    const start = new Date(startDate).getTime();
+    const elapsed = Math.max(0, now.getTime() - start);
+    const rest = elapsed % MS_PER_DAY;
+    const days = daysTogether(startDate, now);
+    return {
+      days: days === null ? 0 : Math.max(0, days),
+      hours: Math.floor(rest / MS_PER_HOUR),
+      minutes: Math.floor((rest % MS_PER_HOUR) / MS_PER_MINUTE),
+      seconds: Math.floor((rest % MS_PER_MINUTE) / MS_PER_SECOND)
+    };
+  }
+
   updateCounter() {
-    const start = new Date(this.config.startDate).getTime();
-    const now = new Date().getTime();
-    let diff = Math.max(0, now - start);
-
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    diff -= days * (1000 * 60 * 60 * 24);
-
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    diff -= hours * (1000 * 60 * 60);
-
-    const minutes = Math.floor(diff / (1000 * 60));
-    diff -= minutes * (1000 * 60);
-
-    const seconds = Math.floor(diff / 1000);
-
-    this.countDays.textContent = days.toLocaleString();
-    this.countHours.textContent = String(hours).padStart(2, "0");
-    this.countMinutes.textContent = String(minutes).padStart(2, "0");
-    this.countSeconds.textContent = String(seconds).padStart(2, "0");
-    this.renderMilestone(days);
+    const parts = this.counterParts(this.config.startDate, new Date());
+    if (this.lastCounterDays !== parts.days) {
+      this.lastCounterDays = parts.days;
+      this.countDays.textContent = Number(parts.days).toLocaleString("vi-VN");
+      if (this.heroDays) this.heroDays.setAttribute("aria-label", `${parts.days} ngày bên nhau`);
+    }
+    this.countHours.textContent = String(parts.hours).padStart(2, "0");
+    this.countMinutes.textContent = String(parts.minutes).padStart(2, "0");
+    this.countSeconds.textContent = String(parts.seconds).padStart(2, "0");
+    this.renderMilestone(parts.days);
   }
 
   // Đếm ngược tới mốc 100 ngày / kỷ niệm năm; chỉ tính lại khi sang ngày mới
   renderMilestone(days) {
     if (!this.milestoneLine || this.lastMilestoneDay === days) return;
     this.lastMilestoneDay = days;
-    this.milestoneLine.textContent = milestoneText(nextMilestone(this.config.startDate, new Date()));
+    const milestone = nextMilestone(this.config.startDate, new Date());
+    this.milestoneLine.textContent = milestoneText(milestone);
+    this.maybeCelebrateMilestone(milestone);
+    const percent = Math.round(milestoneProgress(milestone, days) * 100);
+    if (this.milestoneFill) this.milestoneFill.style.width = `${percent}%`;
+    if (this.milestoneBar) this.milestoneBar.setAttribute("aria-valuenow", String(percent));
   }
 
   // ==========================================
@@ -1191,39 +1187,15 @@ class JourneyApp {
   initPeriodTracker() {
     if (!this.periodModal) return;
 
-    const openModal = (e) => {
-      if (e) e.stopPropagation();
-      if (!this.isAuthenticated) {
-        this.showToast("Khu vực riêng tư: Chỉ dành riêng cho Kim & Thư 💕");
-        this.openAuthModal();
-        return;
-      }
-      this.periodStartDateInput.value = this.period.startDate || formatLocalDate(new Date());
-      this.periodCycleLengthInput.value = this.period.cycleLength || 28;
-      this.periodModal.showModal();
-    };
-
-    if (this.periodNavBtn) {
-      this.periodNavBtn.addEventListener("click", openModal);
+    if (this.viewBe) {
+      this.viewBe.addEventListener("click", (e) => {
+        if (e.target.closest && e.target.closest("#be-log-btn")) this.openPeriodLogForm();
+        const more = e.target.closest ? e.target.closest(".be-history__more") : null;
+        if (more) this.openPeriodHistoryMenu(more, more.closest("li").dataset.start);
+      });
     }
-
     if (this.closePeriodBtn) {
       this.closePeriodBtn.addEventListener("click", () => this.periodModal.close());
-    }
-    if (this.cancelPeriodBtn) {
-      this.cancelPeriodBtn.addEventListener("click", () => this.periodModal.close());
-    }
-
-    if (this.setPeriodTodayBtn) {
-      this.setPeriodTodayBtn.addEventListener("click", () => {
-        if (!this.isAuthenticated) {
-          this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
-          return;
-        }
-        const todayStr = formatLocalDate(new Date());
-        this.periodStartDateInput.value = todayStr;
-        this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
-      });
     }
 
     if (this.periodForm) {
@@ -1234,16 +1206,37 @@ class JourneyApp {
           return;
         }
         const startVal = this.periodStartDateInput.value;
-        const cycleVal = parseInt(this.periodCycleLengthInput.value, 10) || 28;
-
-        if (startVal) {
-          this.recordPeriodStart(startVal, cycleVal);
+        const durationVal = parseInt(this.periodDurationInput.value, 10);
+        if (!startVal) return;
+        if (this.editingPeriodStart) {
+          this.commitPeriodChange(replacePeriodStart(this.period.history, this.editingPeriodStart, startVal));
+          this.editingPeriodStart = "";
           this.renderPeriodTracker();
           this.periodModal.close();
-          this.spawnHeartConfetti();
+          this.showToast("Đã lưu");
+          return;
         }
+        this.recordPeriodStart(startVal, this.period.cycleLength || DEFAULT_CYCLE_DAYS, Number.isFinite(durationVal) ? durationVal : undefined);
+        this.renderPeriodTracker();
+        this.periodModal.close();
+        this.showToast("Đã lưu. Anh sẽ nhắc trước kỳ tới nhé.");
       });
     }
+  }
+
+  /** Opens the "Ghi nhận kỳ mới" sheet with today as the default start date. */
+  openPeriodLogForm() {
+    if (!this.isAuthenticated) {
+      this.showToast("Khu vực riêng tư: Chỉ dành riêng cho Kim & Thư 💕");
+      this.openAuthModal();
+      return;
+    }
+    this.editingPeriodStart = "";
+    document.getElementById("period-modal-title").textContent = "Ghi nhận kỳ mới";
+    this.periodStartDateInput.value = formatLocalDate(new Date());
+    this.periodDurationInput.value = "";
+    this.periodDurationInput.placeholder = String(Number(this.period.durationDays) || DEFAULT_PERIOD_DAYS);
+    this.periodModal.showModal();
   }
 
   normalizePeriod(period) {
@@ -1259,16 +1252,25 @@ class JourneyApp {
   }
 
   // Ghi một ngày bắt đầu mới, đối chiếu với dự đoán trước đó để biết dự đoán có trúng không
-  recordPeriodStart(startVal, cycleVal) {
+  recordPeriodStart(startVal, cycleVal, durationVal) {
     const history = this.period.history;
     if (!history.includes(startVal)) {
       const outcome = evaluatePrediction(history, cycleVal, startVal);
       this.period.predictionLog = appendPredictionLog(this.period.predictionLog, outcome);
     }
-    this.period.history = addPeriodStart(history, startVal);
-    this.period.startDate = this.period.history[this.period.history.length - 1];
     this.period.cycleLength = cycleVal;
-    this.period.updatedAt = Date.now();
+    if (Number.isFinite(durationVal)) this.period.durationDays = durationVal;
+    this.commitPeriodChange(addPeriodStart(history, startVal));
+  }
+
+  /**
+   * The only way the period record changes: stores the history, sets startDate to the latest start and bumps
+   * updatedAt so the partner's phone accepts the change, then saves and queues it.
+   */
+  commitPeriodChange(history) {
+    this.period.history = normalizeHistory(history);
+    this.period.startDate = this.period.history.length > 0 ? this.period.history[this.period.history.length - 1] : "";
+    this.period.updatedAt = Math.max(Date.now(), (Number(this.period.updatedAt) || 0) + 1);
     this.saveData("journey_period_v1", this.period);
     this.queuePeriod();
   }
@@ -1286,16 +1288,26 @@ class JourneyApp {
     const prediction = predictCycle(this.period.history, this.period.cycleLength);
     const cycle = computeCycle(this.period.startDate, prediction.cycleLength, durationDays, new Date());
     if (!cycle) return null;
-    return { ...cycle, windowText: this.formatPeriodWindow(cycle.nextStart, prediction.windowDays) };
+    const n = cycle.nextStart;
+    const shift = (days) => new Date(n.getFullYear(), n.getMonth(), n.getDate() + days);
+    return {
+      ...cycle, windowText: this.formatPeriodWindow(cycle.nextStart, prediction.windowDays),
+      windowStart: shift(-prediction.windowDays), windowEnd: shift(prediction.windowDays), cycleLength: prediction.cycleLength
+    };
   }
 
-  updatePeriodExtras() {
-    if (this.periodChipText && this.periodPhaseText) this.periodChipText.textContent = this.periodPhaseText.textContent;
-    if (!this.periodAccuracy) return;
-    const a = accuracySummary(this.period.predictionLog);
-    this.periodAccuracy.textContent = a.total > 0
-      ? `Dự đoán nằm trong khoảng đã báo: ${a.hits}/${a.total} chu kỳ gần đây.`
-      : "";
+  /** Period chip on the hero: "Ngày 5/5 của kỳ" during a period, "Còn 4 ngày đến kỳ" before; hidden without data. */
+  renderPeriodChip() {
+    if (!this.periodChip || !this.periodChipText) return;
+    const cycle = this.period && this.period.startDate
+      ? this.computePeriodStatus(Number(this.period.durationDays) || DEFAULT_PERIOD_DAYS)
+      : null;
+    this.periodChip.hidden = !cycle;
+    if (!cycle) return;
+    const duration = Number(this.period.durationDays) || DEFAULT_PERIOD_DAYS;
+    this.periodChipText.textContent = cycle.isDuring
+      ? `Ngày ${cycle.periodDay}/${duration} của kỳ`
+      : `Còn ${cycle.daysUntilNext} ngày đến kỳ`;
   }
 
   queuePeriod() {
@@ -1306,37 +1318,76 @@ class JourneyApp {
   }
 
   renderPeriodTracker() {
-    if (!this.periodPhaseText || !this.periodStatusMessage) return;
+    this.renderPeriodChip();
+    this.renderBePage();
+  }
 
-    if (!this.period || !this.period.startDate) {
-      this.periodPhaseText.textContent = "Chưa cài đặt";
-      this.periodStatusMessage.textContent = "Bấm vào để cài đặt ngày dâu chăm sóc bé Thư 💕";
-      return;
-    }
-
-    const durationDays = Number(this.period.durationDays) || 5;
-    const cycle = this.computePeriodStatus(durationDays);
+  /** Bé page: cycle ring, phase line, window, care note and history. */
+  renderBePage() {
+    const ringBox = document.getElementById("cycle-ring");
+    if (!ringBox) return;
+    const duration = Number(this.period.durationDays) || DEFAULT_PERIOD_DAYS;
+    const cycle = this.period && this.period.startDate ? this.computePeriodStatus(duration) : null;
+    const phase = document.getElementById("be-phase");
+    const windowEl = document.getElementById("be-window");
+    const careEl = document.getElementById("be-care");
+    const careText = document.getElementById("be-care-text");
+    const model = cycleRingModel({ cycle: cycle, cycleLength: cycle ? cycle.cycleLength : DEFAULT_CYCLE_DAYS, durationDays: duration, today: new Date() });
     if (!cycle) {
-      this.periodPhaseText.textContent = "Chưa cài đặt";
-      this.periodStatusMessage.textContent = "Ngày bắt đầu chưa hợp lệ, bấm vào để cài đặt lại 💕";
-      return;
+      ringBox.innerHTML = "";
+      phase.textContent = "Chưa có dữ liệu kỳ nào.";
+      windowEl.textContent = "Ghi nhận ngày bắt đầu để nhận lời nhắc trước kỳ tới.";
+      careEl.hidden = true;
+    } else {
+      ringBox.innerHTML = cycleRingSvg(model, { size: BE_RING_SIZE_PX });
+      phase.textContent = model.phaseLine;
+      windowEl.textContent = `Kỳ tới dự kiến: ${cycle.windowText}`;
+      careEl.hidden = false;
+      careText.textContent = BE_CARE_TEXT[model.phase];
     }
-    const { isDuring: isDuringPeriod, periodDay, windowText, daysUntilNext } = cycle;
+    this.renderBeHistory();
+  }
 
-    if (isDuringPeriod) {
-      this.periodPhaseText.textContent = `🌸 Đang kỳ dâu (Ngày ${periodDay}/${durationDays})`;
-      this.periodStatusMessage.textContent = "Bé iu nhớ uống nước ấm, chườm bụng và nghỉ ngơi thật nhiều nhé. Anh luôn yêu và chiều chuộng bé! 🍵💕";
-      if (this.periodNavBtn) this.periodNavBtn.title = `🌸 Đang kỳ dâu của bé Thư (Ngày ${periodDay}/${durationDays})`;
-    } else if (daysUntilNext > 0 && daysUntilNext <= 3) {
-      this.periodPhaseText.textContent = `🍓 Sắp đến kỳ dâu (còn ${daysUntilNext} ngày)`;
-      this.periodStatusMessage.textContent = `Dự kiến khoảng ${windowText}. Chuẩn bị giữ ấm và để anh chăm sóc em thật chu đáo nha bé! 💕`;
-      if (this.periodNavBtn) this.periodNavBtn.title = `🍓 Sắp đến kỳ dâu của bé (còn ${daysUntilNext} ngày)`;
-    } else if (daysUntilNext > 0) {
-      this.periodPhaseText.textContent = `✨ Dự kiến: ${windowText} (còn ~${daysUntilNext} ngày)`;
-      this.periodStatusMessage.textContent = "Bé Thư nhớ uống đủ nước, ngủ thật ngon và luôn cười thật rạng rỡ nha cô gái nhỏ! 🌸";
-      if (this.periodNavBtn) this.periodNavBtn.title = `Góc chăm sóc bé Thư 🍓 (Dự kiến: ${windowText})`;
+  renderBeHistory() {
+    const list = document.getElementById("be-history");
+    if (!list) return;
+    list.innerHTML = historyRows(this.period.history).map((row) => {
+      const detail = row.cycleDays === null ? "kỳ gần nhất" : `chu kỳ ${row.cycleDays} ngày`;
+      const more = this.isAuthenticated
+        ? `<button type="button" class="icon-btn be-history__more" aria-label="Thêm thao tác">${icon("more")}</button>` : "";
+      return `<li data-start="${this.escapeHTML(row.start)}"><span>${this.escapeHTML(formatDateVi(row.start))} · ${detail}</span>${more}</li>`;
+    }).join("");
+  }
+
+  /** ⋯ on a history row: edit its start date or delete it (delete hidden for the only entry). */
+  openPeriodHistoryMenu(anchor, start) {
+    const items = [{ label: "Sửa", icon: "edit", onSelect: () => this.openPeriodEditForm(start) }];
+    if (this.period.history.length > 1) {
+      items.push({ label: "Xóa", icon: "trash", danger: true, onSelect: () => this.deletePeriodStart(start) });
     }
-    this.updatePeriodExtras();
+    actionMenu.open({ anchor: anchor, items: items });
+  }
+
+  openPeriodEditForm(start) {
+    this.editingPeriodStart = start;
+    document.getElementById("period-modal-title").textContent = "Sửa ngày bắt đầu";
+    this.periodStartDateInput.value = start;
+    this.periodDurationInput.value = "";
+    this.periodModal.showModal();
+  }
+
+  async deletePeriodStart(start) {
+    const confirmed = await confirmSheet({
+      title: "Xóa lần ghi này?",
+      body: "Dự đoán kỳ tới sẽ được tính lại.",
+      confirmLabel: "Xóa",
+      cancelLabel: "Giữ lại",
+      danger: true
+    });
+    if (!confirmed) return;
+    this.commitPeriodChange(removePeriodStart(this.period.history, start));
+    this.renderPeriodTracker();
+    this.showToast("Đã xóa");
   }
 
   // ==========================================
@@ -1345,54 +1396,42 @@ class JourneyApp {
   checkPeriodAlert() {
     if (!this.isAuthenticated || !this.periodAlertModal || !this.period || !this.period.startDate) return;
 
-    // Gắn sự kiện đóng / mở từ alert nếu chưa gắn
-    if (this.closePeriodAlertBtn) {
-      this.closePeriodAlertBtn.onclick = () => this.periodAlertModal.close();
-    }
-    if (this.dismissPeriodAlertBtn) {
-      this.dismissPeriodAlertBtn.onclick = () => this.periodAlertModal.close();
-    }
+    if (this.closePeriodAlertBtn) this.closePeriodAlertBtn.onclick = () => this.periodAlertModal.close();
+    if (this.dismissPeriodAlertBtn) this.dismissPeriodAlertBtn.onclick = () => this.periodAlertModal.close();
     if (this.openCareFromAlertBtn) {
       this.openCareFromAlertBtn.onclick = () => {
         this.periodAlertModal.close();
-        if (this.periodModal) {
-          this.periodStartDateInput.value = this.period.startDate;
-          this.periodCycleLengthInput.value = this.period.cycleLength || 28;
-          this.periodModal.showModal();
-        }
+        this.switchView("be");
       };
     }
 
-    const durationDays = Number(this.period.durationDays) || 5;
+    const durationDays = Number(this.period.durationDays) || DEFAULT_PERIOD_DAYS;
     const cycle = this.computePeriodStatus(durationDays);
     if (!cycle) return;
-    const { isDuring: isDuringPeriod, periodDay, windowText, daysUntilNext } = cycle;
+    const { isDuring: isDuringPeriod, periodDay, daysUntilNext } = cycle;
 
-    // Kiểm tra điều kiện: trước ba ngày kỳ dâu dự đoán (còn <= 3 ngày) hoặc đang trong kỳ dâu
+    // Kiểm tra điều kiện: trước ba ngày kỳ dự đoán (còn <= 3 ngày) hoặc đang trong kỳ
     let shouldAlert = false;
-
     if (isDuringPeriod) {
-      this.periodAlertTitle.textContent = "🌸 Bé Thư Đang Trong Kỳ Dâu!";
-      this.periodAlertCountdownPill.innerHTML = `Đang là ngày thứ <strong style="color: var(--pink-deep);">${periodDay}/${durationDays}</strong> của kỳ dâu`;
-      this.periodAlertMessage.textContent = "Bé Thư nhớ uống nhiều nước ấm, trà gừng, chườm ấm bụng và nghỉ ngơi thật nhiều nhé. Anh luôn yêu thương và chiều chuộng bé! 🍵💕";
+      this.periodAlertTitle.textContent = "Bé Thư đang trong kỳ";
+      this.periodAlertCountdownPill.textContent = `Ngày ${periodDay}/${durationDays}`;
+      this.periodAlertMessage.textContent = BE_CARE_TEXT.during;
       shouldAlert = true;
     } else if (daysUntilNext > 0 && daysUntilNext <= 3) {
-      this.periodAlertTitle.textContent = "🍓 Sắp Đến Kỳ Dâu Của Bé Thư!";
-      this.periodAlertCountdownPill.innerHTML = `Chỉ còn <strong style="color: var(--pink-deep); font-size: 1.25rem;">${daysUntilNext}</strong> ngày nữa (Dự kiến: ${windowText})`;
-      this.periodAlertMessage.textContent = `Chỉ còn ${daysUntilNext} ngày nữa là đến kỳ dâu rồi nè! Bé iu nhớ chuẩn bị giữ ấm bụng, uống nước ấm, tránh đồ lạnh và ngủ sớm nhé. Anh luôn ở cạnh chăm sóc em! 🌸💕`;
+      this.periodAlertTitle.textContent = "Sắp đến kỳ của bé Thư";
+      this.periodAlertCountdownPill.textContent = `Còn ${daysUntilNext} ngày`;
+      this.periodAlertMessage.textContent = BE_CARE_TEXT.soon;
       shouldAlert = true;
     }
 
     const todayKey = formatLocalDate(new Date());
     if (shouldAlert && this.loadData(PERIOD_ALERT_SEEN_KEY, "") !== todayKey) {
       this.saveData(PERIOD_ALERT_SEEN_KEY, todayKey);
-      // Hiển thị alert ngay khi truy cập trang web (delay nhẹ 600ms tạo hiệu ứng mượt mà)
-      setTimeout(() => {
-        if (!this.periodAlertModal.open) {
-          this.periodAlertModal.showModal();
-          this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
-        }
-      }, 650);
+      this.dialogQueue.request("period-alert", DIALOG_PRIORITY.periodAlert, () => {
+        if (!this.isAuthenticated || this.periodAlertModal.open) return null;
+        this.periodAlertModal.showModal();
+        return this.periodAlertModal;
+      });
     }
   }
 
@@ -1400,144 +1439,210 @@ class JourneyApp {
   // DÒNG THỜI GIAN LOCKET (KHUNG ẢNH & KHUNG CÂU CHUYỆN KẾ BÊN)
   // ==========================================
   renderTimeline() {
-    this.timelineContainer.classList.toggle("is-grid", this.timelineView === "grid");
+    const container = this.timelineContainer;
+    container.classList.toggle("is-grid", this.timelineView === "grid");
     this.renderOnThisDay();
     if (this.memories.length === 0) {
-      this.timelineContainer.innerHTML = `
-        <div style="text-align: center; padding: 40px; color: var(--text-muted); background: rgba(255,255,255,0.7); border-radius: var(--radius-lg); border: 1px dashed var(--pink-soft);">
-          <p style="font-size: 1.1rem; margin-bottom: 8px;">Chưa có khoảnh khắc kỷ niệm nào được lưu.</p>
-          <small>Bấm "Gửi khoảnh khắc mới" ở trên để lưu lại câu chuyện đầu tiên nhé!</small>
-        </div>
-      `;
+      this.renderTimelineEmpty(container);
       return;
     }
 
     // Luôn sắp xếp từ sự kiện gần nhất trở về trước (mới nhất ở trên cùng)
     this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    // Hiển thị gọn gàng (mặc định 6 sự kiện mới nhất, có nút xem thêm nếu nhiều hơn)
-    const visibleMemories = this.showAllMemories ? this.memories : this.memories.slice(0, 6);
-
-    let lastMonthKey = "";
-    this.timelineContainer.innerHTML = visibleMemories.map((mem) => {
-      const dateFormatted = this.formatMemoryDate(mem.date);
-      const locBadgeHtml = this.formatLocationBadge(mem.location);
-      const monthKey = String(mem.date || "").slice(0, 7);
-      const [monthYear, monthNum] = monthKey.split("-");
-      const monthSeparator = monthKey && monthKey !== lastMonthKey
-        ? `<div class="timeline-month-sep">Tháng ${parseInt(monthNum, 10)} · ${this.escapeHTML(monthYear)}</div>`
-        : "";
-      lastMonthKey = monthKey;
-      const imageUrl = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
-      const photoHtml = imageUrl
-        ? `<img src="${this.escapeHTML(resizeDriveThumbnail(imageUrl, this.timelineView === "grid" ? 400 : 800))}" alt="" decoding="async" loading="lazy" data-fallback-src="${this.escapeHTML(imageUrl)}">`
-        : `<div class="locket-photo-placeholder" aria-hidden="true">❤️</div>`;
-      const locationHtml = locBadgeHtml ? `<span class="locket-meta-sep" aria-hidden="true">·</span>${locBadgeHtml}` : "";
-
-      return `${monthSeparator}
-        <article class="locket-card" data-id="${this.escapeHTML(mem.id)}">
-          <div class="locket-photo-frame" title="Chạm để xem ảnh phóng to" role="img" aria-label="${this.escapeHTML(mem.title)}">
-            <div class="locket-photo-inner">
-              ${photoHtml}
-              <div class="locket-photo-overlay">
-                ${mem.syncState === "pending" ? '<span class="sync-pending-badge">⏳ chưa đồng bộ</span>' : ""}
-                <span class="locket-date-chip">${this.escapeHTML(dateFormatted)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="locket-story-frame">
-            <div class="locket-meta-row">
-              <span class="locket-meta-date">${this.escapeHTML(this.formatMemoryDateShort(mem.date))}</span>${locationHtml}
-            </div>
-            <h3 class="locket-story-title">${this.escapeHTML(mem.title)}</h3>
-            <p class="locket-story-text">"${this.escapeHTML(mem.story || "Khoảnh khắc ngọt ngào của hai đứa...")}"</p>
-            <div class="locket-card-actions">
-              <button type="button" class="locket-expand-story-btn" data-id="${this.escapeHTML(mem.id)}">Xem thêm</button>
-              ${this.isAuthenticated ? `<button type="button" class="locket-delete-btn couple-only" data-id="${this.escapeHTML(mem.id)}" title="Xóa khoảnh khắc này" aria-label="Xóa khoảnh khắc">&times;</button>` : ""}
-            </div>
-          </div>
-        </article>
-      `;
-    }).join("");
-
-    this.attachImageFallbacks(this.timelineContainer);
-
-    // Nút mở rộng nếu có nhiều hơn 6 kỷ niệm để trang không bị quá dài
-    if (this.memories.length > 6) {
-      const toggleWrap = document.createElement("div");
-      toggleWrap.className = "timeline-toggle-wrapper";
-      toggleWrap.innerHTML = `
-        <button id="toggle-timeline-len-btn" class="btn btn-secondary btn-sm">
-          ${this.showAllMemories ? "Thu gọn bớt ✨" : `Xem thêm kỷ niệm trước đó (${this.memories.length - 6}) 🌸`}
-        </button>
-      `;
-      this.timelineContainer.appendChild(toggleWrap);
-
-      toggleWrap.querySelector("#toggle-timeline-len-btn").addEventListener("click", () => {
-        this.showAllMemories = !this.showAllMemories;
-        this.renderTimeline();
-      });
+    if (this.shouldShowTimelineSkeleton()) {
+      container.innerHTML = memorySkeletonHtml() + memorySkeletonHtml();
+      return;
     }
 
-    // Gắn sự kiện xem ảnh lớn
-    this.timelineContainer.querySelectorAll(".locket-photo-frame, .locket-expand-story-btn").forEach(el => {
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (e.target.closest && e.target.closest("a")) return; // link bản đồ tự mở, không mở ảnh lớn
-        const card = el.closest(".locket-card");
-        const mem = this.memories.find(m => m.id === card.dataset.id);
-        if (mem) this.openMemoryLightbox(mem);
-      });
+    let lastMonthKey = "";
+    const isGrid = this.timelineView === "grid";
+    container.innerHTML = this.memories.map((mem) => {
+      const monthKey = String(mem.date || "").slice(0, 7);
+      const label = monthKey && monthKey !== lastMonthKey ? monthLabelHtml(monthKey) : "";
+      lastMonthKey = monthKey;
+      const body = isGrid ? gridTileHtml(mem) : memoryBlockHtml(mem, { couple: this.isAuthenticated });
+      return label + body;
+    }).join("");
+
+    this.attachImageFallbacks(container);
+    if (window.appShell) window.appShell.observeMonthLabels(container);
+  }
+
+  renderTimelineEmpty(container) {
+    const addButton = this.isAuthenticated
+      ? '<button type="button" class="btn btn--primary" id="empty-add-memory-btn">Thêm khoảnh khắc</button>'
+      : "";
+    container.innerHTML = `<div class="empty"><p class="t-headline">Chưa có khoảnh khắc nào.</p>` +
+      `<p class="muted">Lưu lại kỷ niệm đầu tiên của hai đứa nhé.</p>${addButton}</div>`;
+    const button = document.getElementById("empty-add-memory-btn");
+    if (button) button.addEventListener("click", () => this.openMemoryDialog());
+  }
+
+  /** Two skeleton rows only while the sample memories are shown and the first backend sync is still pending. */
+  shouldShowTimelineSkeleton() {
+    if (!this.config.apiUrl || this.firstSyncDone === true) return false;
+    return this.memories.every((mem) => DEFAULT_MEMORY_IDS.includes(mem.id));
+  }
+
+  /** One delegated click handler for the feed, the grid, "Ngày này năm xưa" and the photo retry button. */
+  bindTimelineEvents() {
+    const open = (event) => {
+      const target = event.target.closest ? event.target.closest(".memory__open, .tile, .otd-row") : null;
+      if (!target) return;
+      const holder = target.closest("[data-id]");
+      const mem = this.memories.find((m) => String(m.id) === String(holder ? holder.dataset.id : target.dataset.id));
+      if (mem) this.openMemoryDetail(mem);
+    };
+    this.timelineContainer.addEventListener("click", (event) => {
+      const retry = event.target.closest ? event.target.closest(".memory__retry") : null;
+      if (retry) {
+        this.retryMemoryPhoto(retry.dataset.id);
+        return;
+      }
+      open(event);
     });
+    if (this.onThisDayCard) this.onThisDayCard.addEventListener("click", open);
+  }
 
-    // Gắn sự kiện xóa khoảnh khắc
-    this.timelineContainer.querySelectorAll(".locket-delete-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (!this.isAuthenticated) {
-          this.showToast("Chỉ Kim & Thư mới có quyền xóa kỷ niệm 💕");
-          this.openAuthModal();
-          return;
-        }
+  /** Puts the photo back on a text card after a failed load and tries the image once more. */
+  retryMemoryPhoto(id) {
+    const mem = this.memories.find((m) => String(m.id) === String(id));
+    const article = this.timelineContainer.querySelector(`.memory[data-id="${CSS.escape(String(id))}"]`);
+    if (!mem || !article) return;
+    article.outerHTML = memoryBlockHtml(mem, { couple: this.isAuthenticated });
+    this.attachImageFallbacks(this.timelineContainer);
+  }
 
-        const memId = String(btn.dataset.id);
-        const targetMem = this.memories.find(m => String(m.id) === memId);
-        if (!targetMem) return;
+  /**
+   * Delete with a 5 s undo window. The memory leaves the list and local storage at once; nothing reaches the
+   * backend until the window ends (or the app is closed or hidden, which commits immediately).
+   */
+  async deleteMemory(memId) {
+    if (!this.isAuthenticated) {
+      this.showToast("Chỉ Kim & Thư mới có quyền xóa kỷ niệm 💕");
+      this.openAuthModal();
+      return;
+    }
+    const id = String(memId);
+    const kept = this.memories.find((m) => String(m.id) === id);
+    if (!kept) return;
+    const confirmed = await confirmSheet({
+      title: "Xóa khoảnh khắc này?",
+      body: "Ảnh và nội dung sẽ bị xóa trên cả hai điện thoại.",
+      confirmLabel: "Xóa",
+      cancelLabel: "Giữ lại",
+      danger: true
+    });
+    if (!confirmed) return;
+    this.pendingDeleteIds.memory.add(id);
+    this.memories = this.memories.filter((m) => String(m.id) !== id);
+    this.persistMemories();
+    this.renderTimeline();
+    this.undo.schedule("memory:" + id, () => this.commitMemoryDelete(id));
+    this.showToast("Đã xóa", TOAST_ACTION_MS, { label: "Hoàn tác", onClick: () => this.undoMemoryDelete(id, kept) });
+  }
 
-        const memTitle = targetMem.title ? `"${targetMem.title}"` : "này";
-        if (confirm(`Em/anh có chắc muốn xóa vĩnh viễn khoảnh khắc ${memTitle} khỏi album và Google Drive không?`)) {
-          // 1. Thêm vào danh sách đã xóa để không bị đồng bộ ngược lại từ thiết bị khác
-          if (!this.deletedMemoryIds.includes(memId)) {
-            this.deletedMemoryIds.push(memId);
-            this.saveData("journey_deleted_mem_ids", this.deletedMemoryIds);
-          }
+  commitMemoryDelete(id) {
+    this.pendingDeleteIds.memory.delete(id);
+    const before = this.memories.length;
+    this.memories = this.memories.filter((m) => String(m.id) !== id);
+    if (this.memories.length !== before) {
+      this.persistMemories();
+      this.renderTimeline();
+    }
+    if (!this.deletedMemoryIds.includes(id)) {
+      this.deletedMemoryIds.push(id);
+      this.saveData("journey_deleted_mem_ids", this.deletedMemoryIds);
+    }
+    this.sendToBackend({ type: "delete_memory", id: id });
+  }
 
-          // 2. Xóa khỏi bộ nhớ và giao diện cục bộ ngay lập tức
-          this.memories = this.memories.filter(m => String(m.id) !== memId);
-          this.persistMemories();
-          this.renderTimeline();
+  undoMemoryDelete(id, kept) {
+    if (!this.undo.cancel("memory:" + id)) return;
+    this.pendingDeleteIds.memory.delete(id);
+    if (!this.memories.some((m) => String(m.id) === id)) this.memories.push(kept);
+    this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
+    this.persistMemories();
+    this.renderTimeline();
+  }
 
-          // 3. Gửi yêu cầu xóa lên Google Drive & Google Sheets backend
-          if (this.config.apiUrl) {
-            this.showToast("Đang xóa và dọn dẹp ảnh trên Google Drive... 🗑️");
-            this.sendToBackend({ type: "delete_memory", id: memId });
-          } else {
-            this.showToast("Đã xóa khoảnh khắc trên máy này! 🗑️");
-          }
-        }
+  /** Photo zoom only: no caption, the detail sheet carries the text. */
+  openMemoryLightbox(mem) {
+    this.lightboxImg.src = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
+    this.lightboxImg.alt = mem.title || "Ảnh phóng to";
+    this.lightboxModal.showModal();
+  }
+
+  /** Fills and opens the memory detail sheet (photo, text, and the couple's actions). */
+  openMemoryDetail(mem) {
+    if (!this.memoryDetailModal || !mem) return;
+    this.detailMemoryId = String(mem.id);
+    const image = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
+    const photo = document.getElementById("memory-detail-photo");
+    photo.innerHTML = image
+      ? `<button type="button" class="detail__photo" aria-label="Phóng to ảnh"><img src="${this.escapeHTML(image)}" alt="${this.escapeHTML(mem.title)}"></button>`
+      : "";
+    document.getElementById("memory-detail-title").textContent = mem.title || "";
+    const place = locationLabel(mem.location);
+    const when = [formatDateVi(String(mem.date || "").slice(0, 10)), String(mem.date || "").split("T")[1] ? formatTime24(new Date(mem.date)) : "", place].filter(Boolean);
+    const link = this.formatLocationBadge(mem.location);
+    const meta = document.getElementById("memory-detail-meta");
+    meta.innerHTML = this.escapeHTML(when.join(" · ")) + (link ? " " + link : "");
+    this.renderMemoryStory(document.getElementById("memory-detail-story"), mem.story || "");
+    this.memoryDetailModal.showModal();
+  }
+
+  /** The first line renders in the handwriting face when it is wrapped in quotes. */
+  renderMemoryStory(el, story) {
+    const lines = String(story).split("\n");
+    const quoted = /^["“].*["”]$/.test(lines[0].trim());
+    const first = quoted ? `<span class="hand">${this.escapeHTML(lines[0])}</span>` : this.escapeHTML(lines[0]);
+    el.innerHTML = [first].concat(lines.slice(1).map((l) => this.escapeHTML(l))).join("<br>");
+    el.hidden = story.trim() === "";
+  }
+
+  bindMemoryDetail() {
+    if (!this.memoryDetailModal) return;
+    const current = () => this.memories.find((m) => String(m.id) === this.detailMemoryId);
+    this.memoryDetailModal.addEventListener("click", (e) => {
+      const mem = current();
+      if (mem && e.target.closest && e.target.closest(".detail__photo")) this.openMemoryLightbox(mem);
+    });
+    document.getElementById("memory-detail-edit-btn").addEventListener("click", () => {
+      const mem = current();
+      if (!mem) return;
+      this.memoryDetailModal.close();
+      this.openMemoryDialog({ edit: mem });
+    });
+    const more = document.getElementById("memory-detail-more-btn");
+    more.addEventListener("click", () => {
+      const mem = current();
+      if (!mem) return;
+      actionMenu.open({
+        anchor: more,
+        items: [
+          { label: "Chia sẻ", icon: "share", onSelect: () => this.shareMemory(mem) },
+          { label: "Xóa", icon: "trash", danger: true, onSelect: () => { this.memoryDetailModal.close(); this.deleteMemory(mem.id); } }
+        ]
       });
     });
   }
 
-  openMemoryLightbox(mem) {
-    this.lightboxImg.src = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
-    this.lightboxTitle.textContent = mem.title;
-    const dateFormatted = this.formatMemoryDate(mem.date);
-    const locBadgeHtml = this.formatLocationBadge(mem.location);
-    this.lightboxDate.innerHTML = `${locBadgeHtml ? locBadgeHtml + " • " : ""}🗓️ ${this.escapeHTML(dateFormatted)}`;
-    this.lightboxStory.textContent = mem.story;
-    this.lightboxModal.showModal();
+  /** Shares the memory text with the system sheet, or copies it when sharing is not available. */
+  async shareMemory(mem) {
+    const place = locationLabel(mem.location);
+    const text = `${mem.title}\n${formatDateVi(String(mem.date || "").slice(0, 10))}${place ? " · " + place : ""}${mem.story ? "\n\n" + mem.story : ""}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: mem.title, text: text });
+      } catch (err) {
+        if (!err || err.name !== "AbortError") throw err;
+      }
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    this.showToast("Đã sao chép");
   }
 
   // "Ngày này năm xưa": nhắc lại các khoảnh khắc cùng ngày-tháng ở những năm trước
@@ -1545,18 +1650,7 @@ class JourneyApp {
     if (!this.onThisDayCard) return;
     const hits = memoriesOnThisDay(this.memories, new Date());
     this.onThisDayCard.hidden = hits.length === 0;
-    if (hits.length === 0) return;
-    this.onThisDayCard.innerHTML = `<h3>🕰️ Ngày này năm xưa</h3>` + hits.map((hit) => {
-      const url = safeUrl(hit.memory.image, MEMORY_IMAGE_URL_OPTIONS);
-      const thumb = url ? `<img src="${this.escapeHTML(url)}" alt="">` : `<span class="on-this-day-thumb">❤️</span>`;
-      return `<button type="button" class="on-this-day-item" data-id="${this.escapeHTML(hit.memory.id)}">${thumb}<span><strong>${this.escapeHTML(hit.memory.title)}</strong><br><small>${hit.yearsAgo} năm trước</small></span></button>`;
-    }).join("");
-    this.onThisDayCard.querySelectorAll(".on-this-day-item").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const mem = this.memories.find((m) => String(m.id) === btn.dataset.id);
-        if (mem) this.openMemoryLightbox(mem);
-      });
-    });
+    this.onThisDayCard.innerHTML = hits.slice(0, 1).map(onThisDayHtml).join("");
   }
 
   initTimelineViewToggle() {
@@ -1566,14 +1660,13 @@ class JourneyApp {
     const apply = (view) => {
       this.timelineView = view;
       this.saveData(TIMELINE_VIEW_KEY, view);
-      feedBtn.classList.toggle("active", view === "feed");
-      gridBtn.classList.toggle("active", view === "grid");
       feedBtn.setAttribute("aria-pressed", String(view === "feed"));
       gridBtn.setAttribute("aria-pressed", String(view === "grid"));
       this.renderTimeline();
     };
     feedBtn.addEventListener("click", () => apply("feed"));
     gridBtn.addEventListener("click", () => apply("grid"));
+    this.bindTimelineEvents();
     apply(this.timelineView);
   }
 
@@ -1581,60 +1674,17 @@ class JourneyApp {
   // NHỮNG NƠI MUỐN ĐI CÙNG EM (PLACES WISHLIST)
   // ==========================================
   initPlaces() {
-    // 0. Toggle dropdown Tiện ích GPS
-    if (this.placesGpsMenuToggleBtn && this.placesGpsDropdownWrap) {
-      this.placesGpsMenuToggleBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const isOpen = this.placesGpsDropdownWrap.classList.toggle("open");
-        this.placesGpsMenuToggleBtn.setAttribute("aria-expanded", isOpen);
-        if (this.placesGpsDropdownMenu) {
-          this.placesGpsDropdownMenu.setAttribute("aria-hidden", !isOpen);
-        }
-      });
-
-      // Đóng dropdown khi chọn bất kỳ chức năng nào bên trong
-      if (this.placesGpsDropdownMenu) {
-        this.placesGpsDropdownMenu.querySelectorAll(".places-gps-menu-item").forEach(item => {
-          item.addEventListener("click", () => {
-            this.placesGpsDropdownWrap.classList.remove("open");
-            this.placesGpsMenuToggleBtn.setAttribute("aria-expanded", "false");
-            this.placesGpsDropdownMenu.setAttribute("aria-hidden", "true");
-          });
-        });
-      }
-
-      // Đóng khi click ra ngoài
-      document.addEventListener("click", (e) => {
-        if (!this.placesGpsDropdownWrap.contains(e.target)) {
-          this.placesGpsDropdownWrap.classList.remove("open");
-          this.placesGpsMenuToggleBtn.setAttribute("aria-expanded", "false");
-          if (this.placesGpsDropdownMenu) {
-            this.placesGpsDropdownMenu.setAttribute("aria-hidden", "true");
-          }
-        }
-      });
-
-      // Đóng khi nhấn Esc
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && this.placesGpsDropdownWrap.classList.contains("open")) {
-          this.placesGpsDropdownWrap.classList.remove("open");
-          this.placesGpsMenuToggleBtn.setAttribute("aria-expanded", "false");
-          if (this.placesGpsDropdownMenu) {
-            this.placesGpsDropdownMenu.setAttribute("aria-hidden", "true");
-          }
-        }
-      });
-    }
-
     // 1. Chuyển đổi tab bộ lọc (Chưa đi / Đã đến)
-    document.querySelectorAll(".place-tab").forEach(tab => {
+    document.querySelectorAll("#places [data-filter]").forEach(tab => {
       tab.addEventListener("click", () => {
-        document.querySelectorAll(".place-tab").forEach(t => t.classList.remove("active"));
-        tab.classList.add("active");
         this.placesFilter = tab.dataset.filter || "unvisited";
+        this.syncPlacesFilterTabs();
         this.renderPlaces();
+        window.history.replaceState({ view: "places" }, "", buildHash({ view: "places", placesFilter: this.placesFilter }));
       });
     });
+
+    if (this.placesListContainer) this.bindPlaceRowActions();
 
     // 2. Nút reload vị trí và sắp xếp nơi gần nhất từ trên xuống (tính đường ngắn nhất)
     if (this.reloadPlacesGpsBtn) {
@@ -1643,43 +1693,22 @@ class JourneyApp {
       });
     }
 
-    // 3. Mở modal thêm địa điểm mới (kích hoạt sẵn GPS ngầm để chuẩn bị tính khoảng cách)
-    if (this.openAddPlaceModalBtn) {
-      this.openAddPlaceModalBtn.addEventListener("click", () => {
-        if (!this.isAuthenticated) {
-          this.openAuthModal(() => {
-            if (this.placeForm) this.placeForm.reset();
-            if (this.placeModal) this.placeModal.showModal();
-            if (this.placeNameInput) this.placeNameInput.focus();
-            this.getUserPosition();
-          }, "Bé Thư nhập mật mã tình yêu để thêm địa điểm muốn đi nhé 💕");
-          return;
-        }
-        if (this.placeForm) this.placeForm.reset();
-        if (this.placeModal) this.placeModal.showModal();
-        if (this.placeNameInput) this.placeNameInput.focus();
+    // 3. Thêm địa điểm mới: nút FAB gọi openPlaceDialog() (xem app_shell.js)
 
-        // Kích hoạt ngầm định vị để có toạ độ người dùng trước khi bấm lưu
-        this.getUserPosition();
-      });
-    }
-
-    // 4. Đóng modal thêm địa điểm
+    // 4. Đóng modal thêm / sửa địa điểm: mọi đường đóng đi qua beforeClose
+    if (this.placeModal) this.placeModal.beforeClose = () => this.confirmDiscardPlace();
     if (this.closePlaceModalBtn) {
-      this.closePlaceModalBtn.addEventListener("click", () => {
-        if (this.placeModal) this.placeModal.close();
-      });
+      this.closePlaceModalBtn.addEventListener("click", () => window.appShell.requestClose(this.placeModal));
     }
-    if (this.cancelPlaceBtn) {
-      this.cancelPlaceBtn.addEventListener("click", () => {
-        if (this.placeModal) this.placeModal.close();
-      });
+    if (this.placeModal) {
+      this.placeModal.addEventListener("close", () => { this.editingPlaceId = ""; });
     }
+    this.bindMarkVisitedSheet();
 
     // 5. Nút lấy toạ độ GPS hiện tại điền vào ô link map
     if (this.btnPlaceUseCurrentGps) {
       this.btnPlaceUseCurrentGps.addEventListener("click", () => {
-        this.btnPlaceUseCurrentGps.classList.add("spinning");
+        this.btnPlaceUseCurrentGps.setAttribute("aria-busy", "true");
         if (this.placeMapInput) this.placeMapInput.placeholder = "Đang lấy toạ độ...";
 
         this.getUserPosition(
@@ -1689,12 +1718,12 @@ class JourneyApp {
             if (this.placeMapInput) {
               this.placeMapInput.value = `https://www.google.com/maps?q=${lat},${lng}`;
             }
-            this.btnPlaceUseCurrentGps.classList.remove("spinning");
+            this.btnPlaceUseCurrentGps.setAttribute("aria-busy", "false");
             this.showToast("📍 Đã lấy toạ độ vị trí hiện tại!");
           },
           (err) => {
             console.warn("Lỗi GPS:", err);
-            this.btnPlaceUseCurrentGps.classList.remove("spinning");
+            this.btnPlaceUseCurrentGps.setAttribute("aria-busy", "false");
             if (this.placeMapInput && !this.placeMapInput.value) {
               this.placeMapInput.placeholder = "Dán link Google Maps, toạ độ hoặc để trống...";
             }
@@ -1720,7 +1749,11 @@ class JourneyApp {
         const notes = (this.placeNotesInput ? this.placeNotesInput.value : "").trim();
 
         if (!name) {
-          this.showToast("Bé vui lòng nhập tên địa điểm nhé! 🌸");
+          this.showToast("Cần có tên địa điểm nhé.");
+          return;
+        }
+        if (this.editingPlaceId) {
+          this.saveEditedPlace(this.editingPlaceId, { name, mapUrl, tiktokUrl, notes });
           return;
         }
 
@@ -1745,7 +1778,6 @@ class JourneyApp {
         this.sendPlaceToBackend(newPlace);
 
         if (this.placeModal) this.placeModal.close();
-        this.spawnHeartConfetti();
 
         // 2. Hàm tính khoảng cách và đường đi xe ngắn nhất
         const calculateForPlace = (placeObj) => {
@@ -1814,35 +1846,34 @@ class JourneyApp {
       });
     }
 
-    // 7. Chuyển đổi linh hoạt giữa trang Khoảnh Khắc và trang Nơi Muốn Đến qua Menu Dropdown
-    if (this.navPlacesBtn) {
-      this.navPlacesBtn.addEventListener("click", () => {
-        this.switchView("places");
-      });
-    }
+    if (this.periodChip) this.periodChip.addEventListener("click", () => this.switchView("be"));
 
-    if (this.navMomentsBtn) {
-      this.navMomentsBtn.addEventListener("click", () => {
-        this.switchView("moments");
-      });
-    }
-
+    // 7. Wordmark: back to Moments and scroll to the top, even when Moments is already open
     if (this.navLogoBtn) {
       this.navLogoBtn.addEventListener("click", () => {
         this.switchView("moments");
+        const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        window.scrollTo({ top: 0, behavior: reduceMotion ? "instant" : "smooth" });
       });
     }
 
     // Xử lý nút Back/Forward trên điện thoại và trình duyệt
     window.addEventListener("popstate", () => {
       if (window.appShell && window.appShell.consumeBack()) return; // Back closed chat or a sheet first
-      const isPlaces = window.location.hash === "#places";
-      this.switchView(isPlaces ? "places" : "moments", false);
+      const route = parseRoute(window.location.hash);
+      if (route.chat) {
+        if (this.isAuthenticated) this.toggleChatDrawer(true);
+        return;
+      }
+      this.placesFilter = route.placesFilter;
+      this.switchView(route.view, false);
     });
 
     // Mở trang ban đầu dựa theo URL hash (mặc định là trang khoảnh khắc)
-    const initialView = window.location.hash === "#places" ? "places" : "moments";
-    this.switchView(initialView, false);
+    const initialRoute = parseRoute(window.location.hash);
+    this.placesFilter = initialRoute.placesFilter;
+    this.switchView(initialRoute.view, false);
+    if (initialRoute.chat && this.isAuthenticated) this.toggleChatDrawer(true);
 
     // 8. Nút Kiểm tra xem nơi đang đứng đã từng đi đến chưa
     if (this.checkVisitedGpsBtn) {
@@ -1869,7 +1900,7 @@ class JourneyApp {
         if (!this.isAuthenticated) {
           this.openAuthModal(() => {
             this.openAddCurrentLocationModal();
-          }, "Bé Thư nhập mật mã tình yêu để lưu vị trí đang đứng nhé 💕");
+          }, "Nhập mật mã để lưu chỗ này.");
           return;
         }
         this.openAddCurrentLocationModal();
@@ -1879,11 +1910,6 @@ class JourneyApp {
     // Đóng modal Thêm vị trí đang đứng
     if (this.closeAddCurrentLocBtn) {
       this.closeAddCurrentLocBtn.addEventListener("click", () => {
-        if (this.addCurrentLocModal) this.addCurrentLocModal.close();
-      });
-    }
-    if (this.cancelAddCurrentLocBtn) {
-      this.cancelAddCurrentLocBtn.addEventListener("click", () => {
         if (this.addCurrentLocModal) this.addCurrentLocModal.close();
       });
     }
@@ -1906,83 +1932,118 @@ class JourneyApp {
     );
   }
 
+  /** The place form's values as one string, to detect unsaved changes. */
+  placeFormSnapshot() {
+    return [this.placeNameInput, this.placeMapInput, this.placeTiktokInput, this.placeNotesInput]
+      .map((el) => (el ? el.value : "")).join("\u0001");
+  }
+
+  /** @returns {Promise<boolean>} true when the sheet may close. */
+  async confirmDiscardPlace() {
+    if (this.placeFormSnapshot() === this.placeSnapshot) return true;
+    return confirmSheet({ title: "Bỏ thay đổi?", confirmLabel: "Bỏ", cancelLabel: "Sửa tiếp", danger: true });
+  }
+
+  /**
+   * Opens the add / edit place sheet.
+   * @param {{place?: object}} [prefill] pass an existing place to edit it
+   */
+  openPlaceDialog(prefill) {
+    if (!this.isAuthenticated) {
+      this.openAuthModal(() => this.openPlaceDialog(prefill), "Nhập mật mã để thêm địa điểm.");
+      return;
+    }
+    const place = prefill && prefill.place ? prefill.place : null;
+    this.editingPlaceId = place ? String(place.id) : "";
+    if (this.placeForm) this.placeForm.reset();
+    document.getElementById("place-modal-title").textContent = place ? "Sửa địa điểm" : "Thêm địa điểm";
+    if (place) {
+      this.placeNameInput.value = place.name || "";
+      this.placeMapInput.value = place.mapUrl || "";
+      this.placeTiktokInput.value = place.tiktokUrl || "";
+      this.placeNotesInput.value = place.notes || "";
+    }
+    this.placeSnapshot = this.placeFormSnapshot();
+    if (this.placeModal) this.placeModal.showModal();
+    if (this.placeNameInput) this.placeNameInput.focus();
+    // Kích hoạt ngầm định vị để có toạ độ người dùng trước khi bấm lưu
+    if (!place) this.getUserPosition();
+  }
+
+  /** Updates a place in place (same id, keeps visited and createdAt); coordinates change only with the map field. */
+  saveEditedPlace(id, fields) {
+    const place = this.places.find((p) => String(p.id) === String(id));
+    if (!place) return;
+    const mapChanged = fields.mapUrl !== (place.mapUrl || "");
+    Object.assign(place, { name: fields.name, mapUrl: fields.mapUrl, tiktokUrl: fields.tiktokUrl, notes: fields.notes });
+    if (mapChanged) {
+      const coords = this.extractCoordinates(fields.mapUrl) || this.extractCoordinates(fields.name);
+      place.lat = coords ? coords.lat : null;
+      place.lng = coords ? coords.lng : null;
+    }
+    this.saveData("journey_places_v2", this.places);
+    this.sendPlaceToBackend(place);
+    this.placeModal.close();
+    this.placesRenderSignature = "";
+    this.renderPlaces();
+    this.showToast("Đã lưu thay đổi");
+    if (mapChanged && place.lat == null) this.autoResolveMissingPlaceCoordinates();
+  }
+
   // ==========================================
   // ĐIỀU HƯỚNG CHUYỂN TRANG (KHOẢNH KHẮC VS NƠI MUỐN ĐẾN)
   // ==========================================
-  switchView(viewName, updateHistory = true) {
+  switchView(viewName, updateHistory = true, opts = {}) {
     // Cross-fade between tabs where supported (progressive enhancement); otherwise switch instantly.
     const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (typeof document.startViewTransition === "function" && !reduceMotion && this.currentView) {
-      const transition = document.startViewTransition(() => this.applyView(viewName, updateHistory));
+      const transition = document.startViewTransition(() => this.applyView(viewName, updateHistory, opts));
       // A skipped transition (hidden tab, rapid taps) is harmless: the view is still switched.
       [transition.ready, transition.finished, transition.updateCallbackDone].forEach((p) => { if (p && p.catch) p.catch(() => {}); });
       return;
     }
-    this.applyView(viewName, updateHistory);
+    this.applyView(viewName, updateHistory, opts);
   }
 
-  applyView(viewName, updateHistory) {
-    const isPlaces = (viewName === "places");
+  applyView(viewName, updateHistory, opts = {}) {
+    if (viewName === "be" && !this.isAuthenticated) {
+      this.openAuthModal();
+      viewName = "moments";
+    }
+    if (!VIEW_NAMES.includes(viewName)) viewName = "moments";
     this.viewScroll = this.viewScroll || {};
     if (this.currentView) this.viewScroll[this.currentView] = window.scrollY || 0;
-    this.currentView = isPlaces ? "places" : "moments";
-    document.dispatchEvent(new CustomEvent("journey:viewchange", { detail: { view: this.currentView } }));
+    this.currentView = viewName;
+    if (opts.placesFilter) this.placesFilter = opts.placesFilter;
+    document.dispatchEvent(new CustomEvent("journey:viewchange", { detail: { view: viewName } }));
 
-    if (isPlaces) {
-      if (this.viewMoments) {
-        this.viewMoments.classList.remove("active");
-        this.viewMoments.style.display = "none";
-      }
-      if (this.viewPlaces) {
-        this.viewPlaces.style.display = "block";
-        requestAnimationFrame(() => {
-          this.viewPlaces.classList.add("active");
-        });
-      }
-      if (this.navMomentsBtn) this.navMomentsBtn.classList.remove("active");
-      if (this.navPlacesBtn) this.navPlacesBtn.classList.add("active");
+    const views = { moments: this.viewMoments, places: this.viewPlaces, be: this.viewBe };
+    VIEW_NAMES.forEach((name) => { if (views[name]) views[name].hidden = name !== viewName; });
 
-      // Đóng dropdown menu nếu đang mở
-      if (this.navDropdownWrap) {
-        this.navDropdownWrap.classList.remove("open");
-        if (this.navMenuToggleBtn) this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
-      }
-
-      // Đảm bảo danh sách địa điểm và khoảng cách được hiển thị
+    if (viewName === "places") {
+      this.syncPlacesFilterTabs();
       this.renderPlaces();
       this.calculateAllDistancesAndRoutes(false);
-
-      window.scrollTo({ top: this.viewScroll.places || 0, behavior: "instant" });
-
-      if (updateHistory) {
-        window.history.pushState({ view: "places" }, "", "#places");
-      }
-    } else {
-      if (this.viewPlaces) {
-        this.viewPlaces.classList.remove("active");
-        this.viewPlaces.style.display = "none";
-      }
-      if (this.viewMoments) {
-        this.viewMoments.style.display = "block";
-        requestAnimationFrame(() => {
-          this.viewMoments.classList.add("active");
-        });
-      }
-      if (this.navPlacesBtn) this.navPlacesBtn.classList.remove("active");
-      if (this.navMomentsBtn) this.navMomentsBtn.classList.add("active");
-
-      if (this.navDropdownWrap) {
-        this.navDropdownWrap.classList.remove("open");
-        if (this.navMenuToggleBtn) this.navMenuToggleBtn.setAttribute("aria-expanded", "false");
-      }
-
-      window.scrollTo({ top: this.viewScroll.moments || 0, behavior: "instant" });
-
-      if (updateHistory) {
-        const cleanUrl = window.location.pathname + window.location.search;
-        window.history.pushState({ view: "moments" }, "", cleanUrl);
-      }
+    } else if (viewName === "be") {
+      this.renderBePage();
     }
+
+    window.scrollTo({ top: this.viewScroll[viewName] || 0, behavior: "instant" });
+
+    if (updateHistory) {
+      const hash = buildHash({ view: viewName, placesFilter: this.placesFilter });
+      const url = hash || window.location.pathname + window.location.search;
+      window.history.pushState({ view: viewName }, "", url);
+    }
+  }
+
+  /** Marks the places filter tab that matches this.placesFilter. */
+  syncPlacesFilterTabs() {
+    document.querySelectorAll("#places [data-filter]").forEach((tab) => {
+      const selected = (tab.dataset.filter || "unvisited") === this.placesFilter;
+      tab.setAttribute("aria-selected", String(selected));
+      tab.setAttribute("tabindex", selected ? "0" : "-1");
+    });
   }
 
   // ==========================================
@@ -2243,11 +2304,7 @@ class JourneyApp {
   }
 
   formatDistance(km) {
-    if (km == null || isNaN(km)) return "";
-    if (km < 1) {
-      return `${Math.round(km * 1000)} m`;
-    }
-    return `${km.toFixed(1)} km`;
+    return formatDistanceVi(km);
   }
 
   // Tính toán khoảng cách và gọi API đường ngắn nhất cho toàn bộ địa điểm
@@ -2297,30 +2354,46 @@ class JourneyApp {
     this.saveData("journey_places_v2", this.places);
   }
 
+  /** Sets a location chip to idle, busy, or "needs permission". */
+  setGpsChipState(chip, state) {
+    if (!chip) return;
+    const label = chip.querySelector(".chip__label");
+    chip.setAttribute("aria-busy", String(state === "busy"));
+    chip.disabled = state === "busy";
+    if (label && !chip.dataset.idleLabel) chip.dataset.idleLabel = label.textContent;
+    if (label) {
+      label.textContent = state === "busy" ? "Đang tìm vị trí…" : state === "denied" ? "Bật vị trí" : chip.dataset.idleLabel;
+    }
+  }
+
+  /** Explains how to turn location back on (shared by the sort and "have we been here" chips). */
+  showLocationDeniedSheet() {
+    return confirmSheet({
+      title: "Cần quyền vị trí",
+      body: "Cần quyền vị trí để sắp xếp theo khoảng cách. Vào Cài đặt › Safari › Vị trí để bật.",
+      confirmLabel: "Đóng"
+    });
+  }
+
   // Lấy vị trí GPS hiện tại và sắp xếp danh sách nơi gần nhất từ trên xuống dưới
   reloadPlacesByGps() {
-    if (this.reloadPlacesGpsBtn) {
-      this.reloadPlacesGpsBtn.classList.add("spinning");
-    }
+    this.setGpsChipState(this.reloadPlacesGpsBtn, "busy");
     this.autoResolveMissingPlaceCoordinates();
 
     const onGotLocation = () => {
+      this.placesSortedByDistance = true;
+      if (this.reloadPlacesGpsBtn) this.reloadPlacesGpsBtn.setAttribute("aria-pressed", "true");
+      this.setGpsChipState(this.reloadPlacesGpsBtn, "idle");
       this.calculateAllDistancesAndRoutes(true);
-      if (this.reloadPlacesGpsBtn) {
-        this.reloadPlacesGpsBtn.classList.remove("spinning");
-      }
-      this.showToast("📍 Đã tính đường đi ngắn nhất & sắp xếp nơi gần bạn nhất từ trên xuống!", 3000);
     };
 
     this.getUserPosition(
       () => onGotLocation(),
       (err) => {
-        if (this.reloadPlacesGpsBtn) this.reloadPlacesGpsBtn.classList.remove("spinning");
-        if (err && err.code === 1) {
-          this.showToast("Cần bật quyền Vị trí cho trình duyệt trong Cài đặt iPhone để tìm nơi gần nhất 💕", 4500);
-        } else {
-          this.showToast("Không nhận được GPS. Bé kiểm tra lại cài đặt định vị máy nhé!", 3500);
-        }
+        const denied = !!(err && err.code === 1);
+        this.setGpsChipState(this.reloadPlacesGpsBtn, denied ? "denied" : "idle");
+        if (denied) this.showLocationDeniedSheet();
+        else this.showToast("Không nhận được GPS. Bé kiểm tra lại cài đặt định vị máy nhé!", 3500);
       },
       { enableHighAccuracy: true, timeout: 6000 }
     );
@@ -2366,16 +2439,11 @@ class JourneyApp {
   // KIỂM TRA XEM NƠI ĐANG ĐỨNG ĐÃ TỪNG ĐẾN CHƯA
   // ==========================================
   checkIfCurrentLocationVisited() {
-    if (this.checkVisitedGpsBtn) {
-      this.checkVisitedGpsBtn.classList.add("spinning");
-    }
-    this.showToast("Đang quét vị trí của bạn... 🛰️", 2500);
+    this.setGpsChipState(this.checkVisitedGpsBtn, "busy");
 
     this.getUserPosition(
       async (pos) => {
-        if (this.checkVisitedGpsBtn) {
-          this.checkVisitedGpsBtn.classList.remove("spinning");
-        }
+        this.setGpsChipState(this.checkVisitedGpsBtn, "idle");
         const uLat = pos.lat;
         const uLng = pos.lng;
 
@@ -2403,19 +2471,14 @@ class JourneyApp {
 
         const THRESHOLD_METERS = 200; // Bán kính 200 mét tính là đang ở tại địa điểm đó
 
-        // 1. Trường hợp: Trùng khớp với địa điểm ĐÃ TỪNG ĐẾN (<= 200m)
+        // 1. Trùng khớp với địa điểm ĐÃ TỪNG ĐẾN (<= 200m)
         if (visitedWithDist.length > 0 && visitedWithDist[0].distM <= THRESHOLD_METERS) {
           const match = visitedWithDist[0];
-          this.spawnHeartConfetti();
+          const when = match.place.updatedAt ? ` (${formatDateVi(new Date(match.place.updatedAt))})` : "";
           this.showCheckLocationResult({
-            icon: "🎉",
-            badgeText: "🌸 ĐÃ GHÉ THĂM RỒI",
-            badgeClass: "success",
-            title: "Hai Bạn Đang Ở Nơi Đã Từng Đến! 💕",
-            desc: `Vị trí bạn đang đứng trùng khớp với địa điểm đã lưu trong danh sách "Đã Đến".`,
-            place: match.place,
-            distM: match.distM,
-            primaryText: "Xem địa điểm trong danh sách",
+            title: "Hai đứa đã từng đến đây",
+            desc: `Hai đứa đã từng đến đây: ${match.place.name}${when}.`,
+            primaryText: "Xem địa điểm",
             onPrimary: () => {
               if (this.checkResultModal) this.checkResultModal.close();
               this.highlightPlaceInList(match.place.id, "visited");
@@ -2424,52 +2487,27 @@ class JourneyApp {
           return;
         }
 
-        // 2. Trường hợp: Trùng khớp với một địa điểm đang trong mục "MUỐN ĐI" (<= 200m)
+        // 2. Trùng khớp với một địa điểm đang trong mục "MUỐN ĐI" (<= 200m)
         if (unvisitedWithDist.length > 0 && unvisitedWithDist[0].distM <= THRESHOLD_METERS) {
           const match = unvisitedWithDist[0];
           this.showCheckLocationResult({
-            icon: "📍",
-            badgeText: "✨ ĐANG TRONG MỤC MUỐN ĐI",
-            badgeClass: "warning",
-            title: "Đang Ở Địa Điểm Trong Mục Muốn Đi!",
-            desc: `Hai bạn đang đứng ngay tại nơi muốn đi! Bạn có muốn đánh dấu là ĐÃ ĐẾN luôn không?`,
-            place: match.place,
-            distM: match.distM,
-            primaryText: "Đánh dấu Đã Đến ngay 💕",
+            title: "Hai đứa đang ở nơi muốn đến",
+            desc: `Hai đứa đang đứng ngay tại ${match.place.name}.`,
+            primaryText: this.isAuthenticated ? "Đánh dấu đã đến" : "",
             onPrimary: () => {
               if (this.checkResultModal) this.checkResultModal.close();
-              this.togglePlaceVisited(match.place.id);
-              this.highlightPlaceInList(match.place.id, "visited");
+              this.markPlaceVisited(match.place.id);
             }
           });
           return;
         }
 
-        // 3. Trường hợp: CHƯA TỪNG ĐẾN NƠI NÀY
-        let nearestInfo = "";
-        let nearestPlace = null;
-        let nearestDistM = 0;
-        if (visitedWithDist.length > 0) {
-          nearestPlace = visitedWithDist[0].place;
-          nearestDistM = visitedWithDist[0].distM;
-          const dStr = nearestDistM < 1000 ? `${nearestDistM}m` : `${(nearestDistM / 1000).toFixed(1)}km`;
-          nearestInfo = `Địa điểm đã đến gần bạn nhất là "${nearestPlace.name}" (cách ~${dStr}).`;
-        } else {
-          nearestInfo = "Danh sách 'Đã đến' của hai bạn hiện chưa có địa điểm nào.";
-        }
-
-        // Tra cứu địa chỉ hiện tại để sẵn sàng cho nút thêm nhanh
-        const detectedAddress = await this.reverseGeocode(uLat, uLng);
-
+        // 3. Chưa có kỷ niệm nào quanh đây
+        const detectedAddress = this.isAuthenticated ? await this.reverseGeocode(uLat, uLng) : null;
         this.showCheckLocationResult({
-          icon: "🧭",
-          badgeText: "🌿 CHƯA TỪNG ĐẾN",
-          badgeClass: "neutral",
-          title: "Nơi Này Chưa Có Trong Danh Sách Đã Đến! 🌿",
-          desc: `Vị trí bạn đang đứng là một địa điểm mới toanh. ${nearestInfo}`,
-          place: nearestPlace,
-          distM: nearestDistM,
-          primaryText: "Thêm nơi này vào Đã Đến ngay 📍",
+          title: "Nơi mới",
+          desc: `Chưa có kỷ niệm nào quanh đây (bán kính ${THRESHOLD_METERS} m).`,
+          primaryText: this.isAuthenticated ? "Lưu chỗ này" : "",
           onPrimary: () => {
             if (this.checkResultModal) this.checkResultModal.close();
             this.openAddCurrentLocationModal(uLat, uLng, detectedAddress);
@@ -2477,11 +2515,10 @@ class JourneyApp {
         });
       },
       (err) => {
-        if (this.checkVisitedGpsBtn) {
-          this.checkVisitedGpsBtn.classList.remove("spinning");
-        }
-        if (err && err.code === 1) {
-          this.showToast("Cần cấp quyền Vị trí trên trình duyệt trong Cài đặt iPhone để quét toạ độ nhé 💕", 4500);
+        const denied = !!(err && err.code === 1);
+        this.setGpsChipState(this.checkVisitedGpsBtn, denied ? "denied" : "idle");
+        if (denied) {
+          this.showLocationDeniedSheet();
         } else {
           this.showToast("Không nhận được GPS. Bé kiểm tra lại định vị máy nhé!", 3500);
         }
@@ -2492,48 +2529,19 @@ class JourneyApp {
 
   showCheckLocationResult(cfg) {
     if (!this.checkResultModal) return;
-
-    if (this.checkResultIcon) this.checkResultIcon.textContent = cfg.icon || "📍";
-    if (this.checkResultStatusTag) {
-      this.checkResultStatusTag.textContent = cfg.badgeText || "Kết Quả Quét";
-      this.checkResultStatusTag.className = `check-result-status-tag ${cfg.badgeClass || 'neutral'}`;
-    }
     if (this.checkResultTitle) this.checkResultTitle.textContent = cfg.title || "Kết quả kiểm tra";
     if (this.checkResultDesc) this.checkResultDesc.textContent = cfg.desc || "";
-
-    if (this.checkResultPlaceCard) {
-      if (cfg.place) {
-        this.checkResultPlaceCard.style.display = "block";
-        if (this.checkMatchTag) {
-          this.checkMatchTag.textContent = cfg.place.visited ? "🌸 Đã ghé thăm" : "✨ Muốn đi";
-        }
-        if (this.checkMatchDistance) {
-          const dText = cfg.distM < 1000 ? `Cách ~${cfg.distM}m` : `Cách ~${(cfg.distM / 1000).toFixed(1)}km`;
-          this.checkMatchDistance.textContent = dText;
-        }
-        if (this.checkMatchName) this.checkMatchName.textContent = cfg.place.name || "";
-        if (this.checkMatchNotes) {
-          this.checkMatchNotes.textContent = cfg.place.notes ? `"${cfg.place.notes}"` : "";
-          this.checkMatchNotes.style.display = cfg.place.notes ? "block" : "none";
-        }
-      } else {
-        this.checkResultPlaceCard.style.display = "none";
-      }
-    }
-
     if (this.checkResultPrimaryBtn) {
-      if (cfg.primaryText && cfg.onPrimary) {
-        this.checkResultPrimaryBtn.style.display = "inline-flex";
+      const hasPrimary = !!(cfg.primaryText && cfg.onPrimary);
+      this.checkResultPrimaryBtn.hidden = !hasPrimary;
+      if (hasPrimary) {
         if (this.checkResultPrimaryText) this.checkResultPrimaryText.textContent = cfg.primaryText;
         this.checkResultPrimaryBtn.onclick = (e) => {
           e.preventDefault();
           cfg.onPrimary();
         };
-      } else {
-        this.checkResultPrimaryBtn.style.display = "none";
       }
     }
-
     this.checkResultModal.showModal();
   }
 
@@ -2640,7 +2648,6 @@ class JourneyApp {
     this.sendPlaceToBackend(newPlace);
 
     if (this.addCurrentLocModal) this.addCurrentLocModal.close();
-    this.spawnHeartConfetti();
     this.showToast("🌸 Đã thêm vị trí hiện tại vào danh sách Đã Đến!");
 
     // Chuyển sang tab "Đã đến" và highlight thẻ vừa tạo
@@ -2651,82 +2658,136 @@ class JourneyApp {
   highlightPlaceInList(placeId, targetFilter = "visited") {
     // 1. Chuyển tab bộ lọc
     this.placesFilter = targetFilter;
-    document.querySelectorAll(".place-tab").forEach(tab => {
-      tab.classList.toggle("active", tab.dataset.filter === targetFilter);
-    });
+    this.syncPlacesFilterTabs();
 
     // 2. Render lại danh sách
     this.renderPlaces();
 
     // 3. Cuộn đến thẻ và thêm hiệu ứng nhấp nháy nổi bật
     setTimeout(() => {
-      const card = document.querySelector(`.place-card[data-id="${placeId}"]`);
+      const card = document.querySelector(`.place[data-id="${CSS.escape(String(placeId))}"]`);
       if (card) {
         card.scrollIntoView({ behavior: "smooth", block: "center" });
-        card.classList.add("pulse-highlight");
-        setTimeout(() => card.classList.remove("pulse-highlight"), 4500);
+        card.classList.add("is-highlighted");
+        setTimeout(() => card.classList.remove("is-highlighted"), HIGHLIGHT_MS);
       }
     }, 150);
   }
 
   // Đánh dấu đã đi / muốn đi
-  togglePlaceVisited(id) {
+  bindMarkVisitedSheet() {
+    const modal = document.getElementById("mark-visited-modal");
+    if (!modal) return;
+    const finish = (thenAddMemory) => {
+      const id = this.markVisitedPlaceId;
+      modal.close();
+      this.markPlaceVisited(id, { thenAddMemory: thenAddMemory });
+    };
+    document.getElementById("mark-visited-ok").addEventListener("click", () => finish(false));
+    document.getElementById("mark-visited-memory").addEventListener("click", () => finish(true));
+    document.getElementById("cancel-mark-visited-btn").addEventListener("click", () => modal.close());
+  }
+
+  /** Asks before marking a place as visited (the sheet offers "Đã đến" and "Đã đến và lưu khoảnh khắc"). */
+  openMarkVisitedSheet(id) {
     if (!this.isAuthenticated) {
       this.showToast("Chỉ Kim & Thư mới có quyền đánh dấu đã đi 💕");
       this.openAuthModal();
       return;
     }
-
-    const place = this.places.find(p => String(p.id) === String(id));
+    const place = this.places.find((p) => String(p.id) === String(id));
     if (!place) return;
+    this.markVisitedPlaceId = String(id);
+    document.getElementById("mark-visited-name").textContent = place.name;
+    document.getElementById("mark-visited-modal").showModal();
+  }
 
-    place.visited = !place.visited;
+  markPlaceVisited(id, opts = {}) {
+    const place = this.places.find((p) => String(p.id) === String(id));
+    if (!place || !this.isAuthenticated) return;
+    place.visited = true;
+    place.updatedAt = Date.now();
     this.saveData("journey_places_v2", this.places);
     this.sendPlaceToBackend(place);
+    this.highlightPlaceInList(id, "visited");
+    this.showToast("Đã chuyển sang Đã đến");
+    if (opts.thenAddMemory) this.openMemoryForPlace(place);
+  }
+
+  unmarkPlaceVisited(id) {
+    const place = this.places.find((p) => String(p.id) === String(id));
+    if (!place || !this.isAuthenticated) return;
+    place.visited = false;
+    place.updatedAt = Date.now();
+    this.saveData("journey_places_v2", this.places);
+    this.sendPlaceToBackend(place);
+    this.placesRenderSignature = "";
     this.renderPlaces();
-    if (!place.visited) {
-      this.showToast("✨ Đã chuyển về danh sách muốn đi!");
-      return;
-    }
-    this.showToast("🌸 Đã đánh dấu ghé thăm địa điểm này!", 6000, {
-      label: "Lưu khoảnh khắc",
-      onClick: () => this.openMemoryForPlace(place)
-    });
+    this.showToast("Đã chuyển về Muốn đi");
   }
 
   // Mở form khoảnh khắc điền sẵn tên và vị trí của địa điểm, và liên kết hai bản ghi
   openMemoryForPlace(place) {
     const mapsUrl = safeUrl(place.mapUrl);
     this.openMemoryDialog({
-      title: place.name,
-      location: mapsUrl ? `${place.name} (${mapsUrl})` : place.name,
-      placeId: String(place.id)
+      prefill: {
+        title: place.name,
+        location: mapsUrl ? `${place.name} (${mapsUrl})` : place.name,
+        placeId: String(place.id)
+      }
     });
   }
 
   // Xóa địa điểm khỏi danh sách
-  deletePlace(id) {
+  /** Delete with a 5 s undo window, same rules as deleteMemory. */
+  async deletePlace(id) {
     if (!this.isAuthenticated) {
       this.showToast("Chỉ Kim & Thư mới có quyền xóa địa điểm 💕");
       this.openAuthModal();
       return;
     }
+    const pid = String(id);
+    const kept = this.places.find((p) => String(p.id) === pid);
+    if (!kept) return;
+    const confirmed = await confirmSheet({
+      title: "Xóa địa điểm này?",
+      body: "Địa điểm sẽ bị xóa trên cả hai điện thoại.",
+      confirmLabel: "Xóa",
+      cancelLabel: "Giữ lại",
+      danger: true
+    });
+    if (!confirmed) return;
+    this.pendingDeleteIds.place.add(pid);
+    this.places = this.places.filter((p) => String(p.id) !== pid);
+    this.saveData("journey_places_v2", this.places);
+    this.placesRenderSignature = "";
+    this.renderPlaces();
+    this.undo.schedule("place:" + pid, () => this.commitPlaceDelete(pid));
+    this.showToast("Đã xóa", TOAST_ACTION_MS, { label: "Hoàn tác", onClick: () => this.undoPlaceDelete(pid, kept) });
+  }
 
-    const target = this.places.find(p => String(p.id) === String(id));
-    if (!target) return;
-
-    if (confirm(`Em/anh có muốn xóa địa điểm "${target.name}" khỏi danh sách không?`)) {
-      const pid = String(id);
-      this.places = this.places.filter(p => String(p.id) !== pid);
-      if (!this.deletedPlaceIds.includes(pid)) {
-        this.deletedPlaceIds.push(pid);
-        this.saveData("journey_deleted_place_ids", this.deletedPlaceIds);
-      }
+  commitPlaceDelete(pid) {
+    this.pendingDeleteIds.place.delete(pid);
+    const before = this.places.length;
+    this.places = this.places.filter((p) => String(p.id) !== pid);
+    if (this.places.length !== before) {
       this.saveData("journey_places_v2", this.places);
-      this.sendToBackend({ type: "delete_place", id: pid });
       this.renderPlaces();
-      this.showToast("Đã xóa địa điểm khỏi danh sách.");
     }
+    if (!this.deletedPlaceIds.includes(pid)) {
+      this.deletedPlaceIds.push(pid);
+      this.saveData("journey_deleted_place_ids", this.deletedPlaceIds);
+    }
+    this.sendToBackend({ type: "delete_place", id: pid });
+  }
+
+  undoPlaceDelete(pid, kept) {
+    if (!this.undo.cancel("place:" + pid)) return;
+    this.pendingDeleteIds.place.delete(pid);
+    if (!this.places.some((p) => String(p.id) === pid)) this.places.unshift(kept);
+    this.saveData("journey_places_v2", this.places);
+    this.placesRenderSignature = "";
+    this.renderPlaces();
   }
 
   // Hiển thị danh sách địa điểm ra màn hình
@@ -2741,126 +2802,112 @@ class JourneyApp {
     if (this.countPlacesVisited) this.countPlacesVisited.textContent = visitedCount;
 
     // Lọc theo tab hiện tại
-    let filtered = this.places;
-    if (this.placesFilter === "unvisited") {
-      filtered = this.places.filter(p => !p.visited);
-    } else if (this.placesFilter === "visited") {
-      filtered = this.places.filter(p => p.visited);
-    }
+    const filtered = this.places.filter((p) => (this.placesFilter === "visited" ? p.visited : !p.visited));
 
     // D-08: skip the DOM rebuild when nothing that the list shows has changed (tab switches, repeated merges)
     const signature = JSON.stringify([
-      this.placesFilter, hasJustSorted, this.isAuthenticated, filtered,
+      this.placesFilter, hasJustSorted, this.isAuthenticated, filtered, this.placesSortedByDistance === true,
+      this.firstSyncDone === true,
       Array.from(this.placeDistances.entries()), Array.from(this.placeRoutes.entries()),
       this.memories.filter((m) => m.placeId).map((m) => m.placeId)
     ]);
     if (signature === this.placesRenderSignature && this.placesListContainer.childElementCount > 0) return;
     this.placesRenderSignature = signature;
 
+    if (this.shouldShowPlacesSkeleton()) {
+      this.placesListContainer.innerHTML = placeSkeletonHtml().repeat(PLACES_SKELETON_ROWS);
+      return;
+    }
+    const previousTops = this.captureRowTops();
     if (filtered.length === 0) {
-      this.placesListContainer.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; padding: 36px 16px; background: rgba(255,255,255,0.7); border-radius: 18px; border: 1px dashed var(--pink-soft); color: var(--text-muted);">
-          <p style="font-size: 1.05rem; margin-bottom: 6px;">Chưa có địa điểm nào trong mục này.</p>
-          <small>Bấm "Thêm địa điểm" ở trên để lưu lại quán cafe, điểm hẹn hò hay ho nhé!</small>
-        </div>
-      `;
+      this.renderPlacesEmpty();
       return;
     }
 
-    this.placesListContainer.innerHTML = filtered.map((place, idx) => {
+    this.shownDistanceIds = this.shownDistanceIds || new Set();
+    this.placesListContainer.innerHTML = filtered.map((place) => {
       const route = this.placeRoutes.get(place.id);
-      const hasDistance = this.placeDistances.has(place.id);
-      const distKm = hasDistance ? this.placeDistances.get(place.id) : null;
-      const isNearest = hasJustSorted && idx === 0 && (route || hasDistance);
-
-      let distanceBadgeHtml = "";
-      if (route) {
-        const durText = route.durationMin ? ` (${route.durationMin} phút)` : "";
-        distanceBadgeHtml = `
-          <span class="place-distance-tag driving-route ${isNearest ? 'nearest' : ''}" title="Đường đi ngắn nhất: ${route.distanceKm} km ~${route.durationMin} phút di chuyển">
-            🚗 ${route.distanceKm} km${durText}${isNearest ? ' • Gần nhất' : ''}
-          </span>
-        `;
-      } else if (distKm != null) {
-        const distText = this.formatDistance(distKm);
-        distanceBadgeHtml = `
-          <span class="place-distance-tag ${isNearest ? 'nearest' : ''}">
-            📍 Cách ${distText}${isNearest ? ' • Gần nhất' : ''}
-          </span>
-        `;
-      } else if (place.isResolving) {
-        distanceBadgeHtml = `<span class="place-distance-tag resolving">⏳ Đang tìm toạ độ...</span>`;
-      }
-
-      // Link gọi API Google Maps của thiết bị và điều hướng đường ngắn nhất
-      const deviceMapsUrl = this.getDeviceGoogleMapsUrl(place);
-      const tiktokUrl = safeUrl(place.tiktokUrl);
+      const straightKm = this.placeDistances.has(place.id) ? this.placeDistances.get(place.id) : null;
+      const distance = route ? { km: route.distanceKm, approx: false } : (straightKm != null ? { km: straightKm, approx: true } : undefined);
+      const isNew = !!distance && !this.shownDistanceIds.has(place.id);
+      if (distance) this.shownDistanceIds.add(place.id);
       const linkedMemory = this.memories.find((m) => m.placeId && String(m.placeId) === String(place.id));
-
-      return `
-        <article class="place-card ${place.visited ? "is-visited" : ""}" data-id="${this.escapeHTML(place.id)}">
-          <div>
-            <div class="place-card-top">
-              <h3 class="place-title">${this.escapeHTML(place.name)}</h3>
-              ${this.isAuthenticated ? `<button class="place-delete-btn couple-only" data-id="${this.escapeHTML(place.id)}" title="Xóa địa điểm này" aria-label="Xóa địa điểm">&times;</button>` : ""}
-            </div>
-
-            <div class="place-meta-row">
-              ${place.visited 
-                ? '<span class="place-status-tag visited">🌸 Đã ghé thăm</span>' 
-                : ''}
-              ${place.syncState === "pending" ? '<span class="sync-pending-badge">⏳ chưa đồng bộ</span>' : ""}
-              ${distanceBadgeHtml}
-            </div>
-
-            ${place.notes ? `<p class="place-notes">${this.escapeHTML(place.notes)}</p>` : ""}
-          </div>
-
-          <div class="place-actions-row">
-            <div class="place-links-group">
-              <a href="${this.escapeHTML(deviceMapsUrl)}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-maps" title="Mở ứng dụng Google Maps của thiết bị và dẫn đường ngắn nhất">
-                🗺️ Chỉ đường
-              </a>
-              ${linkedMemory ? `<button type="button" class="btn-place-link btn-place-memory" data-memory-id="${this.escapeHTML(linkedMemory.id)}" title="Xem khoảnh khắc đã lưu ở đây">📸 Khoảnh khắc</button>` : ""}
-              ${tiktokUrl ? `
-                <a href="${this.escapeHTML(tiktokUrl)}" target="_blank" rel="noopener noreferrer" class="btn-place-link btn-place-tiktok" title="Xem video review trên TikTok">
-                  🎵 TikTok
-                </a>
-              ` : ""}
-            </div>
-
-            <button class="btn-place-toggle-visited couple-only" data-id="${this.escapeHTML(place.id)}" title="${place.visited ? "Đánh dấu muốn đi lại" : "Đánh dấu đã đến cùng nhau"}">
-              ${place.visited ? "✓ Đã đến" : "+ Đánh dấu đã đi"}
-            </button>
-          </div>
-        </article>
-      `;
+      return placeRowHtml(place, {
+        couple: this.isAuthenticated, distance: distance, distanceIsNew: isNew,
+        linkedMemoryId: linkedMemory ? String(linkedMemory.id) : "",
+        mapsUrl: this.getDeviceGoogleMapsUrl(place)
+      });
     }).join("");
+    if (hasJustSorted) this.animateRowsFrom(previousTops);
+  }
 
-    // Mở khoảnh khắc đã liên kết với địa điểm
-    this.placesListContainer.querySelectorAll(".btn-place-memory").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const mem = this.memories.find((m) => String(m.id) === btn.dataset.memoryId);
-        if (mem) this.openMemoryLightbox(mem);
+  /** Skeleton rows only while the untouched sample places are shown and the first backend sync is pending. */
+  shouldShowPlacesSkeleton() {
+    if (!this.config.apiUrl || this.firstSyncDone === true) return false;
+    return this.places.every((p) => DEFAULT_PLACE_IDS.includes(p.id));
+  }
+
+  renderPlacesEmpty() {
+    const visited = this.placesFilter === "visited";
+    const title = visited ? "Chưa có nơi nào hai đứa đã đến." : "Chưa có nơi nào muốn đến.";
+    const body = visited ? "Đánh dấu một nơi là đã đến để lưu lại nhé." : "Lưu quán xinh hay điểm hẹn để đi cùng nhau nhé.";
+    const addButton = !visited && this.isAuthenticated
+      ? '<button type="button" class="btn btn--primary" id="empty-add-place-btn">Thêm địa điểm</button>' : "";
+    this.placesListContainer.innerHTML = `<div class="empty"><p class="t-headline">${title}</p><p class="muted">${body}</p>${addButton}</div>`;
+    const button = document.getElementById("empty-add-place-btn");
+    if (button) button.addEventListener("click", () => this.openPlaceDialog());
+  }
+
+  captureRowTops() {
+    const tops = new Map();
+    this.placesListContainer.querySelectorAll(".place[data-id]").forEach((row) => {
+      tops.set(row.dataset.id, row.getBoundingClientRect().top);
+    });
+    return tops;
+  }
+
+  /** FLIP: rows slide from their old position after a sort (skipped under reduced motion). */
+  animateRowsFrom(previousTops) {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    this.placesListContainer.querySelectorAll(".place[data-id]").forEach((row) => {
+      const before = previousTops.get(row.dataset.id);
+      if (before === undefined) return;
+      const delta = before - row.getBoundingClientRect().top;
+      if (!delta) return;
+      row.style.transition = "none";
+      row.style.transform = `translateY(${delta}px)`;
+      requestAnimationFrame(() => {
+        row.style.transition = `transform ${FLIP_MS}ms var(--ease-out)`;
+        row.style.transform = "";
       });
     });
+  }
 
-    // Gắn sự kiện đánh dấu đã đi
-    this.placesListContainer.querySelectorAll(".btn-place-toggle-visited").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.togglePlaceVisited(btn.dataset.id);
-      });
+  /** One delegated handler for the row actions: visit, more menu, linked memory. */
+  bindPlaceRowActions() {
+    this.placesListContainer.addEventListener("click", (event) => {
+      const target = event.target.closest ? event.target : null;
+      if (!target) return;
+      const row = target.closest(".place");
+      const visit = target.closest(".place__visit");
+      const more = target.closest(".place__more");
+      const memory = target.closest(".place__memory");
+      if (visit && row) this.openMarkVisitedSheet(row.dataset.id);
+      else if (more && row) this.openPlaceMenu(more, row.dataset.id);
+      else if (memory) {
+        const mem = this.memories.find((m) => String(m.id) === memory.dataset.memoryId);
+        if (mem) this.openMemoryDetail(mem);
+      }
     });
+  }
 
-    // Gắn sự kiện xóa địa điểm
-    this.placesListContainer.querySelectorAll(".place-delete-btn").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.deletePlace(btn.dataset.id);
-      });
-    });
+  openPlaceMenu(anchor, placeId) {
+    const place = this.places.find((p) => String(p.id) === String(placeId));
+    if (!place) return;
+    const items = [{ label: "Sửa", icon: "edit", onSelect: () => this.openPlaceDialog({ place: place }) }];
+    if (place.visited) items.push({ label: "Chuyển về Muốn đi", icon: "pin", onSelect: () => this.unmarkPlaceVisited(placeId) });
+    items.push({ label: "Xóa", icon: "trash", danger: true, onSelect: () => this.deletePlace(placeId) });
+    actionMenu.open({ anchor: anchor, items: items });
   }
 
   // ==========================================
@@ -2868,116 +2915,63 @@ class JourneyApp {
   // ==========================================
   initPetalsCanvas() {
     const canvas = document.getElementById("petal-canvas");
-    if (!canvas) return;
-    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const ctx = canvas.getContext("2d");
-
-    // D-10: render at device resolution, capped at 2x
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    const fit = () => {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    fit();
-    window.addEventListener("resize", fit);
-
-    // Idle while the user scrolls or an overlay covers the page: no drawing, no battery
-    let lastScrollAt = 0;
-    window.addEventListener("scroll", () => { lastScrollAt = Date.now(); }, { passive: true });
-    let frameCount = 0;
-    let covered = false;
-
-    const petals = [];
-    const PETAL_COUNT = 6;
-
-    for (let i = 0; i < PETAL_COUNT; i++) {
-      petals.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        size: Math.random() * 6 + 5,
-        speedX: Math.random() * 0.8 - 0.25,
-        speedY: Math.random() * 0.5 + 0.4,
-        rotation: Math.random() * 360,
-        rotationSpeed: Math.random() * 0.8 - 0.4,
-        opacity: Math.random() * 0.25 + 0.15,
-        color: Math.random() > 0.4 ? "rgba(255, 184, 201," : "rgba(255, 218, 226,"
-      });
-    }
-
-    const animate = () => {
-      frameCount += 1;
-      if (frameCount % 15 === 0) covered = document.body.classList.contains("chat-open") || !!document.querySelector("dialog[open]");
-      if (covered || Date.now() - lastScrollAt < 150) {
-        frameId = requestAnimationFrame(animate);
-        return;
-      }
-      ctx.clearRect(0, 0, width, height);
-
-      petals.forEach(p => {
-        p.x += p.speedX;
-        p.y += p.speedY;
-        p.rotation += p.rotationSpeed;
-
-        if (p.y > height + 20) {
-          p.y = -20;
-          p.x = Math.random() * width;
-        }
-        if (p.x > width + 20) p.x = -20;
-        if (p.x < -20) p.x = width + 20;
-
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate((p.rotation * Math.PI) / 180);
-
-        ctx.fillStyle = `${p.color} ${p.opacity})`;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      });
-
-      frameId = requestAnimationFrame(animate);
-    };
-
-    // Dừng vòng lặp khi tab bị ẩn để không tốn pin (UX-02)
-    let frameId = 0;
-    document.addEventListener("visibilitychange", () => {
-      if (document.hidden) cancelAnimationFrame(frameId);
-      else frameId = requestAnimationFrame(animate);
+    const hero = document.getElementById("hero");
+    if (!canvas || !hero) return;
+    this.petals = new PetalCanvas({
+      canvas: canvas,
+      hero: hero,
+      enabled: () => this.loadData(PETALS_SETTING_KEY, "on") !== "off"
     });
-    animate();
+    this.petals.start();
   }
 
   // ==========================================
-  // BẮN TIM LÃNG MẠN (HEARTS CONFETTI)
+  // KHOẢNH KHẮC ĂN MỪNG (CHỈ MỘT CHUYỂN ĐỘNG LỚN)
   // ==========================================
-  spawnHeartBurst(clientX, clientY) {
-    const x = clientX || window.innerWidth / 2;
-    const y = clientY || window.innerHeight / 2;
-    const symbols = ["💖", "🌸", "💕", "✨", "🤍", "🌷", "🥰"];
-    for (let i = 0; i < 7; i++) {
-      const heart = document.createElement("div");
-      heart.className = "floating-click-heart";
-      heart.textContent = symbols[Math.floor(Math.random() * symbols.length)];
-      
-      const offsetX = (Math.random() - 0.5) * 80;
-      const offsetY = (Math.random() - 0.5) * 40;
-      heart.style.left = `${x + offsetX}px`;
-      heart.style.top = `${y + offsetY}px`;
-      heart.style.fontSize = `${Math.floor(Math.random() * 16 + 18)}px`;
-
-      document.body.appendChild(heart);
-      setTimeout(() => heart.remove(), 1400);
+  /** @param {{reason: "milestone"|"save", label?: string}} options */
+  celebrate(options) {
+    const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      if (options.reason === "milestone") this.showCelebrateBanner(options.label);
+      return;
     }
+    const target = this.countDays ? this.countDays.getBoundingClientRect() : null;
+    const x = target ? target.left + target.width / 2 : window.innerWidth / 2;
+    const y = target ? target.top + target.height / 2 : window.innerHeight / 2;
+    if (this.petals) this.petals.burst(x, y, CELEBRATE_MS);
+    if (options.reason === "milestone") this.rollUpDayCount(this.lastCounterDays);
   }
 
-  spawnHeartConfetti() {
-    this.spawnHeartBurst(window.innerWidth / 2, window.innerHeight / 2);
+  showCelebrateBanner(label) {
+    if (!this.milestoneLine) return;
+    const banner = document.createElement("p");
+    banner.className = "celebrate-banner";
+    banner.setAttribute("role", "status");
+    banner.textContent = `🎉 Tròn ${label}`;
+    this.milestoneLine.insertAdjacentElement("afterend", banner);
+    setTimeout(() => banner.remove(), CELEBRATE_BANNER_MS);
+  }
+
+  /** Rolls the day number up from days - 30 to days once, with requestAnimationFrame (not a loop). */
+  rollUpDayCount(days) {
+    if (!this.countDays || !Number.isFinite(days)) return;
+    const from = Math.max(0, days - ROLL_UP_FROM_DAYS);
+    const startedAt = performance.now();
+    const step = (now) => {
+      const progress = Math.min(1, (now - startedAt) / CELEBRATE_MS);
+      this.countDays.textContent = Number(Math.round(from + (days - from) * progress)).toLocaleString("vi-VN");
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  /** Celebrates once per local day when today is a milestone day. */
+  maybeCelebrateMilestone(milestone) {
+    if (!milestone || milestone.daysLeft !== 0) return;
+    const today = formatLocalDate(new Date());
+    if (this.loadData(CELEBRATED_KEY, "") === today) return;
+    this.saveData(CELEBRATED_KEY, today);
+    this.celebrate({ reason: "milestone", label: milestone.label });
   }
 
   // ==========================================
@@ -3003,8 +2997,9 @@ class JourneyApp {
       }
 
       this.isPlayingMelody = true;
-      this.musicStatus.textContent = "Đang Phát Nhạc 🎶";
       this.musicToggleBtn.classList.add("active");
+      this.musicToggleBtn.setAttribute("aria-pressed", "true");
+      this.syncMusicSwitch();
 
       const notes = [
         261.63, 329.63, 392.00, 523.25,
@@ -3051,8 +3046,9 @@ class JourneyApp {
   stopMelody() {
     this.isPlayingMelody = false;
     clearTimeout(this.melodyTimer);
-    this.musicStatus.textContent = "Bật Nhạc 🎵";
     this.musicToggleBtn.classList.remove("active");
+    this.musicToggleBtn.setAttribute("aria-pressed", "false");
+    this.syncMusicSwitch();
   }
 
   // ==========================================
@@ -3066,6 +3062,7 @@ class JourneyApp {
         send: (payload) => this.postToBackend(payload),
         onConfirmed: (entry, result) => this.handleWriteConfirmed(entry, result),
         onUnauthorized: () => { if (this.isAuthenticated) this.lockForRejectedPasscode(); },
+        onRetry: (entry) => this.handleSyncRetry(entry),
         onChange: () => {}
       });
       await this.syncEngine.load();
@@ -3094,6 +3091,29 @@ class JourneyApp {
     for (const p of orphanPlaces) await this.sendPlaceToBackend(p);
     this.renderTimeline();
     this.renderChatMessages();
+  }
+
+  /** First failed attempt: tell the user once a minute (only when a sync link is set and the phone is online). */
+  handleSyncRetry(entry) {
+    if (entry.key.startsWith("chat:")) this.renderChatMessages();
+    if (!this.config.apiUrl || entry.attempts !== 1 || !navigator.onLine) return;
+    const now = Date.now();
+    if (now - (this.lastSyncToastAt || 0) < SYNC_TOAST_GAP_MS) return;
+    this.lastSyncToastAt = now;
+    this.showToast("Chưa đồng bộ được. Sẽ thử lại tự động.", TOAST_ACTION_MS, {
+      label: "Thử ngay", onClick: () => this.syncEngine.retryNow(entry.key)
+    });
+  }
+
+  /** Offline banner: shown on `offline`, closable until the next `offline`, hidden again on `online`. */
+  bindOfflineBanner() {
+    const banner = document.getElementById("offline-banner");
+    const close = document.getElementById("close-offline-banner-btn");
+    if (!banner) return;
+    window.addEventListener("offline", () => { banner.hidden = false; });
+    window.addEventListener("online", () => { banner.hidden = true; });
+    if (close) close.addEventListener("click", () => { banner.hidden = true; });
+    banner.hidden = navigator.onLine !== false;
   }
 
   bindSyncTriggers() {
@@ -3218,10 +3238,16 @@ class JourneyApp {
       if (this.isAuthenticated) params.push(`passcode=${encodeURIComponent(this.config.passcode || "")}`);
       const data = await this.fetchJson(`${this.config.apiUrl}?${params.join("&")}`, {}, GET_TIMEOUT_MS);
       await this.applyPulledData(data);
+      this.saveData(LAST_SYNC_KEY, Date.now());
     } catch (e) {
       console.warn("Chưa đồng bộ được từ Google Drive:", e);
     } finally {
       this.isSyncing = false;
+      if (this.firstSyncDone !== true) {
+        this.firstSyncDone = true;
+        this.renderTimeline();
+        this.renderPlaces();
+      }
       this.scheduleNextPoll();
     }
   }
@@ -3275,7 +3301,6 @@ class JourneyApp {
     this.sendToBackend({ type: "note", id: note.id, sender: note.sender, text: note.text, openAt: note.openAt });
     form.reset();
     this.renderNotes();
-    this.spawnHeartConfetti();
     this.showToast("💌 Đã gửi vào tương lai! Thư sẽ mở đúng giờ hẹn.");
   }
 
@@ -3285,16 +3310,20 @@ class JourneyApp {
     const now = Date.now();
     const sorted = [...this.notes].sort((a, b) => new Date(a.openAt) - new Date(b.openAt));
     if (sorted.length === 0) {
-      list.innerHTML = `<p class="note-meta">Chưa có thư nào. Hãy viết một lá thư cho tương lai nhé!</p>`;
+      list.innerHTML = `<div class="empty"><p class="muted">Chưa có thư nào. Viết một lá thư để người ấy mở vào đúng lúc nhé.</p></div>`;
       return;
     }
     list.innerHTML = sorted.map((n) => {
-      const locked = new Date(n.openAt).getTime() > now;
-      const when = new Date(n.openAt).toLocaleString("vi-VN");
-      const status = locked ? `🔒 Mở lúc ${when}` : `💌 Đã mở (${when})`;
-      const body = locked && n.sender !== this.currentSender ? "🔒 Thư đang được giữ kín" : this.escapeHTML(n.text);
-      const pending = n.syncState === "pending" ? " ⏳" : "";
-      return `<div class="note-item ${locked ? "is-locked" : ""}"><span class="note-meta">${this.escapeHTML(n.sender)} · ${this.escapeHTML(status)}${pending}</span>${body}</div>`;
+      const openAt = new Date(n.openAt);
+      const locked = openAt.getTime() > now;
+      const when = `${formatTime24(openAt)}, ${formatDayMonth(openAt)}`;
+      const recipient = n.sender === this.currentSender ? (this.chatReceiverName ? this.chatReceiverName.textContent : "") : this.currentSender;
+      const status = locked ? `${icon("lock", { size: 16 })}Mở lúc ${this.escapeHTML(when)}` : `Đã mở · ${this.escapeHTML(when)}`;
+      const body = locked
+        ? (n.sender === this.currentSender ? `<p class="muted">${this.escapeHTML(n.text)}</p>` : "")
+        : `<p class="hand">${this.escapeHTML(n.text)}</p>`;
+      const pending = n.syncState === "pending" ? ` ${icon("cloud-pending", { size: 14 })}` : "";
+      return `<div class="note ${locked ? "is-locked" : ""}"><p class="t-meta muted note__meta">${this.escapeHTML(n.sender)} → ${this.escapeHTML(recipient)} · ${status}${pending}</p>${body}</div>`;
     }).join("");
   }
 
@@ -3310,30 +3339,37 @@ class JourneyApp {
     if (this.notesModal && this.notesModal.open) this.renderNotes();
     if (justOpened.length > 0 && this.syncCursor > 0) {
       this.showToast("💌 Có một lá thư hẹn giờ vừa được mở!", 5000);
-      if (navigator.vibrate) navigator.vibrate(VIBRATE_PATTERN_MS);
+      this.vibrate();
     }
   }
 
   // Hỏi "Bạn là ai?" đúng một lần trên mỗi thiết bị để tin nhắn luôn mang đúng tên (UX-06)
   promptSenderIfNeeded() {
     if (!this.isAuthenticated || this.loadData(SENDER_CHOSEN_KEY, false)) return;
-    const modal = document.getElementById("who-am-i-modal");
-    const first = document.getElementById("who-first-btn");
-    const second = document.getElementById("who-second-btn");
-    if (!modal || !first || !second || modal.open) return;
-    first.textContent = this.config.partnerOne || "Kim";
-    second.textContent = this.config.partnerTwo || "Thư";
-    const choose = (name) => {
-      this.currentSender = name;
-      this.saveData("journey_chat_sender_v1", name);
-      this.saveData(SENDER_CHOSEN_KEY, true);
-      this.updateChatHeaderLabels();
-      this.renderChatMessages();
-      modal.close();
-    };
-    first.onclick = () => choose(first.textContent);
-    second.onclick = () => choose(second.textContent);
-    modal.showModal();
+    this.dialogQueue.request("who-am-i", DIALOG_PRIORITY.whoAmI, () => {
+      const modal = document.getElementById("who-am-i-modal");
+      const first = document.getElementById("who-first-btn");
+      const second = document.getElementById("who-second-btn");
+      if (!this.isAuthenticated || !modal || !first || !second || modal.open) return null;
+      first.dataset.name = this.config.partnerOne || "Kim";
+      second.dataset.name = this.config.partnerTwo || "Thư";
+      [first, second].forEach((button) => {
+        button.querySelector(".who-option__name").textContent = button.dataset.name;
+        button.querySelector(".avatar").textContent = button.dataset.name.charAt(0).toUpperCase();
+      });
+      const choose = (name) => {
+        this.currentSender = name;
+        this.saveData("journey_chat_sender_v1", name);
+        this.saveData(SENDER_CHOSEN_KEY, true);
+        this.updateChatHeaderLabels();
+        this.renderChatMessages();
+        modal.close();
+      };
+      first.onclick = () => choose(first.dataset.name);
+      second.onclick = () => choose(second.dataset.name);
+      modal.showModal();
+      return modal;
+    });
   }
 
   // "Hiện diện" nhẹ nhàng: lần nhắn gần nhất của người kia (không theo dõi gì thêm)
@@ -3342,13 +3378,14 @@ class JourneyApp {
     if (!el) return;
     const lastOther = [...this.chatMessages].reverse().find((m) => m.sender !== this.currentSender && m.timestamp);
     if (!lastOther) {
-      el.textContent = "Đang yêu thương ✨";
+      el.textContent = "";
+      el.hidden = true;
       return;
     }
     const when = new Date(lastOther.timestamp);
     const sameDay = formatLocalDate(when) === formatLocalDate(new Date());
-    const label = sameDay ? when.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : when.toLocaleDateString("vi-VN");
-    el.textContent = `💗 ${lastOther.sender} nhắn lúc ${label}`;
+    el.hidden = false;
+    el.textContent = `Nhắn lúc ${sameDay ? formatTime24(when) : formatDateVi(when)}`;
   }
 
   async applyPulledData(data) {
@@ -3386,7 +3423,7 @@ class JourneyApp {
     this.rememberTombstones("deletedMemoryIds", "journey_deleted_mem_ids", deletedIds);
     const result = applyDelta(this.memories, { upserts: upserts, deletedIds: deletedIds }, {
       pendingIds: this.pendingIdsFor("memory"),
-      tombstones: this.deletedMemoryIds,
+      tombstones: this.deletedMemoryIds.concat(Array.from(this.pendingDeleteIds.memory)),
       keepLocalWhenEmpty: ["image"]
     });
     if (!result.changed) return;
@@ -3413,7 +3450,7 @@ class JourneyApp {
     this.rememberTombstones("deletedPlaceIds", "journey_deleted_place_ids", deletedIds);
     const result = applyDelta(this.places, { upserts: upserts.map((p) => this.normalizeServerPlace(p)), deletedIds: deletedIds }, {
       pendingIds: this.pendingIdsFor("place"),
-      tombstones: this.deletedPlaceIds,
+      tombstones: this.deletedPlaceIds.concat(Array.from(this.pendingDeleteIds.place)),
       keepLocalWhenEmpty: ["lat", "lng"]
     });
     if (!result.changed) return;
@@ -3439,11 +3476,11 @@ class JourneyApp {
       }
     });
     if (!hasNew) return;
-    if (hasIncoming && this.syncCursor > 0 && navigator.vibrate) navigator.vibrate(VIBRATE_PATTERN_MS);
+    if (hasIncoming && this.syncCursor > 0) this.vibrate();
     this.persistChat();
     this.renderChatMessages();
     if (this.chatUnreadDot && (!this.chatDrawer || !this.chatDrawer.classList.contains("open"))) {
-      this.chatUnreadDot.style.display = "block";
+      this.setChatUnread(true);
     }
   }
 
@@ -3479,16 +3516,20 @@ class JourneyApp {
   // HỘP THƯ CHAT RIÊNG TƯ (LƯU DRIVE & GOOGLE CLOUD)
   // ==========================================
   initChat() {
-    this.floatingChatBtn = document.getElementById("floating-chat-btn");
-    this.openChatDropdownBtn = document.getElementById("open-chat-dropdown-btn");
+    this.chatTabBtn = document.getElementById("tab-chat");
     this.chatDrawer = document.getElementById("chat-drawer");
     this.closeChatBtn = document.getElementById("close-chat-btn");
-    this.switchChatSenderBtn = document.getElementById("switch-chat-sender-btn");
-    this.currentChatSenderLabel = document.getElementById("current-chat-sender-label");
+    this.chatMoreBtn = document.getElementById("chat-more-btn");
+    this.chatReceiverAvatar = document.getElementById("chat-receiver-avatar");
     this.chatReceiverName = document.getElementById("chat-receiver-name");
     this.chatMessagesContainer = document.getElementById("chat-messages-container");
     if (this.chatMessagesContainer) {
       this.chatMessagesContainer.addEventListener("click", (e) => {
+        const retry = e.target.closest ? e.target.closest(".chat__retry") : null;
+        if (retry) {
+          if (this.syncEngine) this.syncEngine.retryNow(retry.dataset.key);
+          return;
+        }
         const img = e.target.closest ? e.target.closest(".chat-msg-img") : null;
         if (!img) return;
         const msg = this.chatMessages.find((m) => String(m.id) === img.dataset.msgId);
@@ -3502,21 +3543,10 @@ class JourneyApp {
     this.chatImgPreviewTag = document.getElementById("chat-img-preview-tag");
     this.chatRemoveImgBtn = document.getElementById("chat-remove-img-btn");
     this.chatQuickHeartBtn = document.getElementById("chat-quick-heart-btn");
-    this.chatUnreadDot = document.getElementById("chat-unread-dot");
+    this.chatUnreadDot = document.getElementById("tab-chat-dot");
 
-    if (this.floatingChatBtn) {
-      this.floatingChatBtn.addEventListener("click", () => {
-        if (!this.isAuthenticated) {
-          this.showToast("Hộp thư tình yêu chỉ dành riêng cho Kim & Thư 💕");
-          this.openAuthModal();
-          return;
-        }
-        this.toggleChatDrawer();
-      });
-    }
-
-    if (this.openChatDropdownBtn) {
-      this.openChatDropdownBtn.addEventListener("click", () => {
+    if (this.chatTabBtn) {
+      this.chatTabBtn.addEventListener("click", () => {
         if (!this.isAuthenticated) {
           this.showToast("Hộp thư tình yêu chỉ dành riêng cho Kim & Thư 💕");
           this.openAuthModal();
@@ -3530,8 +3560,8 @@ class JourneyApp {
       this.closeChatBtn.addEventListener("click", () => this.toggleChatDrawer(false));
     }
 
-    if (this.switchChatSenderBtn) {
-      this.switchChatSenderBtn.addEventListener("click", () => this.toggleChatSender());
+    if (this.chatMoreBtn) {
+      this.chatMoreBtn.addEventListener("click", () => this.openChatMenu(this.chatMoreBtn));
     }
 
     // Chọn ảnh gửi trong chat (tự động nén và tải lên Google Drive)
@@ -3546,7 +3576,7 @@ class JourneyApp {
           this.compressImage(rawUrl, 900, 0.82, (compressed) => {
             this.chatPendingImage = compressed;
             if (this.chatImgPreviewTag) this.chatImgPreviewTag.src = compressed;
-            if (this.chatImgPreviewBox) this.chatImgPreviewBox.style.display = "flex";
+            if (this.chatImgPreviewBox) this.chatImgPreviewBox.hidden = false;
             if (this.chatTextInput) this.chatTextInput.focus();
           });
         };
@@ -3581,13 +3611,19 @@ class JourneyApp {
     this.renderChatMessages();
   }
 
+  /** Shows or hides the unread dot on the Chat tab and keeps the tab's accessible name in step. */
+  setChatUnread(unread) {
+    if (this.chatUnreadDot) this.chatUnreadDot.hidden = !unread;
+    if (this.chatTabBtn) this.chatTabBtn.setAttribute("aria-label", unread ? "Chat (có tin mới)" : "Chat");
+  }
+
   toggleChatDrawer(force) {
     if (!this.chatDrawer) return;
     const shouldOpen = force !== undefined ? force : !this.chatDrawer.classList.contains("open");
     if (shouldOpen) {
       this.chatDrawer.classList.add("open");
       this.chatDrawer.setAttribute("aria-hidden", "false");
-      if (this.chatUnreadDot) this.chatUnreadDot.style.display = "none";
+      this.setChatUnread(false);
       if (this.chatTextInput) this.chatTextInput.focus();
       this.renderChatMessages();
     } else {
@@ -3596,34 +3632,60 @@ class JourneyApp {
     }
   }
 
-  toggleChatSender() {
-    const him = this.config.partnerOne || "Kim";
-    const her = this.config.partnerTwo || "Thư";
-    this.currentSender = (this.currentSender === him) ? her : him;
-    this.saveData("journey_chat_sender_v1", this.currentSender);
+  /** Vibrates for an incoming message unless the user turned it off in the chat menu. */
+  /** A tiny tick for long-press, unless vibration is turned off. */
+  hapticTick() {
+    if (this.loadData(CHAT_VIBRATE_KEY, "on") === "off") return;
+    if (navigator.vibrate) navigator.vibrate(HAPTIC_TICK_MS);
+  }
+
+  vibrate() {
+    if (this.loadData(CHAT_VIBRATE_KEY, "on") === "off") return;
+    if (navigator.vibrate) navigator.vibrate(VIBRATE_PATTERN_MS);
+  }
+
+  setChatSender(name) {
+    this.currentSender = name;
+    this.saveData("journey_chat_sender_v1", name);
     this.saveData(SENDER_CHOSEN_KEY, true);
     this.updateChatHeaderLabels();
     this.renderChatMessages();
-    this.spawnHeartBurst(window.innerWidth - 60, window.innerHeight - 60);
   }
 
   updateChatHeaderLabels() {
     const him = this.config.partnerOne || "Kim";
     const her = this.config.partnerTwo || "Thư";
     const receiver = (this.currentSender === him) ? her : him;
+    if (this.chatReceiverName) this.chatReceiverName.textContent = receiver;
+    if (this.chatReceiverAvatar) {
+      this.chatReceiverAvatar.textContent = receiver.charAt(0).toUpperCase();
+      this.chatReceiverAvatar.classList.toggle("avatar--k", receiver === him);
+      this.chatReceiverAvatar.classList.toggle("avatar--t", receiver !== him);
+    }
+    const recipient = document.getElementById("note-recipient");
+    if (recipient) recipient.textContent = receiver;
+  }
 
-    if (this.currentChatSenderLabel) {
-      this.currentChatSenderLabel.textContent = `Tôi là: ${this.currentSender}`;
-    }
-    if (this.chatReceiverName) {
-      this.chatReceiverName.textContent = `${receiver} ❤️`;
-    }
+  /** ⋯ menu: timed notes, "who am I", and the vibration switch. */
+  openChatMenu(anchor) {
+    const him = this.config.partnerOne || "Kim";
+    const her = this.config.partnerTwo || "Thư";
+    const vibrateOff = this.loadData(CHAT_VIBRATE_KEY, "on") === "off";
+    actionMenu.open({
+      anchor: anchor,
+      items: [
+        { label: "Thư hẹn giờ", icon: "clock", onSelect: () => this.openNotes() },
+        { label: `Tôi là: ${him}`, checked: this.currentSender === him, onSelect: () => this.setChatSender(him) },
+        { label: `Tôi là: ${her}`, checked: this.currentSender === her, onSelect: () => this.setChatSender(her) },
+        { label: "Tắt rung khi có tin", checked: vibrateOff, onSelect: () => this.saveData(CHAT_VIBRATE_KEY, vibrateOff ? "on" : "off") }
+      ]
+    });
   }
 
   clearChatPendingImage() {
     this.chatPendingImage = null;
     if (this.chatImageFileInput) this.chatImageFileInput.value = "";
-    if (this.chatImgPreviewBox) this.chatImgPreviewBox.style.display = "none";
+    if (this.chatImgPreviewBox) this.chatImgPreviewBox.hidden = true;
   }
 
   sendChatMessage(text, imageBase64) {
@@ -3647,7 +3709,6 @@ class JourneyApp {
     this.persistChat();
     this.renderChatMessages();
     this.clearChatPendingImage();
-    this.spawnHeartBurst(window.innerWidth - 60, window.innerHeight - 60);
 
     // Lưu vào Google Drive và Google Sheet Backend
     this.sendToBackend({
@@ -3659,41 +3720,84 @@ class JourneyApp {
     }
   }
 
+  /** Keys of chat messages still in the outbox, and those that already failed at least once. */
+  chatOutboxKeys() {
+    const pending = new Set();
+    const failed = new Set();
+    if (this.syncEngine) {
+      this.syncEngine.keys().filter((k) => k.startsWith("chat:")).forEach((key) => {
+        pending.add(key);
+        const entry = this.syncEngine.getEntry(key);
+        if (entry && entry.attempts >= 1) failed.add(key);
+      });
+    }
+    return { pending: pending, failed: failed };
+  }
+
   renderChatMessages() {
     if (!this.chatMessagesContainer) return;
-    this.chatMessagesContainer.innerHTML = this.chatMessages.map(msg => {
-      const isSent = msg.sender === this.currentSender;
-      const timeStr = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "";
-      const chatImageUrl = safeUrl(msg.image, MEMORY_IMAGE_URL_OPTIONS);
-      return `
-        <div class="chat-msg-row ${isSent ? 'sent' : 'received'}">
-          <span class="chat-msg-sender-name">${this.escapeHTML(msg.sender)}</span>
-          <div class="chat-bubble">
-            ${chatImageUrl ? `<img src="${this.escapeHTML(chatImageUrl)}" alt="Ảnh tin nhắn" class="chat-msg-img" data-msg-id="${this.escapeHTML(msg.id)}">` : ""}
-            ${msg.text ? `<div>${this.escapeHTML(msg.text)}</div>` : ""}
-          </div>
-          <span class="chat-msg-time">${timeStr}${msg.syncState === "pending" ? " ⏳" : ""}</span>
-        </div>
-      `;
-    }).join("");
-
+    if (this.chatMessages.length === 0) {
+      this.chatMessagesContainer.innerHTML = `<div class="empty"><p class="t-headline">Chưa có tin nhắn nào.</p><p class="muted">Gửi một trái tim cho ${this.escapeHTML(this.chatReceiverName ? this.chatReceiverName.textContent : "Thư")} nhé.</p></div>`;
+      if (this.chatQuickHeartBtn) this.chatQuickHeartBtn.classList.add("is-highlighted");
+      this.updateChatPresence();
+      return;
+    }
+    if (this.chatQuickHeartBtn) this.chatQuickHeartBtn.classList.remove("is-highlighted");
+    if (this.shouldShowChatSkeleton()) {
+      this.chatMessagesContainer.innerHTML = chatSkeletonHtml();
+      return;
+    }
+    const keys = this.chatOutboxKeys();
+    const items = layoutMessages(this.chatMessages, {
+      me: this.currentSender, now: new Date(), pendingKeys: keys.pending, failedKeys: keys.failed
+    });
+    this.chatMessagesContainer.innerHTML = items.map((item) => this.chatItemHtml(item)).join("");
     this.chatMessagesContainer.scrollTop = this.chatMessagesContainer.scrollHeight;
     this.updateChatPresence();
+  }
+
+  /** Skeleton bubbles only while the sample messages are shown and the first backend sync is pending. */
+  shouldShowChatSkeleton() {
+    if (!this.config.apiUrl || this.firstSyncDone === true) return false;
+    return this.chatMessages.every((m) => DEFAULT_CHAT_MESSAGES.some((d) => d.id === m.id));
+  }
+
+  chatItemHtml(item) {
+    if (item.kind === "day") return `<p class="chat__day t-meta muted">${this.escapeHTML(item.label)}</p>`;
+    const msg = item.msg;
+    const image = safeUrl(msg.image, MEMORY_IMAGE_URL_OPTIONS);
+    const classes = ["chat__row", item.own ? "is-own" : "is-other", item.groupStart ? "is-start" : "", item.groupEnd ? "is-end" : "",
+      item.state === "sending" ? "is-sending" : ""].filter(Boolean).join(" ");
+    const photo = image ? `<img src="${this.escapeHTML(image)}" alt="Ảnh tin nhắn" class="chat-msg-img" data-msg-id="${this.escapeHTML(msg.id)}">` : "";
+    const text = msg.text ? `<span>${this.escapeHTML(msg.text)}</span>` : "";
+    const time = item.showTime && msg.timestamp ? this.escapeHTML(formatTime24(new Date(msg.timestamp))) : "";
+    let meta = time ? `<span class="chat__time t-meta muted">${time}</span>` : "";
+    if (item.state === "sending") meta = `<span class="chat__time t-meta muted">${icon("clock", { size: 14 })}${time}</span>`;
+    if (item.state === "failed") {
+      meta = `<span class="chat__time t-meta status status--danger">${icon("alert", { size: 14 })}` +
+        `<button type="button" class="btn btn--text chat__retry" data-key="chat:${this.escapeHTML(msg.id)}">Chưa gửi được · Chạm để thử lại</button></span>`;
+    }
+    return `<div class="${classes}"><div class="chat__bubble">${photo}${text}</div>${meta}</div>`;
   }
 
   viewChatImage(url) {
     if (this.lightboxModal && this.lightboxImg) {
       this.lightboxImg.src = safeUrl(url, MEMORY_IMAGE_URL_OPTIONS);
-      this.lightboxTitle.textContent = "Ảnh Từ Hộp Thư Chat 💕";
-      this.lightboxDate.textContent = "Lưu trữ an toàn trên Google Drive";
-      this.lightboxStory.textContent = "";
+      this.lightboxImg.alt = "Ảnh trong tin nhắn";
       this.lightboxModal.showModal();
     }
   }
 
   // UI-01: ảnh Drive lỗi → thử lại ảnh gốc một lần, rồi hiện ô hồng có trái tim.
+  /**
+   * Fades photos in on load, retries a failed photo once with its original URL, then swaps the memory for a
+   * text card (feed) or a text tile (grid) with a retry button.
+   */
   attachImageFallbacks(root) {
     root.querySelectorAll("img[data-fallback-src]").forEach((img) => {
+      const markLoaded = () => img.classList.add("is-loaded");
+      img.addEventListener("load", markLoaded);
+      if (img.complete && img.naturalWidth > 0) markLoaded();
       img.addEventListener("error", () => {
         const original = img.dataset.fallbackSrc;
         if (original && img.getAttribute("src") !== original && !img.dataset.retried) {
@@ -3701,26 +3805,30 @@ class JourneyApp {
           img.src = original;
           return;
         }
-        const placeholder = document.createElement("div");
-        placeholder.className = "locket-photo-placeholder";
-        placeholder.setAttribute("aria-hidden", "true");
-        placeholder.textContent = "❤️";
-        img.replaceWith(placeholder);
+        this.showMemoryTextFallback(img);
       });
     });
   }
 
+  showMemoryTextFallback(img) {
+    const holder = img.closest("[data-id]");
+    const mem = holder ? this.memories.find((m) => String(m.id) === holder.dataset.id) : null;
+    if (!mem) return;
+    if (holder.classList.contains("memory")) {
+      holder.outerHTML = memoryTextCardHtml(mem, { retry: true });
+    } else if (holder.classList.contains("tile")) {
+      holder.outerHTML = gridTileHtml(Object.assign({}, mem, { image: "" }));
+    }
+  }
+
+  /** "Mở bản đồ" link for the detail sheet; "" when the location has no safe map URL. */
   formatLocationBadge(locationStr) {
     if (!locationStr) return "";
     const match = locationStr.match(/(https?:\/\/[^\s\)]+)/);
-    if (match) {
-      const url = safeUrl(match[1]);
-      if (!url) return `<span class="locket-loc-badge">📍 ${this.escapeHTML(locationStr)}</span>`;
-      let label = locationStr.replace(url, "").replace(/[\(\)]/g, "").trim();
-      if (!label || label === "-") label = "Toạ độ Google Maps";
-      return `<a href="${this.escapeHTML(url)}" target="_blank" rel="noopener noreferrer" class="locket-loc-badge locket-loc-link" title="Xem trên Google Maps">📍 ${this.escapeHTML(label)} ↗</a>`;
-    }
-    return `<span class="locket-loc-badge">📍 ${this.escapeHTML(locationStr)}</span>`;
+    if (!match) return "";
+    const url = safeUrl(match[1]);
+    if (!url) return "";
+    return `<a href="${this.escapeHTML(url)}" target="_blank" rel="noopener noreferrer" class="map-link btn btn--text">Mở bản đồ</a>`;
   }
 
   // Ngày gọn cho dòng meta dưới ảnh: "25/10 · 17:09" (cùng năm) hoặc "25/10/2025 · 17:09".
@@ -3754,16 +3862,7 @@ class JourneyApp {
   }
 
   escapeHTML(str) {
-    if (!str) return "";
-    return String(str).replace(/[&<>'"]/g, 
-      tag => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        "'": '&#39;',
-        '"': '&quot;'
-      }[tag] || tag)
-    );
+    return escapeHtml(str);
   }
 }
 

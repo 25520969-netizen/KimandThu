@@ -1,84 +1,98 @@
-/* Design tokens (D-07) and the dark theme (D-09). Loaded first; the dark blocks use :root + attribute
-   selectors, which out-rank the plain :root blocks in the other stylesheets whatever the file order. */
+/* Album Kem tokens (spec 2). Loaded first; the dark blocks use :root + attribute selectors, which
+   out-rank the plain :root block in the other stylesheets whatever the file order. */
 :root {
   color-scheme: light;
-  --surface: #fff8fa;
-  --surface-card: #ffffff;
-  --surface-glass: rgba(255, 255, 255, 0.94);
-  --surface-tint: #fff0f5;
-  --pink-line: #ffd1dc;
-  --pink-action: #c9184a;
-  --shadow-1: 0 1px 2px rgba(201, 24, 74, 0.06), 0 4px 12px rgba(201, 24, 74, 0.06);
-  --shadow-2: 0 8px 24px rgba(201, 24, 74, 0.16);
-  --r-card: 16px;
-  --r-photo: 14px;
-  --r-sheet: 24px;
-  --dur-fast: 150ms;
-  --dur-med: 240ms;
-  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --c-bg: #FBF7F2;
+  --c-surface: #FFFFFF;
+  --c-sunken: #F4EEE7;
+  --c-text: #2B2024;
+  --c-muted: #6F6166;
+  --c-primary: #C9184A;
+  --c-on-primary: #FFFFFF;
+  --c-primary-soft: #FCE8EE;
+  --c-accent: #E85D75;
+  --c-success: #2F7D4F;
+  --c-warn: #A15C00;
+  --c-danger: #B42318;
+  --c-divider: #E9E1D9;
+  --c-control: #8A7C80;
+  --c-focus: #C9184A;
+  --c-scrim: rgba(43, 32, 36, 0.45);
+  --c-glass: rgba(251, 247, 242, 0.82);
+  --e-1: 0 1px 2px rgba(43, 32, 36, 0.06), 0 2px 8px rgba(43, 32, 36, 0.04);
+  --e-2: 0 8px 28px rgba(43, 32, 36, 0.14);
+  --t-hero-num-size: clamp(3.5rem, 18vw, 5rem); --t-hero-num-lh: 1;
+  --t-display-size: clamp(1.625rem, 1rem + 3.5vw, 2.25rem); --t-display-lh: 1.15;
+  --t-title-size: 1.375rem; --t-title-lh: 1.25;
+  --t-headline-size: 1.0625rem; --t-headline-lh: 1.35;
+  --t-body-size: 1rem; --t-body-lh: 1.5;
+  --t-callout-size: 0.9375rem; --t-callout-lh: 1.45;
+  --t-meta-size: 0.8125rem; --t-meta-lh: 1.35;
+  --t-hand-size: 1.25rem; --t-hand-lh: 1.3;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
+  --r-sm: 10px; --r-md: 16px; --r-lg: 22px; --r-sheet: 28px; --r-pill: 999px;
+  --m-fast: 120ms; --m-base: 220ms; --m-slow: 360ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-body: "Be Vietnam Pro", -apple-system, system-ui, sans-serif;
+  --font-hand: "Caveat", cursive;
+  --gutter: clamp(12px, 5vw - 2px, 24px);
+  --header-h: 52px;
+  --tabbar-h: 49px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --bottom-nav-height: calc(var(--tabbar-h) + var(--safe-bottom));
 }
 
-/* Dark values, written once as a block and applied for "dark" and for "auto" on dark systems. */
+
+/* Dark values, written once per theme block: "dark" and "auto" on dark systems. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --surface: #1f1418;
-  --surface-card: #2a1b21;
-  --surface-glass: rgba(42, 27, 33, 0.94);
-  --surface-tint: #33202a;
-  --pink-line: #4a2c35;
-  --pink-action: #ff8fab;
-  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --bg-primary: #1f1418;
-  --bg-secondary: #281a20;
-  --bg-card: rgba(42, 27, 33, 0.9);
-  --bg-card-hover: rgba(52, 33, 41, 0.96);
-  --bg-glass: rgba(42, 27, 33, 0.8);
-  --pink-lightest: #33202a;
-  --pink-light: #4a2c35;
-  --pink-soft: #7a3a50;
-  --pink-primary: #ff8fab;
-  --pink-accent: #ff8fab;
-  --pink-deep: #ff8fab;
-  --text-main: #f6e9ee;
-  --text-muted: #cdb4c0;
-  --text-soft: #c9adb9;
-  --border-delicate: rgba(255, 143, 171, 0.25);
-  --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.35);
-  --shadow-card: 0 12px 36px -6px rgba(0, 0, 0, 0.5);
-  --shadow-hover: 0 18px 45px -4px rgba(0, 0, 0, 0.55);
-  --shadow-glow: 0 0 25px rgba(255, 143, 171, 0.25);
+  --c-bg: #16110F;
+  --c-surface: #211A17;
+  --c-sunken: #2B2320;
+  --c-text: #F3ECE6;
+  --c-muted: #B5A8A0;
+  --c-primary: #FF7A9A;
+  --c-on-primary: #1A0F12;
+  --c-primary-soft: #3A1E26;
+  --c-accent: #FF9DB3;
+  --c-success: #6FCF97;
+  --c-warn: #F2B45A;
+  --c-danger: #FF8A80;
+  --c-divider: #3A302B;
+  --c-control: #85766E;
+  --c-focus: #FF7A9A;
+  --c-scrim: rgba(0, 0, 0, 0.6);
+  --c-glass: rgba(22, 17, 15, 0.78);
+  --e-1: none;
+  --e-2: none;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-theme="dark"]) {
     color-scheme: dark;
-    --surface: #1f1418;
-    --surface-card: #2a1b21;
-    --surface-glass: rgba(42, 27, 33, 0.94);
-    --surface-tint: #33202a;
-    --pink-line: #4a2c35;
-    --pink-action: #ff8fab;
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.5);
-    --bg-primary: #1f1418;
-    --bg-secondary: #281a20;
-    --bg-card: rgba(42, 27, 33, 0.9);
-    --bg-card-hover: rgba(52, 33, 41, 0.96);
-    --bg-glass: rgba(42, 27, 33, 0.8);
-    --pink-lightest: #33202a;
-    --pink-light: #4a2c35;
-    --pink-soft: #7a3a50;
-    --pink-primary: #ff8fab;
-    --pink-accent: #ff8fab;
-    --pink-deep: #ff8fab;
-    --text-main: #f6e9ee;
-    --text-muted: #cdb4c0;
-    --text-soft: #c9adb9;
-    --border-delicate: rgba(255, 143, 171, 0.25);
-    --shadow-subtle: 0 4px 20px rgba(0, 0, 0, 0.35);
-    --shadow-card: 0 12px 36px -6px rgba(0, 0, 0, 0.5);
-    --shadow-hover: 0 18px 45px -4px rgba(0, 0, 0, 0.55);
-    --shadow-glow: 0 0 25px rgba(255, 143, 171, 0.25);
+    --c-bg: #16110F;
+    --c-surface: #211A17;
+    --c-sunken: #2B2320;
+    --c-text: #F3ECE6;
+    --c-muted: #B5A8A0;
+    --c-primary: #FF7A9A;
+    --c-on-primary: #1A0F12;
+    --c-primary-soft: #3A1E26;
+    --c-accent: #FF9DB3;
+    --c-success: #6FCF97;
+    --c-warn: #F2B45A;
+    --c-danger: #FF8A80;
+    --c-divider: #3A302B;
+    --c-control: #85766E;
+    --c-focus: #FF7A9A;
+    --c-scrim: rgba(0, 0, 0, 0.6);
+    --c-glass: rgba(22, 17, 15, 0.78);
+    --e-1: none;
+    --e-2: none;
   }
 }

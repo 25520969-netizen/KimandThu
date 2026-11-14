@@ -3,15 +3,19 @@
  * same-origin files stale-while-revalidate. Backend and map APIs are never cached
  * (they are cross-origin and carry private data).
  */
-const CACHE_VERSION = "5.2";
+const CACHE_VERSION = "6.1";
 const CACHE_NAME = `kimthu-shell-${CACHE_VERSION}`;
 const SHELL_FILES = [
   "./",
   "index.html",
-  "styles.css",
   "src/styles/tokens.css",
-  "src/styles/app_shell.css",
-  "src/styles/redesign.css",
+  "src/styles/base.css",
+  "src/styles/components.css",
+  "src/styles/shell.css",
+  "src/styles/moments.css",
+  "src/styles/places.css",
+  "src/styles/chat.css",
+  "src/styles/be.css",
   "app.js",
   "manifest.json",
   "assets/app-icon.jpg",
@@ -23,6 +27,8 @@ const SHELL_FILES = [
   "src/utils/safe_url.js",
   "src/utils/local_date.js",
   "src/utils/drive_image.js",
+  "src/utils/escape_html.js",
+  "src/utils/vi_format.js",
   "src/services/period_cycle.js",
   "src/services/sync_merge.js",
   "src/services/sync_policy.js",
@@ -31,9 +37,19 @@ const SHELL_FILES = [
   "src/services/geo_policy.js",
   "src/services/period_history.js",
   "src/services/milestones.js",
+  "src/services/undo_queue.js",
   "src/adapters/outbox_store.js",
   "src/ui/theme_init.js",
+  "src/ui/icons.js",
+  "src/ui/petal_canvas.js",
+  "src/ui/templates.js",
+  "src/ui/chat_layout.js",
+  "src/ui/cycle_ring.js",
   "src/ui/overlay_stack.js",
+  "src/ui/route.js",
+  "src/ui/dialog_queue.js",
+  "src/ui/confirm_sheet.js",
+  "src/ui/action_menu.js",
   "src/ui/app_shell.js",
   "src/ui/register_service_worker.js"
 ];

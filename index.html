@@ -14,771 +14,561 @@
   <link rel="apple-touch-icon" href="assets/app-icon.jpg">
   <link rel="icon" type="image/jpeg" href="assets/app-icon.jpg">
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#ff758f">
+  <meta name="theme-color" content="#FBF7F2" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#16110F" media="(prefers-color-scheme: dark)">
   <meta name="color-scheme" content="light dark">
-  <script src="src/ui/theme_init.js?v=5.2"></script>
+  <script src="src/ui/theme_init.js?v=6.1"></script>
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&family=Outfit:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Caveat:wght@500&family=Playfair+Display:wght@500;700&display=swap&subset=vietnamese" rel="stylesheet">
   
-  <link rel="stylesheet" href="src/styles/tokens.css?v=5.2">
-  <link rel="stylesheet" href="styles.css?v=5.2">
-  <link rel="stylesheet" href="src/styles/app_shell.css?v=5.2">
-  <link rel="stylesheet" href="src/styles/redesign.css?v=5.2">
+  <link rel="stylesheet" href="src/styles/tokens.css?v=6.1">
+  <link rel="stylesheet" href="src/styles/base.css?v=6.1">
+  <link rel="stylesheet" href="src/styles/components.css?v=6.1">
+  <link rel="stylesheet" href="src/styles/shell.css?v=6.1">
+  <link rel="stylesheet" href="src/styles/moments.css?v=6.1">
+  <link rel="stylesheet" href="src/styles/places.css?v=6.1">
+  <link rel="stylesheet" href="src/styles/chat.css?v=6.1">
+  <link rel="stylesheet" href="src/styles/be.css?v=6.1">
 </head>
 <body>
   <!-- Ambient Floating Petals Background Canvas -->
   <canvas id="petal-canvas" aria-hidden="true"></canvas>
 
-  <!-- Top Navigation / Header Bar -->
-  <nav class="nav-bar">
-    <div class="nav-container">
-      <div class="logo" id="nav-logo-btn" role="button" tabindex="0" title="Về trang khoảnh khắc">
-        <span class="logo-heart">💖</span>
-        <span class="logo-text" id="nav-couple-names">Kim & Thư</span>
-      </div>
+  <!-- Header: wordmark, sticky counter pill, music, settings / unlock -->
+  <header class="app-header" id="app-header">
+    <div class="app-header__inner">
+      <button type="button" class="wordmark" id="nav-logo-btn" title="Về trang khoảnh khắc"><span id="nav-couple-names">Kim &amp; Thư</span></button>
 
       <div class="sticky-counter-pill" id="sticky-counter-pill" aria-live="off" hidden></div>
 
-      <div class="header-actions">
-        <button type="button" class="header-icon-btn couple-only" data-proxy="edit-profile-btn" title="Cài đặt" aria-label="Cài đặt"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
-        <button type="button" class="header-icon-btn" id="header-music-btn" data-proxy="music-toggle-btn" title="Bật/tắt nhạc" aria-label="Bật hoặc tắt nhạc"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button>
-        <button type="button" class="header-icon-btn couple-only" data-proxy="auth-lock-nav-btn" title="Chuyển sang chế độ khách" aria-label="Chuyển sang chế độ khách"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
-      </div>
-
-      <div class="nav-actions legacy-nav-menu" aria-hidden="true">
-        <!-- Nút mũi tên hướng xuống khung tròn bé bé góc phải cùng xổ dọc xuống các chức năng -->
-        <div class="nav-dropdown-wrap" id="nav-dropdown-wrap">
-          <button id="nav-menu-toggle-btn" class="circle-menu-btn" title="Menu tính năng" aria-label="Mở menu chức năng" aria-expanded="false">
-            <svg class="chevron-down-icon" viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-          </button>
-
-          <div class="nav-dropdown-menu" id="nav-dropdown-menu" role="menu" aria-hidden="true">
-            <button id="nav-moments-btn" class="dropdown-item active" role="menuitem">
-              <span class="dropdown-icon">📸</span>
-              <span class="dropdown-text">Khoảnh Khắc</span>
-            </button>
-            <button id="nav-places-btn" class="dropdown-item" role="menuitem">
-              <span class="dropdown-icon">📍</span>
-              <span class="dropdown-text">Nơi Muốn Đến</span>
-            </button>
-            <div class="dropdown-divider"></div>
-            <button id="edit-profile-btn" class="dropdown-item couple-only" role="menuitem">
-              <span class="dropdown-icon">⚙️</span>
-              <span class="dropdown-text">Cài Đặt</span>
-            </button>
-            <button id="music-toggle-btn" class="dropdown-item" role="menuitem">
-              <span class="dropdown-icon">🎵</span>
-              <span class="dropdown-text" id="music-status">Bật Nhạc</span>
-            </button>
-            <button id="period-nav-btn" class="dropdown-item couple-only" role="menuitem">
-              <span class="dropdown-icon">🍓</span>
-              <span class="dropdown-text" id="period-nav-label">Chăm Sóc Bé</span>
-            </button>
-            <button id="open-chat-dropdown-btn" class="dropdown-item couple-only" role="menuitem">
-              <span class="dropdown-icon">💌</span>
-              <span class="dropdown-text">Hộp Thư Nhắn Tin</span>
-            </button>
-            <button id="auth-unlock-nav-btn" class="dropdown-item guest-only" role="menuitem">
-              <span class="dropdown-icon">🔐</span>
-              <span class="dropdown-text">Mở Khóa Đôi Ta</span>
-            </button>
-            <button id="auth-lock-nav-btn" class="dropdown-item couple-only" role="menuitem">
-              <span class="dropdown-icon">🔒</span>
-              <span class="dropdown-text">Xem Chế Độ Khách</span>
-            </button>
-          </div>
-        </div>
+      <div class="app-header__actions">
+        <button type="button" class="icon-btn" id="music-toggle-btn" title="Bật/tắt nhạc" aria-label="Bật hoặc tắt nhạc" aria-pressed="false"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg></button>
+        <button type="button" class="icon-btn couple-only" id="edit-profile-btn" title="Cài đặt" aria-label="Cài đặt"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+        <button type="button" class="btn btn--text guest-only" id="auth-unlock-nav-btn" aria-label="Mở khóa"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span class="unlock-label">Mở khóa</span></button>
       </div>
     </div>
-  </nav>
+  </header>
+
+  <div class="offline-banner" id="offline-banner" role="status" hidden>
+    <svg class="ui-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3L2 20h20L12 3z"/><path d="M12 10v4M12 17.2v.1"/></svg>
+    <span>Đang ngoại tuyến · Vẫn xem và thêm được, sẽ đồng bộ khi có mạng.</span>
+    <button type="button" class="icon-btn" id="close-offline-banner-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
 
   <!-- Main Container -->
   <main class="main-content">
     
     <!-- TRANG 1: KHOẢNH KHẮC ĐÔI TA (TIMELINE MẶC ĐỊNH) -->
-    <div id="view-moments" class="app-view active" role="region" aria-label="Trang khoảnh khắc đôi ta">
+    <div id="view-moments" class="app-view" role="region" aria-label="Trang khoảnh khắc đôi ta">
       <!-- Hero Section (Từ Timer trở lên) -->
-      <header class="hero-section">
-        <h1 class="hero-title">
-          <span id="partner-one-name">Kim</span>
-          <span class="hero-heart-pulse">❤️</span>
-          <span id="partner-two-name">Thư</span>
-        </h1>
-        
-        <p class="hero-quote" id="hero-custom-quote">
-          Iu béeeee:3
-        </p>
-
-        <!-- Live Days Counter (Timer) -->
-        <section class="love-counter-card" aria-label="Đồng hồ đếm ngày yêu">
-          <div class="counter-header">
-            <span class="clock-icon">⏳</span>
-            <span class="counter-title">CHÚNG MÌNH ĐÃ Ở BÊN NHAU ĐƯỢC</span>
-          </div>
-          <div class="counter-grid">
-            <div class="counter-box">
-              <span class="counter-number" id="count-days">0</span>
-              <span class="counter-unit">Ngày</span>
-            </div>
-            <div class="counter-box">
-              <span class="counter-number" id="count-hours">00</span>
-              <span class="counter-unit">Giờ</span>
-            </div>
-            <div class="counter-box">
-              <span class="counter-number" id="count-minutes">00</span>
-              <span class="counter-unit">Phút</span>
-            </div>
-            <div class="counter-box">
-              <span class="counter-number" id="count-seconds">00</span>
-              <span class="counter-unit">Giây</span>
-            </div>
-          </div>
-          <p class="milestone-line" id="milestone-line"></p>
-        </section>
-        <button type="button" class="period-chip couple-only" id="period-chip" data-proxy="period-nav-btn" title="Mở góc chăm sóc bé">🍓 <span id="period-chip-text"></span></button>
-      </header>
-
-      <section class="on-this-day-card" id="on-this-day-card" aria-label="Ngày này năm xưa" hidden></section>
+      <section class="hero page" id="hero" aria-label="Chuyện của hai đứa">
+        <h1 class="hero__names large-title"><span id="partner-one-name">Kim</span> <span class="hero__heart" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-8-4.9-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6.1-8 11-8 11z"/></svg></span> <span id="partner-two-name">Thư</span></h1>
+        <p class="hero__quote hand muted" id="hero-custom-quote"></p>
+        <p class="hero__days" tabindex="0" id="hero-days" aria-label="0 ngày bên nhau"><span class="hero__num" id="count-days">0</span><span class="hero__unit">ngày bên nhau</span></p>
+        <p class="hero__clock t-meta muted" aria-live="off" aria-hidden="true"><span id="count-hours">00</span> giờ · <span id="count-minutes">00</span> phút · <span id="count-seconds">00</span> giây</p>
+        <div class="milestone">
+          <div class="milestone__bar" role="progressbar" aria-label="Tiến độ tới mốc kỷ niệm" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="milestone-bar"><span id="milestone-fill"></span></div>
+          <p class="t-meta muted" id="milestone-line"></p>
+        </div>
+        <button type="button" class="period-chip couple-only" id="period-chip" hidden><svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/></svg><span id="period-chip-text"></span><svg class="ui-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      </section>
 
       <!-- SECTION: MOMENTS TIMELINE (Khung ảnh & Khung mô tả câu chuyện kế bên) -->
-      <section id="timeline" class="section-container timeline-section">
-        <div class="section-header">
-          <div class="pill-tag">Khoảnh Khắc Đôi Ta</div>
-          <h2 class="section-title"><span class="t-full">Khoảnh Khắc Của Tụi Mình</span><span class="t-short">Khoảnh khắc</span></h2>
-          <div class="view-toggle" role="group" aria-label="Kiểu hiển thị khoảnh khắc">
-            <button type="button" id="timeline-view-feed-btn" class="view-toggle-btn active" aria-pressed="true">▤ Dòng</button>
-            <button type="button" id="timeline-view-grid-btn" class="view-toggle-btn" aria-pressed="false">▦ Lưới</button>
-          </div>
-          <button id="open-add-memory-modal-btn" class="btn btn-add-memory" title="Gửi khoảnh khắc mới">
-            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19"></line>
-              <line x1="5" y1="12" x2="19" y2="12"></line>
-            </svg>
-            <span>Gửi khoảnh khắc mới</span>
-          </button>
-        </div>
-
-        <!-- Container danh sách các Moments lưu lại theo thời gian -->
-        <div class="locket-stream-wrapper">
-          <div class="locket-list" id="timeline-list-container">
-            <!-- Rendered dynamically via JS -->
+      <section id="timeline" aria-label="Khoảnh khắc">
+        <div class="section-head page">
+          <h2 class="large-title">Khoảnh khắc</h2>
+          <div class="segmented" role="group" aria-label="Kiểu hiển thị">
+            <button type="button" id="timeline-view-feed-btn" class="segmented__option" aria-pressed="true">Dòng</button>
+            <button type="button" id="timeline-view-grid-btn" class="segmented__option" aria-pressed="false">Lưới</button>
           </div>
         </div>
+        <div id="on-this-day-card" class="page" hidden></div>
+        <div id="timeline-list-container" class="timeline page"></div>
       </section>
     </div>
 
     <!-- TRANG 2: NHỮNG NƠI MUỐN ĐẾN (TRANG RIÊNG BIỆT) -->
-    <div id="view-places" class="app-view" role="region" aria-label="Trang những nơi muốn đến" style="display: none;">
+    <div id="view-places" class="app-view" role="region" aria-label="Trang những nơi muốn đến" hidden>
       <!-- SECTION: PLACES WISHLIST (Những nơi chúng mình muốn đi) -->
-      <section id="places" class="section-container places-section">
-        <div class="section-header">
-          <div class="pill-tag">Đi Cùng Nhau</div>
-          <h2 class="section-title">Những Nơi Muốn Đi Cùng Em 💕</h2>
-          <p class="section-desc">Lưu lại những quán xinh, điểm hẹn hò hay ho từ TikTok & Google Maps.</p>
-
-          <!-- Thanh điều khiển: Lọc 2 mục Muốn đi & Đã đến & Sắp xếp gần nhất & Thêm mới -->
-          <div class="places-controls-bar">
-            <div class="places-filter-tabs" role="tablist" aria-label="Bộ lọc địa điểm">
-              <button class="place-tab active" data-filter="unvisited" id="tab-places-unvisited">
-                <span class="place-tab-icon">✨</span>
-                <span class="place-tab-label">Muốn đi</span>
-                <span class="place-tab-badge" id="count-places-unvisited">0</span>
-              </button>
-              <button class="place-tab" data-filter="visited" id="tab-places-visited">
-                <span class="place-tab-icon">🌸</span>
-                <span class="place-tab-label">Đã đến</span>
-                <span class="place-tab-badge" id="count-places-visited">0</span>
-              </button>
-            </div>
-
-            <div class="places-action-btns">
-              <!-- Tiện ích GPS Dropdown Wrapper -->
-              <div class="places-gps-dropdown-wrap" id="places-gps-dropdown-wrap">
-                <button id="places-gps-menu-toggle-btn" class="btn btn-gps-utility" type="button" title="Các tiện ích vị trí GPS" aria-expanded="false" aria-haspopup="true">
-                  <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                    <circle cx="12" cy="10" r="3"></circle>
-                  </svg>
-                  <span>Tiện ích GPS</span>
-                  <svg class="dropdown-arrow-icon" viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="6 9 12 15 18 9"></polyline>
-                  </svg>
-                </button>
-
-                <div class="places-gps-dropdown-menu" id="places-gps-dropdown-menu" role="menu" aria-hidden="true">
-                  <button id="reload-places-gps-btn" class="places-gps-menu-item" type="button" role="menuitem" title="Lấy vị trí GPS và sắp xếp nơi gần bạn nhất từ trên xuống">
-                    <svg class="reload-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                    </svg>
-                    <span>Sắp xếp gần nhất</span>
-                  </button>
-
-                  <button id="check-visited-gps-btn" class="places-gps-menu-item" type="button" role="menuitem" title="Kiểm tra xem vị trí bạn đang đứng đã từng ghé thăm cùng nhau chưa">
-                    <svg class="check-gps-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <path d="m9 12 2 2 4-4"></path>
-                    </svg>
-                    <span>Đã đến nơi này chưa?</span>
-                  </button>
-
-                  <button id="add-current-location-btn" class="places-gps-menu-item" type="button" role="menuitem" title="Lấy toạ độ vị trí hiện tại và thêm trực tiếp vào danh sách đã đến">
-                    <svg class="add-loc-icon" viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                      <circle cx="12" cy="10" r="3"></circle>
-                    </svg>
-                    <span>Thêm nơi đang đứng</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Nút Thêm địa điểm chính -->
-              <button id="open-add-place-modal-btn" class="btn btn-add-place" title="Thêm địa điểm muốn đi mới">
-                <svg viewBox="0 0 24 24" width="15" height="15" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-                <span>Thêm địa điểm</span>
-              </button>
-            </div>
+      <section id="places" aria-label="Nơi muốn đến">
+        <h2 class="large-title page places__title">Nơi muốn đến</h2>
+        <div class="page">
+          <div class="segmented segmented--full" role="tablist" aria-label="Lọc địa điểm">
+            <button type="button" class="segmented__option" role="tab" id="tab-places-unvisited" data-filter="unvisited" aria-selected="true">Muốn đi <span id="count-places-unvisited">0</span></button>
+            <button type="button" class="segmented__option" role="tab" id="tab-places-visited" data-filter="visited" aria-selected="false">Đã đến <span id="count-places-visited">0</span></button>
           </div>
         </div>
-
-        <!-- Grid danh sách các địa điểm -->
-        <div class="places-grid" id="places-list-container">
-          <!-- Rendered dynamically via JS -->
+        <div class="chips page" role="toolbar" aria-label="Công cụ vị trí">
+          <button type="button" class="chip" id="reload-places-gps-btn" aria-pressed="false"><svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span class="chip__label">Gần nhất</span></button>
+          <button type="button" class="chip" id="check-visited-gps-btn"><svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span class="chip__label">Đã đến đây chưa?</span></button>
+          <button type="button" class="chip couple-only" id="add-current-location-btn"><svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="chip__label">Lưu chỗ này</span></button>
         </div>
+        <div class="places page" id="places-list-container" role="list"></div>
       </section>
     </div>
 
+    <div id="view-be" class="app-view" role="region" aria-label="Trang chăm sóc bé" hidden>
+      <h2 class="large-title page be__title">Bé</h2>
+      <div class="page be">
+        <section class="be-status" id="be-status">
+          <div id="cycle-ring" class="be-status__ring"></div>
+          <p id="be-phase" class="t-headline"></p>
+          <p id="be-window" class="muted"></p>
+        </section>
+        <section class="be-care" id="be-care">
+          <h3 class="t-headline">Lời nhắc hôm nay</h3>
+          <p id="be-care-text" class="hand"></p>
+        </section>
+        <button type="button" id="be-log-btn" class="btn btn--primary btn--block btn--lg">Ghi nhận kỳ mới</button>
+        <h3 class="t-headline be__history-title">Lịch sử</h3>
+        <ul id="be-history" class="be-history"></ul>
+        <p class="t-meta muted">Dự đoán chỉ để nhắc nhở, không phải tư vấn y tế.</p>
+      </div>
+    </div>
+
     <!-- Footer -->
-    <footer class="app-footer">
-      <div class="footer-heart">💕</div>
-      <p>Dành trọn tình yêu thương cho bé Thư, hôm nay và mãi mãi về sau.</p>
+    <footer class="page app-footer">
+      <p class="muted t-meta">Dành trọn tình yêu thương cho bé Thư, hôm nay và mãi mãi về sau.</p>
     </footer>
   </main>
 
+  <!-- MEMORY DETAIL SHEET -->
+  <dialog id="memory-detail-modal" class="sheet sheet--full" aria-labelledby="memory-detail-title">
+    <div class="sheet__card">
+      <div id="memory-detail-photo"></div>
+      <div class="detail__body">
+        <h2 id="memory-detail-title" class="t-title"></h2>
+        <p class="t-meta muted" id="memory-detail-meta"></p>
+        <p id="memory-detail-story"></p>
+      </div>
+      <div class="sheet__actions couple-only">
+        <button type="button" class="btn btn--secondary" id="memory-detail-edit-btn">Sửa</button>
+        <button type="button" class="icon-btn" id="memory-detail-more-btn" aria-label="Thêm thao tác"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- MODAL: THÊM KHOẢNH KHẮC MỚI -->
-  <dialog id="memory-modal" class="custom-modal memory-modal" aria-labelledby="memory-modal-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="memory-modal-title">Khoảnh khắc mới</h3>
-        <button class="modal-close-btn" id="close-memory-modal-btn" aria-label="Đóng">&times;</button>
+  <dialog id="memory-modal" class="sheet sheet--full memory-modal" aria-labelledby="memory-modal-title">
+    <div class="sheet__card">
+      <div class="sheet__header">
+        <h3 id="memory-modal-title" class="t-title">Khoảnh khắc mới</h3>
+        <button type="button" class="icon-btn" id="close-memory-modal-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
 
-      <form id="memory-form" class="modal-form">
-        <!-- Vùng chụp / chọn ảnh -->
-        <div class="photo-select-box">
-          <div class="photo-action-buttons-grid" id="photo-action-buttons-grid">
-            <button type="button" id="btn-camera-trigger" class="photo-source-card">
-              <span class="source-card-icon">
-                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                  <circle cx="12" cy="13" r="4"/>
-                </svg>
-              </span>
-              <span class="source-card-text">Chụp ảnh</span>
-            </button>
-
-            <button type="button" id="btn-gallery-trigger" class="photo-source-card">
-              <span class="source-card-icon">
-                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="3" ry="3"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <polyline points="21 15 16 10 5 21"/>
-                </svg>
-              </span>
-              <span class="source-card-text">Thư viện</span>
-            </button>
+      <form id="memory-form">
+        <div class="field">
+          <span class="field__label" id="memory-photo-label">Ảnh</span>
+          <div class="photo-drop" id="photo-drop">
+            <button type="button" id="btn-gallery-trigger" class="btn btn--secondary" aria-describedby="memory-photo-label"><svg class="ui-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Chọn ảnh</button>
           </div>
-
-          <input type="file" id="memory-camera-input" accept="image/*" capture="environment" style="display: none;">
-          <input type="file" id="memory-file-input" accept="image/*" style="display: none;">
-
-          <!-- In-App Camera Viewfinder cho Webcam máy tính -->
-          <div id="inapp-camera-wrapper" class="inapp-camera-wrapper" style="display: none;">
-            <video id="inapp-camera-video" autoplay playsinline muted></video>
-            <div class="camera-controls-bar">
-              <button type="button" id="btn-capture-inapp" class="btn-shutter-capture">Chụp</button>
-              <button type="button" id="btn-close-inapp" class="btn-close-camera-view">Đóng</button>
-            </div>
-          </div>
-
-          <!-- Preview ảnh đã chọn -->
-          <div id="upload-preview-wrapper" class="upload-preview-wrapper" style="display: none;">
+          <input type="file" id="memory-file-input" accept="image/*" hidden>
+          <div id="upload-preview-wrapper" class="photo-preview" hidden>
             <img id="upload-preview-img" src="" alt="Xem trước ảnh">
-            <button type="button" id="remove-preview-btn" class="remove-preview-btn">Thay đổi</button>
+            <button type="button" id="remove-preview-btn" class="btn btn--secondary">Đổi ảnh</button>
           </div>
+          <p class="muted t-meta" id="memory-photo-note" hidden>Ảnh đã lưu không đổi được khi sửa.</p>
+          <p class="field-error" id="memory-photo-error" role="alert" hidden></p>
+          <input type="hidden" id="memory-image-input" value="">
         </div>
 
-        <input type="hidden" id="memory-image-input" value="">
-
-        <!-- Tiêu đề -->
-        <div class="form-group">
-          <input type="text" id="memory-title-input" enterkeyhint="next" autocapitalize="sentences" placeholder="Tiêu đề..." required>
+        <div class="field">
+          <label for="memory-title-input">Tiêu đề</label>
+          <input type="text" id="memory-title-input" enterkeyhint="next" autocapitalize="sentences" required>
+          <p class="field-error" id="memory-title-error" role="alert" hidden>Cần có tiêu đề nhé.</p>
         </div>
 
-        <!-- Hàng ngày giờ & toạ độ tự động -->
-        <div class="form-row">
-          <div class="form-group">
-            <label for="memory-date-input">Thời gian</label>
-            <input type="datetime-local" id="memory-date-input" required>
-          </div>
-
-          <div class="form-group">
-            <div class="label-with-action">
-              <label for="memory-location-input">Vị trí</label>
-              <button type="button" class="btn-circular-reset" id="btn-refresh-gps" title="Lấy lại vị trí" aria-label="Lấy lại vị trí">
-                <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-                </svg>
-              </button>
-            </div>
-            <input type="text" id="memory-location-input" placeholder="Đang định vị...">
-          </div>
+        <div class="field">
+          <label for="memory-date-input">Ngày &amp; giờ</label>
+          <input type="datetime-local" id="memory-date-input" required>
         </div>
 
-        <!-- Nội dung câu chuyện -->
-        <div class="form-group">
-          <textarea id="memory-story-input" rows="3" placeholder="Chia sẻ câu chuyện..."></textarea>
+        <div class="field">
+          <label for="memory-location-input">Địa điểm</label>
+          <input type="text" id="memory-location-input">
+          <button type="button" class="chip" id="btn-refresh-gps"><svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span class="chip__label">Dùng vị trí hiện tại</span></button>
         </div>
 
-        <div class="modal-actions">
-          <button type="button" class="btn btn-outline" id="cancel-memory-btn">Hủy</button>
-          <button type="submit" class="btn btn-primary">Lưu khoảnh khắc</button>
+        <div class="field">
+          <label for="memory-story-input">Câu chuyện</label>
+          <textarea id="memory-story-input" rows="4" enterkeyhint="done"></textarea>
+        </div>
+
+        <div class="sheet__actions">
+          <button type="submit" class="btn btn--primary btn--block btn--lg" id="save-memory-btn">Lưu khoảnh khắc</button>
         </div>
       </form>
     </div>
   </dialog>
 
   <!-- MODAL: THÊM NƠI MUỐN ĐI MỚI -->
-  <dialog id="place-modal" class="custom-modal place-modal" aria-labelledby="place-modal-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="place-modal-title">Thêm địa điểm muốn đi</h3>
-        <button class="modal-close-btn" id="close-place-modal-btn" aria-label="Đóng">&times;</button>
+  <dialog id="place-modal" class="sheet place-modal" aria-labelledby="place-modal-title">
+    <div class="sheet__card">
+      <div class="sheet__header">
+        <h3 id="place-modal-title" class="t-title">Thêm địa điểm</h3>
+        <button type="button" class="icon-btn" id="close-place-modal-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
 
-      <form id="place-form" class="modal-form">
-        <div class="form-group">
-          <label for="place-name-input">Tên địa điểm *</label>
-          <input type="text" id="place-name-input" enterkeyhint="next" autocapitalize="sentences" placeholder="Ví dụ: Cà phê Sunset hoàng hôn, Haidilao..." required>
+      <form id="place-form">
+        <div class="field">
+          <label for="place-name-input">Tên địa điểm</label>
+          <input type="text" id="place-name-input" enterkeyhint="next" autocapitalize="sentences" required>
         </div>
 
-        <div class="form-group">
-          <div class="label-with-action">
-            <label for="place-map-input">Link Google Maps hoặc Toạ độ</label>
-            <button type="button" class="btn-circular-reset" id="btn-place-use-current-gps" title="Tự động lấy toạ độ GPS hiện tại" aria-label="Lấy toạ độ GPS">
-              <svg viewBox="0 0 24 24" width="13" height="13" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <circle cx="12" cy="12" r="3"></circle>
-              </svg>
-            </button>
-          </div>
-          <input type="text" id="place-map-input" placeholder="Dán link Google Maps, toạ độ hoặc để trống tự tìm...">
-          <small class="field-hint">Mẹo: Dán link Google Maps, bấm nút tròn hồng để lấy toạ độ nơi đang đứng, hoặc để trống để app tự tìm toạ độ.</small>
+        <div class="field">
+          <label for="place-map-input">Link Google Maps hoặc toạ độ</label>
+          <input type="text" id="place-map-input" enterkeyhint="next">
+          <button type="button" class="chip" id="btn-place-use-current-gps"><svg class="ui-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg><span class="chip__label">Dùng vị trí hiện tại</span></button>
         </div>
 
-        <div class="form-group">
-          <label for="place-tiktok-input">Link video TikTok (nếu có)</label>
-          <input type="url" inputmode="url" id="place-tiktok-input" placeholder="https://www.tiktok.com/@.../video/... hoặc https://vt.tiktok.com/...">
-          <small class="field-hint">Dán link review TikTok để bấm mở xem ngay khi cần.</small>
+        <div class="field">
+          <label for="place-tiktok-input">Link TikTok (nếu có)</label>
+          <input type="url" inputmode="url" id="place-tiktok-input" enterkeyhint="next">
         </div>
 
-        <div class="form-group">
-          <label for="place-notes-input">Ghi chú (tuỳ chọn)</label>
-          <textarea id="place-notes-input" rows="2" placeholder="Món ngon nên gọi, góc chụp hình sống ảo cho bé..."></textarea>
+        <div class="field">
+          <label for="place-notes-input">Ghi chú</label>
+          <textarea id="place-notes-input" rows="2" enterkeyhint="done"></textarea>
         </div>
 
-        <div class="modal-actions">
-          <button type="button" class="btn btn-outline" id="cancel-place-btn">Hủy</button>
-          <button type="submit" class="btn btn-primary" id="save-place-btn">Lưu địa điểm 💕</button>
+        <div class="sheet__actions">
+          <button type="submit" class="btn btn--primary btn--block btn--lg" id="save-place-btn">Lưu</button>
         </div>
       </form>
     </div>
   </dialog>
 
-  <!-- MODAL: KẾT QUẢ KIỂM TRA VỊ TRÍ ĐÃ ĐẾN CHƯA -->
-  <dialog id="check-location-result-modal" class="custom-modal check-result-modal" aria-labelledby="check-result-title">
-    <div class="modal-card check-result-card">
-      <div class="modal-header">
-        <div class="check-result-badge-wrap">
-          <span class="check-result-icon" id="check-result-icon">📍</span>
-          <span class="check-result-status-tag" id="check-result-status-tag">Quét Vị Trí</span>
-        </div>
-        <button class="modal-close-btn" id="close-check-result-btn" aria-label="Đóng">&times;</button>
+  <!-- MARK VISITED SHEET -->
+  <dialog id="mark-visited-modal" class="sheet sheet--confirm" aria-labelledby="mark-visited-title">
+    <div class="sheet__card">
+      <h3 class="t-title" id="mark-visited-title">Đánh dấu đã đến?</h3>
+      <p class="muted" id="mark-visited-name"></p>
+      <div class="sheet__actions sheet__actions--stack">
+        <button type="button" class="btn btn--primary btn--block" id="mark-visited-ok">Đã đến</button>
+        <button type="button" class="btn btn--secondary btn--block" id="mark-visited-memory">Đã đến và lưu khoảnh khắc</button>
+        <button type="button" class="btn btn--text btn--block" id="cancel-mark-visited-btn">Để sau</button>
       </div>
+    </div>
+  </dialog>
 
-      <div class="check-result-body">
-        <h3 id="check-result-title" class="check-result-title">Kết quả kiểm tra</h3>
-        <p id="check-result-desc" class="check-result-desc">Đang quét vị trí...</p>
-
-        <!-- Thẻ địa điểm tìm thấy -->
-        <div id="check-result-place-card" class="check-result-place-box" style="display: none;">
-          <div class="check-match-header">
-            <span class="check-match-tag" id="check-match-tag">🌸 Đã ghé thăm</span>
-            <span class="check-match-distance" id="check-match-distance">Cách bạn ~15m</span>
-          </div>
-          <h4 class="check-match-name" id="check-match-name">Tên địa điểm</h4>
-          <p class="check-match-notes" id="check-match-notes"></p>
-        </div>
-
-        <div class="check-result-actions" id="check-result-actions">
-          <button type="button" class="btn btn-outline" id="check-result-close-action-btn">Đóng</button>
-          <button type="button" class="btn btn-primary" id="check-result-primary-btn" style="display: none;">
-            <span id="check-result-primary-text">Thêm nơi này vào Đã Đến</span>
-          </button>
-        </div>
+  <!-- MODAL: KẾT QUẢ KIỂM TRA VỊ TRÍ ĐÃ ĐẾN CHƯA -->
+  <dialog id="check-location-result-modal" class="sheet" aria-labelledby="check-result-title">
+    <div class="sheet__card">
+      <div class="sheet__header">
+        <h3 id="check-result-title" class="t-title">Kết quả kiểm tra</h3>
+        <button type="button" class="icon-btn" id="close-check-result-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <p id="check-result-desc" class="muted"></p>
+      <div class="sheet__actions" id="check-result-actions">
+        <button type="button" class="btn btn--secondary" id="check-result-close-action-btn">Đóng</button>
+        <button type="button" class="btn btn--primary" id="check-result-primary-btn" hidden>
+          <span id="check-result-primary-text"></span>
+        </button>
       </div>
     </div>
   </dialog>
 
   <!-- MODAL: THÊM VỊ TRÍ ĐANG ĐỨNG VÀO DANH SÁCH ĐÃ ĐẾN -->
-  <dialog id="add-current-location-modal" class="custom-modal current-loc-modal" aria-labelledby="current-loc-modal-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title-with-subtitle">
-          <h3 id="current-loc-modal-title">Thêm nơi đang đứng vào Đã Đến</h3>
-          <p class="modal-subtitle">Đánh dấu địa điểm hiện tại đã cùng nhau ghé thăm 💕</p>
+  <dialog id="add-current-location-modal" class="sheet current-loc-modal" aria-labelledby="current-loc-modal-title">
+    <div class="sheet__card">
+      <div class="sheet__header">
+        <div>
+          <h3 id="current-loc-modal-title" class="t-title">Lưu chỗ này</h3>
+          <p class="muted t-meta">Đánh dấu nơi hai đứa vừa ghé thăm.</p>
         </div>
-        <button class="modal-close-btn" id="close-current-loc-modal-btn" aria-label="Đóng">&times;</button>
+        <button type="button" class="icon-btn" id="close-current-loc-modal-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
 
-      <form id="add-current-loc-form" class="modal-form">
-        <!-- Badge hiển thị toạ độ GPS xác thực -->
-        <div class="current-loc-coords-pill">
-          <span class="coords-pill-dot"></span>
-          <span id="current-loc-coords-display">Đang lấy toạ độ vị trí...</span>
+      <form id="add-current-loc-form">
+        <p class="muted t-meta" id="current-loc-coords-display">Đang lấy toạ độ vị trí...</p>
+
+        <div class="field">
+          <label for="current-loc-name-input">Tên quán / địa điểm</label>
+          <input type="text" id="current-loc-name-input" required>
+          <p class="muted t-meta" id="current-loc-hint">Gợi ý tên theo nơi bạn đang đứng.</p>
         </div>
 
-        <div class="form-group">
-          <label for="current-loc-name-input">Tên quán / Địa điểm *</label>
-          <input type="text" id="current-loc-name-input" placeholder="Ví dụ: Cà phê Sunset, Phố đi bộ..." required>
-          <small class="field-hint" id="current-loc-hint">Tự động gợi ý địa chỉ/tên đường nơi bạn đang đứng.</small>
+        <div class="field">
+          <label for="current-loc-notes-input">Ghi chú</label>
+          <textarea id="current-loc-notes-input" rows="2"></textarea>
         </div>
 
-        <div class="form-group">
-          <label for="current-loc-notes-input">Ghi chú kỷ niệm (tuỳ chọn)</label>
-          <textarea id="current-loc-notes-input" rows="2" placeholder="Cảm nghĩ, món ngon hoặc khoảnh khắc nhớ nhất cùng em..."></textarea>
+        <div class="field">
+          <label for="current-loc-tiktok-input">Link TikTok (nếu có)</label>
+          <input type="url" inputmode="url" id="current-loc-tiktok-input">
         </div>
 
-        <div class="form-group">
-          <label for="current-loc-tiktok-input">Link video TikTok (nếu có)</label>
-          <input type="url" inputmode="url" id="current-loc-tiktok-input" placeholder="https://www.tiktok.com/@...">
-        </div>
-
-        <div class="modal-actions">
-          <button type="button" class="btn btn-outline" id="cancel-current-loc-btn">Hủy</button>
-          <button type="submit" class="btn btn-primary" id="save-current-loc-btn">Lưu vào danh sách Đã Đến 💕</button>
+        <div class="sheet__actions">
+          <button type="submit" class="btn btn--primary btn--block btn--lg" id="save-current-loc-btn">Lưu</button>
         </div>
       </form>
     </div>
   </dialog>
 
   <!-- MODAL: ALERT THÔNG BÁO NHẮC NHỞ KỲ DÂU (HIỂN THỊ KHI GẦN TRƯỚC 3 NGÀY) -->
-  <dialog id="period-alert-modal" class="custom-modal period-alert-modal" aria-labelledby="period-alert-title">
-    <div class="modal-card period-alert-card">
-      <div class="period-alert-header">
-        <div class="period-alert-badge-wrap">
-          <span class="period-alert-icon">🍓</span>
-          <span class="period-alert-tag">Nhắc Nhở Yêu Thương</span>
-        </div>
-        <button class="modal-close-btn" id="close-period-alert-btn" aria-label="Đóng thông báo">&times;</button>
+  <dialog id="period-alert-modal" class="sheet" aria-labelledby="period-alert-title">
+    <div class="sheet__card">
+      <div class="sheet__header">
+        <h3 id="period-alert-title" class="t-title">Sắp đến kỳ của bé Thư</h3>
+        <button type="button" class="icon-btn" id="close-period-alert-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-
-      <div class="period-alert-content">
-        <h3 id="period-alert-title" class="period-alert-title">Sắp Đến Kỳ Dâu Của Bé Thư!</h3>
-        <div class="period-alert-countdown-pill" id="period-alert-countdown-pill">
-          Còn <strong id="period-alert-days">...</strong> ngày nữa
-        </div>
-        <p id="period-alert-message" class="period-alert-message">
-          Đang tính lời nhắc chăm sóc bé...
-        </p>
-      </div>
-
-      <div class="modal-actions" style="margin-top: 20px; justify-content: space-between;">
-        <button type="button" class="btn btn-outline btn-text-link" id="dismiss-period-alert-btn">Đã Nhớ Rồi 💕</button>
-        <button type="button" class="btn btn-primary" id="open-care-from-alert-btn">Xem Góc Chăm Sóc 🍓</button>
+      <p class="chip" id="period-alert-countdown-pill"></p>
+      <p id="period-alert-message"></p>
+      <div class="sheet__actions">
+        <button type="button" class="btn btn--text" id="dismiss-period-alert-btn">Đã nhớ rồi</button>
+        <button type="button" class="btn btn--primary" id="open-care-from-alert-btn">Xem góc chăm sóc</button>
       </div>
     </div>
   </dialog>
 
   <!-- MODAL: CẬP NHẬT CHU KỲ DÂU CỦA BÉ -->
-  <dialog id="period-modal" class="custom-modal" aria-labelledby="period-modal-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="period-modal-title">🍓 Góc Chăm Sóc Bé Thư</h3>
-        <button class="modal-close-btn" id="close-period-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
+  <dialog id="period-modal" class="sheet" aria-labelledby="period-modal-title">
+    <div class="sheet__card">
+      <div class="sheet__header">
+        <h3 id="period-modal-title" class="t-title">Ghi nhận kỳ mới</h3>
+        <button type="button" class="icon-btn" id="close-period-modal-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-
-      <!-- Live status summary card inside modal -->
-      <div class="period-modal-status-card">
-        <div class="period-icon-wrap">
-          <span class="period-strawberry-icon">🍓</span>
-        </div>
-        <div class="period-info">
-          <div class="period-badge-row">
-            <span class="period-pill-badge">Tình trạng</span>
-            <span class="period-phase-text" id="period-phase-text">Dự đoán chu kỳ</span>
-          </div>
-          <p class="period-status-message" id="period-status-message">
-            Đang tính chu kỳ của bé...
-          </p>
-        </div>
-      </div>
-
-      <form id="period-form" class="modal-form" style="margin-top: 16px;">
-        <div class="form-group">
-          <label for="period-start-date-input">Ngày bắt đầu kỳ dâu gần nhất *</label>
+      <form id="period-form">
+        <div class="field">
+          <label for="period-start-date-input">Ngày bắt đầu</label>
           <input type="date" id="period-start-date-input" required>
         </div>
-        <div class="form-group">
-          <label for="period-cycle-length-input">Độ dài chu kỳ trung bình (ngày)</label>
-          <input type="number" id="period-cycle-length-input" value="28" min="21" max="45" required>
-          <small style="color: var(--text-muted); font-size: 0.78rem;">Thông thường chu kỳ từ 28 đến 30 ngày.</small>
+        <div class="field">
+          <label for="period-duration-input">Số ngày (tùy chọn)</label>
+          <input type="number" id="period-duration-input" inputmode="numeric" min="2" max="10" placeholder="5">
         </div>
-        <p class="period-disclaimer">Chỉ là nhắc nhở để chăm sóc nhau, không phải lời khuyên y tế và không dùng để tránh thai. Dự đoán được tính từ các chu kỳ đã ghi.</p>
-        <p class="period-accuracy" id="period-accuracy"></p>
-        <div style="margin-top: 4px;">
-          <button type="button" class="btn btn-outline btn-sm" id="set-period-today-btn" style="width: 100%;">
-            🌸 Đánh dấu hôm nay là ngày bắt đầu dâu
-          </button>
-        </div>
-        <div class="modal-actions" style="margin-top: 14px;">
-          <button type="button" class="btn btn-outline" id="cancel-period-btn">Đóng</button>
-          <button type="submit" class="btn btn-primary">Lưu Lại Nhé 💕</button>
+        <div class="sheet__actions">
+          <button type="submit" class="btn btn--primary btn--block">Lưu</button>
         </div>
       </form>
     </div>
   </dialog>
 
   <!-- MODAL: SETTINGS & CUSTOMIZATION -->
-  <dialog id="settings-modal" class="custom-modal" aria-labelledby="settings-modal-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="settings-modal-title">⚙️ Cài Đặt Thông Tin</h3>
-        <button class="modal-close-btn" id="close-settings-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
+  <dialog id="settings-modal" class="sheet sheet--full" aria-labelledby="settings-modal-title">
+    <div class="sheet__card">
+      <div class="sheet__header">
+        <h3 id="settings-modal-title" class="t-title">Cài đặt</h3>
+        <button type="button" class="icon-btn" id="close-settings-modal-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <form id="settings-form" class="modal-form">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="cfg-him-name">Tên của anh</label>
+      <form id="settings-form" class="settings">
+        <section class="settings__group">
+          <h3 class="t-meta settings__head">Hai đứa</h3>
+          <div class="field">
+            <label for="cfg-him-name">Tên người 1</label>
             <input type="text" id="cfg-him-name" value="Kim" required>
           </div>
-          <div class="form-group">
-            <label for="cfg-her-name">Tên của em</label>
+          <div class="field">
+            <label for="cfg-her-name">Tên người 2</label>
             <input type="text" id="cfg-her-name" value="Thư" required>
           </div>
-        </div>
-
-        <div class="form-group">
-          <label for="cfg-start-date">Thời gian bắt đầu yêu</label>
-          <input type="datetime-local" id="cfg-start-date" value="2025-04-02T19:00" required>
-        </div>
-
-        <div class="form-group">
-          <label for="cfg-quote">Lời nhắn gửi ngọt ngào</label>
-          <textarea id="cfg-quote" rows="2">Iu béeeee:3</textarea>
-        </div>
-
-        <div class="form-group">
-          <label for="copy-secret-link-btn">Mật mã mở khóa quyền riêng tư (Kim & Thư)</label>
-          <div style="display: flex; gap: 8px;">
-            <button type="button" class="btn btn-secondary btn-sm" id="copy-secret-link-btn" title="Sao chép link tự động mở khóa gửi cho Thư">
-              📋 Link Tự Mở Khóa
-            </button>
+          <div class="field">
+            <label for="cfg-start-date">Ngày bắt đầu yêu</label>
+            <input type="datetime-local" id="cfg-start-date" value="2025-04-02T19:00" required>
           </div>
-          <small style="color: var(--text-muted); font-size: 0.78rem;">
-            Mật mã được đặt trên máy chủ (Apps Script → Script properties), không lưu trong trang web. Bấm "Link Tự Mở Khóa" rồi gửi riêng cho Thư (đừng đăng công khai).
-          </small>
-        </div>
-
-        <div class="form-group">
-          <label for="cfg-api-url">Link Google Apps Script Backend (Đồng bộ ảnh & tin nhắn)</label>
-          <input type="url" inputmode="url" id="cfg-api-url" placeholder="https://script.google.com/macros/s/.../exec">
-          <div id="backend-status-hint" style="font-size: 0.82rem; margin-top: 4px;"></div>
-          <small style="color: var(--text-muted); font-size: 0.78rem;">
-            Dán link Web App từ Google Apps Script để ảnh tự động lưu vào Google Drive và cả hai đều xem được trên mọi thiết bị.
-          </small>
-        </div>
-
-        <div class="form-group">
-          <span class="field-label" id="theme-choice-label">Giao diện (chỉ trên máy này)</span>
-          <div class="theme-choice" role="group" aria-labelledby="theme-choice-label">
-            <button type="button" class="theme-choice-btn" data-theme-choice="auto" aria-pressed="false">Theo máy</button>
-            <button type="button" class="theme-choice-btn" data-theme-choice="light" aria-pressed="true">Sáng</button>
-            <button type="button" class="theme-choice-btn" data-theme-choice="dark" aria-pressed="false">Tối</button>
+          <div class="field">
+            <label for="cfg-quote">Câu nói của hai đứa</label>
+            <textarea id="cfg-quote" rows="2">Iu béeeee:3</textarea>
           </div>
-        </div>
+        </section>
 
-        <div class="modal-actions">
-          <button type="button" class="btn btn-outline btn-text-link" id="reset-default-data-btn">Đặt lại mặc định</button>
-          <button type="submit" class="btn btn-primary">Lưu Thay Đổi ✨</button>
+        <section class="settings__group">
+          <h3 class="t-meta settings__head" id="theme-choice-label">Giao diện</h3>
+          <div class="settings__row">
+            <span>Chủ đề</span>
+            <div class="segmented" role="group" aria-labelledby="theme-choice-label">
+              <button type="button" class="segmented__option" data-theme-choice="auto" aria-pressed="false">Tự động</button>
+              <button type="button" class="segmented__option" data-theme-choice="light" aria-pressed="true">Sáng</button>
+              <button type="button" class="segmented__option" data-theme-choice="dark" aria-pressed="false">Tối</button>
+            </div>
+          </div>
+          <div class="settings__row">
+            <span id="cfg-petals-label">Cánh hoa bay</span>
+            <button type="button" class="switch" id="cfg-petals" role="switch" aria-checked="true" aria-labelledby="cfg-petals-label"><span></span></button>
+          </div>
+          <div class="settings__row">
+            <span id="cfg-music-label">Nhạc nền</span>
+            <button type="button" class="switch" id="cfg-music" role="switch" aria-checked="false" aria-labelledby="cfg-music-label"><span></span></button>
+          </div>
+        </section>
+
+        <section class="settings__group">
+          <h3 class="t-meta settings__head">Kết nối</h3>
+          <div class="field">
+            <label for="cfg-api-url">Link Google Apps Script</label>
+            <input type="url" inputmode="url" id="cfg-api-url" placeholder="https://script.google.com/macros/s/.../exec">
+          </div>
+          <div class="settings__row">
+            <span id="sync-status-text" class="muted">Chưa đồng bộ</span>
+            <button type="button" class="btn btn--text" id="sync-now-btn">Đồng bộ ngay</button>
+          </div>
+          <button type="button" class="btn btn--secondary btn--block" id="copy-secret-link-btn"><svg class="ui-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M8 7l4-4 4 4"/><path d="M5 12v8h14v-8"/></svg>Sao chép link tự mở khóa</button>
+          <p class="muted t-meta">Gửi riêng cho người ấy, đừng đăng công khai.</p>
+        </section>
+
+        <section class="settings__group">
+          <h3 class="t-meta settings__head">Chế độ</h3>
+          <button type="button" class="btn btn--danger-text couple-only" id="auth-lock-nav-btn">Chuyển sang chế độ khách</button>
+        </section>
+
+        <div class="sheet__actions">
+          <button type="submit" class="btn btn--primary btn--block" id="save-settings-btn" disabled>Lưu</button>
         </div>
       </form>
     </div>
   </dialog>
 
   <!-- MODAL: XÁC THỰC MỞ KHÓA KHÔNG GIAN RIÊNG TƯ (DÀNH CHO KIM & THƯ) -->
-  <dialog id="auth-modal" class="custom-modal" aria-labelledby="auth-modal-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="auth-modal-title">🔐 Mở Khóa Không Gian Đôi Ta</h3>
-        <button class="modal-close-btn" id="close-auth-modal-btn" aria-label="Đóng cửa sổ">&times;</button>
+  <dialog id="auth-modal" class="sheet" aria-labelledby="auth-modal-title">
+    <div class="sheet__card">
+      <div class="sheet__header">
+        <h3 id="auth-modal-title" class="t-title">Mở khóa đôi ta</h3>
+        <button type="button" class="icon-btn" id="close-auth-modal-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <form id="auth-form" class="modal-form">
-        <div style="text-align: center; margin-bottom: 12px;">
-          <div style="font-size: 2.2rem; margin-bottom: 6px;">💑✨</div>
-          <p id="auth-modal-desc" style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5;">
-            Trang web đang ở chế độ công khai (chỉ xem kỷ niệm & đếm ngày yêu).<br>
-            Nhập mật mã tình yêu để mở khóa nhắn tin, gửi ảnh và chăm sóc bé nhé!
-          </p>
+      <form id="auth-form">
+        <p id="auth-modal-desc" class="muted"></p>
+        <div class="field">
+          <label for="auth-passcode-input">Mật mã của hai đứa</label>
+          <div class="password-field">
+            <input type="password" id="auth-passcode-input" autocomplete="current-password" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" required>
+            <button type="button" class="icon-btn" id="auth-toggle-password-btn" aria-label="Hiện mật mã"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+          <p id="auth-error-msg" class="field-error" role="alert" hidden><svg class="ui-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3L2 20h20L12 3z"/><path d="M12 10v4M12 17.2v.1"/></svg><span>Mật mã chưa đúng. Thử lại nhé.</span></p>
         </div>
-        <div class="form-group">
-          <label for="auth-passcode-input">Mật mã tình yêu 💕</label>
-          <input type="text" id="auth-passcode-input" placeholder="Nhập mật mã tình yêu..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" required>
-          <small id="auth-error-msg" style="color: #e11d48; font-size: 0.82rem; margin-top: 6px; display: none;">Mật mã chưa đúng nè, thử lại nhé bé yêu! 💕</small>
+        <div class="sheet__actions">
+          <button type="submit" class="btn btn--primary btn--block">Mở khóa</button>
         </div>
-        <div class="modal-actions" style="margin-top: 18px;">
-          <button type="button" class="btn btn-outline btn-text-link" id="cancel-auth-btn">Xem Chế Độ Khách</button>
-          <button type="submit" class="btn btn-primary">Mở Khóa Toàn Bộ 💖</button>
-        </div>
+        <button type="button" class="btn btn--text btn--block" id="cancel-auth-btn">Xem chế độ khách</button>
       </form>
     </div>
   </dialog>
 
   <!-- Photo Lightbox Modal -->
-  <dialog id="photo-lightbox" class="custom-modal photo-lightbox-modal">
-    <div class="lightbox-content">
-      <button class="modal-close-btn lightbox-close" id="close-lightbox-btn" aria-label="Đóng ảnh">&times;</button>
-      <img id="lightbox-img" src="" alt="Ảnh kỷ niệm phóng to">
-      <div class="lightbox-caption">
-        <h4 id="lightbox-title"></h4>
-        <p id="lightbox-date"></p>
-        <p id="lightbox-story"></p>
+  <dialog id="photo-lightbox" class="photo-lightbox-modal" aria-label="Ảnh phóng to">
+    <button type="button" class="lightbox-close icon-btn" id="close-lightbox-btn" aria-label="Đóng ảnh"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <img id="lightbox-img" src="" alt="Ảnh phóng to">
+  </dialog>
+
+  <!-- Confirm / info sheet (replaces window.confirm) -->
+  <dialog id="confirm-sheet" class="sheet sheet--confirm" aria-labelledby="confirm-sheet-title">
+    <div class="sheet__card">
+      <h3 class="t-title" id="confirm-sheet-title"></h3>
+      <p class="muted" id="confirm-sheet-body"></p>
+      <div class="sheet__actions">
+        <button type="button" class="btn btn--secondary" id="cancel-confirm-btn"></button>
+        <button type="button" class="btn btn--primary" id="confirm-sheet-ok"></button>
       </div>
     </div>
   </dialog>
 
-  <!-- FLOATING CHAT BUTTON (GÓC DƯỚI BÊN PHẢI) -->
-  <button id="floating-chat-btn" class="floating-chat-btn couple-only" title="Hộp thư tình yêu Kim & Thư 💕" aria-label="Mở khung nhắn tin">
-    <span class="chat-btn-icon">💌</span>
-    <span class="chat-badge-pulse" id="chat-unread-dot"></span>
-  </button>
+  <div id="action-menu" class="action-menu" role="menu" hidden></div>
 
   <!-- CHAT DRAWER / WINDOW -->
   <div id="chat-drawer" class="chat-drawer couple-only" role="dialog" aria-modal="true" aria-label="Hộp thư nhắn tin" aria-hidden="true">
-    <div class="chat-header">
-      <div class="chat-user-info">
-        <div class="chat-avatar-wrap">
-          <span class="chat-avatar-icon">💑</span>
-          <span class="chat-online-dot"></span>
-        </div>
-        <div class="chat-title-wrap">
-          <h4 id="chat-receiver-name">Bé Thư ❤️</h4>
-          <span class="chat-status-text" id="chat-status-text">Đang yêu thương ✨</span>
-        </div>
+    <header class="chat__header">
+      <button type="button" id="close-chat-btn" class="icon-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+      <span class="avatar avatar--32 avatar--t" id="chat-receiver-avatar" aria-hidden="true">T</span>
+      <div class="chat__who">
+        <h2 id="chat-receiver-name" class="chat__name">Thư</h2>
+        <p class="t-meta muted" id="chat-status-text"></p>
       </div>
-      <div class="chat-header-actions">
-        <button type="button" id="open-notes-btn" class="chat-sender-toggle-btn" title="Thư hẹn giờ" aria-label="Thư hẹn giờ">⏳ Thư</button>
-        <!-- Switch Identity (Tôi là Kim / Tôi là Thư) -->
-        <button id="switch-chat-sender-btn" class="chat-sender-toggle-btn" title="Đổi người gửi">
-          <span id="current-chat-sender-label">Tôi là: Kim</span>
-        </button>
-        <button id="close-chat-btn" class="chat-close-btn" aria-label="Đóng chat">&times;</button>
-      </div>
-    </div>
+      <button type="button" id="chat-more-btn" class="icon-btn" aria-label="Thêm tùy chọn"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
+    </header>
 
-    <!-- Chat Messages Stream -->
-    <div class="chat-messages-container" id="chat-messages-container">
-      <!-- Dynamic messages via JS -->
-    </div>
+    <div class="chat__messages" id="chat-messages-container"></div>
 
-    <!-- Image Preview before sending -->
-    <div id="chat-img-preview-box" class="chat-img-preview-box" style="display: none;">
+    <div id="chat-img-preview-box" class="chat__preview" hidden>
       <img id="chat-img-preview-tag" src="" alt="Ảnh gửi kèm">
-      <button type="button" id="chat-remove-img-btn" class="chat-remove-img-btn" title="Hủy ảnh">&times;</button>
+      <button type="button" id="chat-remove-img-btn" class="icon-btn" aria-label="Bỏ ảnh"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
 
-    <!-- Chat Input Form -->
-    <form id="chat-form" class="chat-input-bar">
-      <label for="chat-image-file-input" class="chat-attach-btn" title="Gửi ảnh từ điện thoại (lưu vào Google Drive)">
-        <span>📷</span>
-      </label>
-      <input type="file" id="chat-image-file-input" accept="image/*" style="display: none;">
-      <input type="text" id="chat-text-input" placeholder="Nhắn gì đó..." autocomplete="off" enterkeyhint="send">
-      <button type="button" id="chat-quick-heart-btn" class="chat-quick-heart-btn" title="Bắn tim nhanh">❤️</button>
-      <button type="submit" id="chat-send-btn" class="chat-send-btn" title="Gửi tin nhắn">
-        <span>💌</span>
-      </button>
+    <form id="chat-form" class="chat__input">
+      <label for="chat-image-file-input" class="icon-btn" aria-label="Gửi ảnh"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></label>
+      <input type="file" id="chat-image-file-input" accept="image/*" hidden>
+      <textarea id="chat-text-input" rows="1" enterkeyhint="send" placeholder="Nhắn gì đó…" aria-label="Tin nhắn" autocomplete="off"></textarea>
+      <button type="button" id="chat-quick-heart-btn" class="icon-btn" aria-label="Gửi tim"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-8-4.9-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6.1-8 11-8 11z"/></svg></button>
+      <button type="submit" id="chat-send-btn" class="icon-btn icon-btn--primary" aria-label="Gửi tin nhắn"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4 18-7z"/></svg></button>
     </form>
   </div>
 
   <!-- MODAL: BẠN LÀ AI? (hỏi một lần trên mỗi thiết bị) -->
-  <dialog id="who-am-i-modal" class="custom-modal" aria-labelledby="who-am-i-title">
-    <div class="modal-card">
-      <div class="modal-header"><h3 id="who-am-i-title">Bạn là ai nè? 💕</h3></div>
-      <p style="color: var(--text-muted); margin-bottom: 16px;">Chọn một lần để tin nhắn trên máy này luôn đúng tên.</p>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-outline" id="who-first-btn">Kim</button>
-        <button type="button" class="btn btn-primary" id="who-second-btn">Thư</button>
+  <dialog id="who-am-i-modal" class="sheet" aria-labelledby="who-am-i-title">
+    <div class="sheet__card">
+      <h3 id="who-am-i-title" class="t-title">Bạn là ai?</h3>
+      <p class="muted">Chọn một lần để tin nhắn trên máy này luôn đúng tên.</p>
+      <div class="who">
+        <button type="button" class="who-option" id="who-first-btn"><span class="avatar avatar--56 avatar--k" aria-hidden="true">K</span><span class="who-option__name">Kim</span></button>
+        <button type="button" class="who-option" id="who-second-btn"><span class="avatar avatar--56 avatar--t" aria-hidden="true">T</span><span class="who-option__name">Thư</span></button>
       </div>
     </div>
   </dialog>
 
   <!-- MODAL: THƯ HẸN GIỜ -->
-  <dialog id="notes-modal" class="custom-modal" aria-labelledby="notes-modal-title">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="notes-modal-title">⏳ Thư Hẹn Giờ</h3>
-        <button class="modal-close-btn" id="close-notes-modal-btn" aria-label="Đóng">&times;</button>
+  <dialog id="notes-modal" class="sheet" aria-labelledby="notes-modal-title">
+    <div class="sheet__card">
+      <div class="sheet__header">
+        <h3 id="notes-modal-title" class="t-title">Thư hẹn giờ</h3>
+        <button type="button" class="icon-btn" id="close-notes-modal-btn" aria-label="Đóng"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
       </div>
-      <div class="notes-list" id="notes-list"></div>
-      <form id="note-form" class="modal-form">
-        <div class="form-group">
-          <label for="note-text-input">Viết một lá thư để dành 💌</label>
-          <textarea id="note-text-input" rows="3" maxlength="1000" required placeholder="Thư sẽ được giữ kín cho đến ngày mở..."></textarea>
+      <div class="notes" id="notes-list"></div>
+      <form id="note-form">
+        <p class="muted t-meta">Gửi cho <strong id="note-recipient">Thư</strong></p>
+        <div class="field">
+          <label for="note-text-input">Nội dung</label>
+          <textarea id="note-text-input" rows="3" maxlength="1000" required placeholder="Thư sẽ được giữ kín cho đến lúc mở."></textarea>
         </div>
-        <div class="form-group">
-          <label for="note-open-at-input">Mở vào lúc *</label>
+        <div class="field">
+          <label for="note-open-at-input">Mở lúc</label>
           <input type="datetime-local" id="note-open-at-input" required>
         </div>
-        <div class="modal-actions">
-          <button type="submit" class="btn btn-primary">Gửi vào tương lai 💖</button>
+        <div class="sheet__actions">
+          <button type="submit" class="btn btn--primary btn--block">Viết thư hẹn giờ</button>
         </div>
       </form>
     </div>
   </dialog>
 
-  <!-- THANH ĐIỀU HƯỚNG DƯỚI CÙNG (vùng ngón cái) -->
-  <nav class="bottom-nav" id="bottom-nav" aria-label="Điều hướng chính">
-    <button type="button" class="bottom-tab active" data-proxy="nav-moments-btn" data-view="moments"><span class="tab-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span class="tab-label">Khoảnh khắc</span></button>
-    <button type="button" class="bottom-tab" data-proxy="nav-places-btn" data-view="places"><span class="tab-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span><span class="tab-label">Nơi muốn đến</span></button>
-    <button type="button" class="bottom-fab couple-only" id="bottom-fab-btn" aria-label="Thêm mới"><span aria-hidden="true">❤️</span></button>
-    <button type="button" class="bottom-tab couple-only" data-proxy="open-chat-dropdown-btn"><span class="tab-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span class="tab-dot" id="tab-chat-dot"></span></span><span class="tab-label">Chat</span></button>
-    <button type="button" class="bottom-tab couple-only" data-proxy="period-nav-btn"><span class="tab-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21c-4-1-7-5-7-9a7 7 0 0 1 14 0c0 4-3 8-7 9z"/><path d="M12 5c0-2 1-3 3-3M9 3l3 2 3-2"/></svg></span><span class="tab-label">Bé</span></button>
-    <button type="button" class="bottom-tab guest-only" data-proxy="auth-unlock-nav-btn"><span class="tab-icon" aria-hidden="true"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg></span><span class="tab-label">Mở khóa</span></button>
+  <!-- FAB: adds a moment or a place, depending on the page -->
+  <button type="button" class="fab couple-only" id="fab" aria-label="Thêm khoảnh khắc"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+
+  <!-- Tab bar -->
+  <nav class="tab-bar" id="bottom-nav" aria-label="Điều hướng chính">
+    <button type="button" class="tab" data-view="moments"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg><span class="tab__label">Khoảnh khắc</span></button>
+    <button type="button" class="tab" data-view="places"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg><span class="tab__label">Nơi muốn đến</span></button>
+    <button type="button" class="tab couple-only" id="tab-chat" aria-label="Chat"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span class="tab-dot" id="tab-chat-dot" hidden></span><span class="tab__label">Chat</span></button>
+    <button type="button" class="tab couple-only" data-view="be"><svg class="ui-icon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3s6 6.4 6 11a6 6 0 0 1-12 0c0-4.6 6-11 6-11z"/></svg><span class="tab__label">Bé</span></button>
   </nav>
 
-  <script src="src/utils/safe_url.js?v=5.2"></script>
-  <script src="src/utils/local_date.js?v=5.2"></script>
-  <script src="src/utils/drive_image.js?v=5.2"></script>
-  <script src="src/services/period_cycle.js?v=5.2"></script>
-  <script src="src/services/sync_merge.js?v=5.2"></script>
-  <script src="src/services/sync_policy.js?v=5.2"></script>
-  <script src="src/services/sync_engine.js?v=5.2"></script>
-  <script src="src/services/spaced_queue.js?v=5.2"></script>
-  <script src="src/services/geo_policy.js?v=5.2"></script>
-  <script src="src/services/period_history.js?v=5.2"></script>
-  <script src="src/services/milestones.js?v=5.2"></script>
-  <script src="src/adapters/outbox_store.js?v=5.2"></script>
-  <script src="src/ui/overlay_stack.js?v=5.2"></script>
-  <script src="src/ui/app_shell.js?v=5.2"></script>
-  <script src="app.js?v=5.2"></script>
-  <script src="src/ui/register_service_worker.js?v=5.2"></script>
+  <script src="src/utils/safe_url.js?v=6.1"></script>
+  <script src="src/utils/local_date.js?v=6.1"></script>
+  <script src="src/utils/drive_image.js?v=6.1"></script>
+  <script src="src/utils/escape_html.js?v=6.1"></script>
+  <script src="src/utils/vi_format.js?v=6.1"></script>
+  <script src="src/services/period_cycle.js?v=6.1"></script>
+  <script src="src/services/sync_merge.js?v=6.1"></script>
+  <script src="src/services/sync_policy.js?v=6.1"></script>
+  <script src="src/services/sync_engine.js?v=6.1"></script>
+  <script src="src/services/spaced_queue.js?v=6.1"></script>
+  <script src="src/services/geo_policy.js?v=6.1"></script>
+  <script src="src/services/period_history.js?v=6.1"></script>
+  <script src="src/services/milestones.js?v=6.1"></script>
+  <script src="src/services/undo_queue.js?v=6.1"></script>
+  <script src="src/adapters/outbox_store.js?v=6.1"></script>
+  <script src="src/ui/icons.js?v=6.1"></script>
+  <script src="src/ui/petal_canvas.js?v=6.1"></script>
+  <script src="src/ui/templates.js?v=6.1"></script>
+  <script src="src/ui/chat_layout.js?v=6.1"></script>
+  <script src="src/ui/cycle_ring.js?v=6.1"></script>
+  <script src="src/ui/overlay_stack.js?v=6.1"></script>
+  <script src="src/ui/route.js?v=6.1"></script>
+  <script src="src/ui/dialog_queue.js?v=6.1"></script>
+  <script src="src/ui/confirm_sheet.js?v=6.1"></script>
+  <script src="src/ui/action_menu.js?v=6.1"></script>
+  <script src="src/ui/app_shell.js?v=6.1"></script>
+  <script src="app.js?v=6.1"></script>
+  <script src="src/ui/register_service_worker.js?v=6.1"></script>
 </body>
 </html>

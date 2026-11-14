@@ -1,25 +1,32 @@
 /**
- * Mobile app shell: bottom tab bar, header shortcuts and the sticky counter pill (§4.3).
- * It only forwards clicks to the existing controls (which keep their auth checks and
- * handlers) and mirrors a few states, so no feature logic is duplicated here.
+ * Mobile app shell: tab bar, header state, sheets, chat state and the sticky counter pill.
+ * It routes clicks to journeyApp and mirrors a few states, so no feature logic is duplicated here.
  */
 (function (root) {
   "use strict";
 
   const STICKY_PILL_ID = "sticky-counter-pill";
+  const VIEW_NAMES = ["moments", "places", "be"];
+  const SCROLLED_THRESHOLD_PX = 4;
+  const LARGE_TEXT_ROOT_PX = 20.8;
+  const FAB_SCROLL_THRESHOLD_PX = 8;
+  const CHAT_INPUT_MAX_PX = 120;
+  const LONG_PRESS_MS = 500;
+  const LONG_PRESS_MOVE_PX = 10;
 
   class AppShell {
     /** @param {Document} doc */
     constructor(doc) {
       this.doc = doc;
       this.overlays = new root.OverlayStack(root.history);
-      this.bindProxyButtons();
-      this.bindFab();
       this.bindViewState();
-      this.mirrorChatDot();
-      this.mirrorMusicState();
+      this.bindFab();
+      this.bindLongPress();
+      this.bindScrollState();
+      this.bindLargeText();
       this.bindStickyCounter();
       this.bindSheets();
+      this.bindSegmented();
       this.bindChatState();
       this.bindThemeChoice();
     }
@@ -28,121 +35,177 @@
       return this.doc.getElementById(id);
     }
 
-    bindProxyButtons() {
-      this.doc.querySelectorAll("[data-proxy]").forEach((button) => {
-        button.addEventListener("click", () => {
-          const target = this.byId(button.dataset.proxy);
-          if (target) target.click();
-        });
-      });
-    }
-
-    // The centre heart adds whatever belongs to the current page
+    // The FAB adds whatever belongs to the current page; it shrinks while scrolling down.
     bindFab() {
-      const fab = this.byId("bottom-fab-btn");
+      const fab = this.byId("fab");
       if (!fab) return;
       fab.addEventListener("click", () => {
-        const placesActive = this.doc.body.classList.contains("view-places");
-        const target = this.byId(placesActive ? "open-add-place-modal-btn" : "open-add-memory-modal-btn");
-        if (target) target.click();
+        const app = root.journeyApp;
+        if (!app) return;
+        if (this.doc.body.classList.contains("view-places")) app.openPlaceDialog();
+        else app.openMemoryDialog();
       });
+      this.doc.addEventListener("journey:viewchange", (event) => {
+        const view = event.detail && event.detail.view;
+        fab.setAttribute("aria-label", view === "places" ? "Thêm địa điểm" : "Thêm khoảnh khắc");
+        fab.hidden = view === "be";
+      });
+      let lastY = root.scrollY || 0;
+      root.addEventListener("scroll", () => {
+        const y = root.scrollY || 0;
+        if (Math.abs(y - lastY) < FAB_SCROLL_THRESHOLD_PX) return;
+        fab.classList.toggle("is-compact", y > lastY);
+        lastY = y;
+      }, { passive: true });
     }
 
+    // Body gets view-<name>; tabs get aria-current; tab clicks route through journeyApp.switchView.
     bindViewState() {
       this.doc.addEventListener("journey:viewchange", (event) => {
         const view = event.detail && event.detail.view;
-        this.doc.body.classList.toggle("view-places", view === "places");
-        this.doc.querySelectorAll(".bottom-tab[data-view]").forEach((tab) => {
+        VIEW_NAMES.forEach((name) => this.doc.body.classList.toggle("view-" + name, name === view));
+        this.doc.querySelectorAll(".tab[data-view]").forEach((tab) => {
           const isActive = tab.dataset.view === view;
-          tab.classList.toggle("active", isActive);
           tab.setAttribute("aria-current", isActive ? "page" : "false");
+        });
+      });
+      this.doc.querySelectorAll(".tab[data-view]").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          if (root.journeyApp) root.journeyApp.switchView(tab.dataset.view);
         });
       });
     }
 
-    mirrorChatDot() {
-      const source = this.byId("chat-unread-dot");
-      const mirror = this.byId("tab-chat-dot");
-      if (!source || !mirror) return;
-      const sync = () => { mirror.style.display = source.style.display === "block" ? "block" : "none"; };
-      new MutationObserver(sync).observe(source, { attributes: true, attributeFilter: ["style"] });
+    // Hairline under the header only once the page has scrolled.
+    bindScrollState() {
+      const sync = () => this.doc.body.classList.toggle("is-scrolled", (root.scrollY || 0) > SCROLLED_THRESHOLD_PX);
+      root.addEventListener("scroll", sync, { passive: true });
       sync();
     }
 
-    mirrorMusicState() {
-      const source = this.byId("music-toggle-btn");
-      const mirror = this.byId("header-music-btn");
-      if (!source || !mirror) return;
-      const sync = () => mirror.classList.toggle("active", source.classList.contains("active"));
-      new MutationObserver(sync).observe(source, { attributes: true, attributeFilter: ["class"] });
+    // Large Dynamic Type: card clamps loosen when the root font is >= 130 % of 16 px.
+    bindLargeText() {
+      const size = parseFloat(root.getComputedStyle(this.doc.documentElement).fontSize);
+      if (size >= LARGE_TEXT_ROOT_PX) this.doc.documentElement.setAttribute("data-large-text", "");
     }
 
-    // D-03/D-05: bottom sheets close with the header x, a backdrop tap, Esc, the phone Back gesture, or by
-    // dragging the handle. Every path ends in the sheet's own cancel button (or dialog.close()), so the
-    // camera still stops on the dialog's close event.
+    // Every dialog except who-am-i joins the overlay stack (Back closes the top one). Sheets also close with a
+    // backdrop tap, Esc and a grabber drag. All paths end in requestClose().
     bindSheets() {
-      const reduce = () => root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      this.doc.querySelectorAll("dialog.custom-modal:not(.photo-lightbox-modal):not(#who-am-i-modal)").forEach((dialog) => {
-        const card = dialog.querySelector(".modal-card");
-        if (!card) return;
-        const closeSheet = () => {
-          const cancel = dialog.querySelector('[id^="cancel-"]');
-          if (cancel) cancel.click();
-          if (dialog.open) dialog.close();
-        };
-
-        dialog.addEventListener("click", (event) => { if (event.target === dialog) closeSheet(); });
-
-        // Back gesture: one history entry per open sheet (see overlay_stack.js)
+      this.doc.querySelectorAll("dialog:not(#who-am-i-modal)").forEach((dialog) => {
         new MutationObserver(() => {
-          if (dialog.open) this.overlays.open(dialog.id, closeSheet);
+          if (dialog.open) this.overlays.open(dialog.id, () => this.requestClose(dialog));
           else this.overlays.closed(dialog.id);
         }).observe(dialog, { attributes: true, attributeFilter: ["open"] });
-
-        // Handle-only drag: touch-action none on the handle, so the browser never claims the gesture.
-        const handle = this.doc.createElement("div");
-        handle.className = "sheet-handle";
-        handle.setAttribute("aria-hidden", "true");
-        handle.innerHTML = "<span></span>";
-        card.insertBefore(handle, card.firstChild);
-
-        let startY = null;
-        let dy = 0;
-        let startTime = 0;
-        handle.addEventListener("pointerdown", (event) => {
-          startY = event.clientY; dy = 0; startTime = Date.now();
-          card.style.transition = "none";
-          if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId);
+        dialog.addEventListener("cancel", (event) => {
+          event.preventDefault();
+          this.requestClose(dialog);
         });
-        handle.addEventListener("pointermove", (event) => {
-          if (startY === null) return;
-          dy = Math.max(0, event.clientY - startY);
-          card.style.transform = `translateY(${dy}px)`;
-        });
-        const end = () => {
-          if (startY === null) return;
-          const fast = dy / Math.max(1, Date.now() - startTime) > 0.6;
-          const far = dy > card.offsetHeight * 0.3;
-          const dismiss = dy > 6 && (far || (fast && dy > 40));
-          startY = null;
-          dy = 0;
-          const finish = () => { card.style.transition = ""; card.style.transform = ""; };
-          if (reduce()) {
-            finish();
-            if (dismiss) closeSheet();
-            return;
+        if (!dialog.classList.contains("sheet")) return;
+        const card = dialog.querySelector(".sheet__card");
+        if (!card) {
+          root.console.error("sheet without .sheet__card: #" + dialog.id);
+          return;
+        }
+        dialog.addEventListener("click", (event) => { if (event.target === dialog) this.requestClose(dialog); });
+        this.bindGrabber(dialog, card);
+      });
+    }
+
+    /**
+     * The single close path for every dialog. A dialog may define beforeClose(): Promise<boolean>|boolean;
+     * false keeps it open (unsaved-changes veto) and re-registers it when Back already popped its entry.
+     * @param {HTMLDialogElement} dialog
+     * @returns {Promise<void>}
+     */
+    async requestClose(dialog) {
+      if (typeof dialog.beforeClose === "function") {
+        const ok = await dialog.beforeClose();
+        if (ok === false) {
+          if (dialog.open && !this.overlays.has(dialog.id)) {
+            this.overlays.open(dialog.id, () => this.requestClose(dialog));
           }
-          card.style.transition = "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)";
-          if (dismiss) {
-            card.style.transform = "translateY(100%)";
-            root.setTimeout(() => { finish(); closeSheet(); }, 200);
-          } else {
-            card.style.transform = "translateY(0)";
-            root.setTimeout(finish, 240);
-          }
+          return;
+        }
+      }
+      const cancel = dialog.querySelector('[id^="cancel-"]');
+      if (cancel) cancel.click();
+      if (dialog.open) dialog.close();
+    }
+
+    // Grabber-only drag: touch-action none on the grabber, so the browser never claims the gesture.
+    bindGrabber(dialog, card) {
+      const reduce = () => root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const grabber = this.doc.createElement("div");
+      grabber.className = "sheet__grabber";
+      grabber.setAttribute("aria-hidden", "true");
+      grabber.innerHTML = "<span></span>";
+      card.insertBefore(grabber, card.firstChild);
+
+      let startY = null;
+      let dy = 0;
+      let startTime = 0;
+      grabber.addEventListener("pointerdown", (event) => {
+        startY = event.clientY; dy = 0; startTime = Date.now();
+        card.style.transition = "none";
+        if (grabber.setPointerCapture) grabber.setPointerCapture(event.pointerId);
+      });
+      grabber.addEventListener("pointermove", (event) => {
+        if (startY === null) return;
+        dy = Math.max(0, event.clientY - startY);
+        card.style.transform = `translateY(${dy}px)`;
+      });
+      const end = () => {
+        if (startY === null) return;
+        const fast = dy / Math.max(1, Date.now() - startTime) > 0.6;
+        const far = dy > card.offsetHeight * 0.3;
+        const dismiss = dy > 6 && (far || (fast && dy > 40));
+        startY = null;
+        dy = 0;
+        const finish = () => { card.style.transition = ""; card.style.transform = ""; };
+        if (reduce()) {
+          finish();
+          if (dismiss) this.requestClose(dialog);
+          return;
+        }
+        card.style.transition = "transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1)";
+        if (dismiss) {
+          card.style.transform = "translateY(100%)";
+          root.setTimeout(() => { finish(); this.requestClose(dialog); }, 200);
+        } else {
+          card.style.transform = "translateY(0)";
+          root.setTimeout(finish, 240);
+        }
+      };
+      grabber.addEventListener("pointerup", end);
+      grabber.addEventListener("pointercancel", end);
+    }
+
+    // Arrow keys / Home / End move inside a segmented control (roving tabindex), selecting as they go.
+    bindSegmented() {
+      this.doc.querySelectorAll(".segmented").forEach((group) => {
+        const options = Array.from(group.querySelectorAll(".segmented__option"));
+        if (!options.length) return;
+        const isSelected = (o) => o.getAttribute("aria-selected") === "true" || o.getAttribute("aria-pressed") === "true";
+        const syncTabindex = () => {
+          const selected = options.find(isSelected) || options[0];
+          options.forEach((o) => o.setAttribute("tabindex", o === selected ? "0" : "-1"));
         };
-        handle.addEventListener("pointerup", end);
-        handle.addEventListener("pointercancel", end);
+        syncTabindex();
+        group.addEventListener("click", () => root.setTimeout(syncTabindex, 0));
+        group.addEventListener("keydown", (event) => {
+          const index = options.indexOf(this.doc.activeElement);
+          if (index === -1) return;
+          let next = index;
+          if (event.key === "ArrowRight") next = (index + 1) % options.length;
+          else if (event.key === "ArrowLeft") next = (index - 1 + options.length) % options.length;
+          else if (event.key === "Home") next = 0;
+          else if (event.key === "End") next = options.length - 1;
+          else return;
+          event.preventDefault();
+          options[next].focus();
+          options[next].click();
+        });
       });
     }
 
@@ -152,7 +215,7 @@
       const drawer = this.byId("chat-drawer");
       const input = this.byId("chat-text-input");
       if (drawer) {
-        const background = () => Array.from(this.doc.querySelectorAll("main, .nav-bar, .bottom-nav, footer"));
+        const background = () => Array.from(this.doc.querySelectorAll("main, .app-header, .tab-bar, footer, .fab"));
         let opener = null;
         const sync = () => {
           const open = drawer.classList.contains("open");
@@ -160,7 +223,7 @@
           background().forEach((el) => { el.inert = open; });
           if (open) {
             opener = this.doc.activeElement && this.doc.activeElement !== this.doc.body ? this.doc.activeElement : null;
-            this.overlays.open("chat", () => { const close = this.byId("close-chat-btn"); if (close) close.click(); });
+            this.overlays.open("chat", () => { const close = this.byId("close-chat-btn"); if (close) close.click(); }, "#chat");
             root.setTimeout(() => { if (input && drawer.classList.contains("open")) input.focus({ preventScroll: true }); }, 260);
           } else {
             this.overlays.closed("chat");
@@ -177,11 +240,34 @@
         });
       }
       if (input) {
-        const sync = () => this.byId("chat-form").classList.toggle("has-text", input.value.trim() !== "");
+        const form = this.byId("chat-form");
+        const sync = () => {
+          form.classList.toggle("has-text", input.value.trim() !== "");
+          input.style.height = "auto";
+          input.style.height = Math.min(input.scrollHeight, CHAT_INPUT_MAX_PX) + "px";
+        };
         input.addEventListener("input", sync);
+        input.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+          event.preventDefault();
+          if (input.value.trim() !== "" || root.journeyApp.chatPendingImage) form.requestSubmit();
+        });
         input.form.addEventListener("submit", () => root.setTimeout(sync, 0));
         sync();
+        this.bindKeyboardOffset(drawer);
       }
+    }
+
+    // Keeps the chat input above the on-screen keyboard (visualViewport): sets --kb-offset on the drawer.
+    bindKeyboardOffset(drawer) {
+      const viewport = root.visualViewport;
+      if (!drawer || !viewport) return;
+      const update = () => {
+        const offset = Math.max(0, root.innerHeight - viewport.height - viewport.offsetTop);
+        drawer.style.setProperty("--kb-offset", offset + "px");
+      };
+      viewport.addEventListener("resize", update);
+      viewport.addEventListener("scroll", update);
     }
 
     // D-09: Auto / Light / Dark choice, stored on this device only (theme_init.js applies it before first paint)
@@ -204,22 +290,86 @@
       return this.overlays.handlePop();
     }
 
-    // Once the big counter scrolls away, a compact pill keeps the day count visible
+    // Long-press on a memory or grid tile (couple only) opens the Sửa / Xóa / Chia sẻ menu.
+    bindLongPress() {
+      const list = this.byId("timeline-list-container");
+      if (!list) return;
+      let timer = 0;
+      let origin = null;
+      let suppressClick = false;
+      const cancel = () => { root.clearTimeout(timer); timer = 0; origin = null; };
+      list.addEventListener("pointerdown", (event) => {
+        const block = event.target.closest ? event.target.closest(".memory__open, .tile") : null;
+        if (!block || this.doc.body.classList.contains("is-guest")) return;
+        origin = { x: event.clientX, y: event.clientY };
+        timer = root.setTimeout(() => {
+          timer = 0;
+          suppressClick = true;
+          this.openMemoryMenu(block);
+        }, LONG_PRESS_MS);
+      });
+      list.addEventListener("pointermove", (event) => {
+        if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > LONG_PRESS_MOVE_PX) cancel();
+      });
+      ["pointerup", "pointercancel", "pointerleave"].forEach((type) => list.addEventListener(type, cancel));
+      list.addEventListener("click", (event) => {
+        if (!suppressClick) return;
+        suppressClick = false;
+        event.preventDefault();
+        event.stopPropagation();
+      }, true);
+      list.addEventListener("contextmenu", (event) => {
+        if (event.target.closest && event.target.closest(".memory__open, .tile")) event.preventDefault();
+      });
+    }
+
+    openMemoryMenu(block) {
+      const app = root.journeyApp;
+      const holder = block.closest("[data-id]");
+      const mem = app && holder ? app.memories.find((m) => String(m.id) === holder.dataset.id) : null;
+      if (!mem) return;
+      app.hapticTick();
+      root.actionMenu.open({
+        anchor: holder,
+        items: [
+          { label: "Sửa", icon: "edit", onSelect: () => app.openMemoryDialog({ edit: mem }) },
+          { label: "Xóa", icon: "trash", danger: true, onSelect: () => app.deleteMemory(mem.id) },
+          { label: "Chia sẻ", icon: "share", onSelect: () => app.shareMemory(mem) }
+        ]
+      });
+    }
+
+    // Month labels stick under the header; .is-stuck gives the stuck one its glass strip.
+    observeMonthLabels(container) {
+      if (typeof IntersectionObserver === "undefined") return;
+      if (this.monthObserver) this.monthObserver.disconnect();
+      const header = this.doc.querySelector(".app-header");
+      const top = header ? Math.round(header.getBoundingClientRect().height) : 0;
+      this.monthObserver = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          const stuck = entry.intersectionRatio < 1 && entry.boundingClientRect.top <= top + 1;
+          entry.target.classList.toggle("is-stuck", stuck);
+        });
+      }, { rootMargin: `-${top + 1}px 0px 0px 0px`, threshold: [1] });
+      container.querySelectorAll(".month-label").forEach((label) => this.monthObserver.observe(label));
+    }
+
+    // Once the big day number scrolls away, a compact pill keeps the day count visible
     bindStickyCounter() {
       const pill = this.byId(STICKY_PILL_ID);
-      const card = this.doc.querySelector(".love-counter-card");
-      if (!pill || !card || typeof IntersectionObserver === "undefined") return;
+      const hero = this.byId("hero-days");
+      const days = this.byId("count-days");
+      if (!pill || !hero || !days || typeof IntersectionObserver === "undefined") return;
       const refresh = () => {
-        const text = (id) => (this.byId(id) ? this.byId(id).textContent : "");
-        pill.textContent = `💕 ${text("count-days")} ngày · ${text("count-hours")}:${text("count-minutes")}:${text("count-seconds")}`;
+        pill.innerHTML = `<strong>${root.escapeHtml(days.textContent)}</strong> ngày`;
       };
-      new MutationObserver(refresh).observe(this.byId("count-seconds"), { childList: true, characterData: true, subtree: true });
+      new MutationObserver(refresh).observe(days, { childList: true, characterData: true, subtree: true });
       new IntersectionObserver((entries) => {
         const away = !entries[0].isIntersecting && entries[0].boundingClientRect.top < 0;
         pill.hidden = !away;
         this.doc.body.classList.toggle("counter-stuck", away);
         if (away) refresh();
-      }, { threshold: 0 }).observe(card);
+      }, { threshold: 0 }).observe(hero);
     }
   }
 

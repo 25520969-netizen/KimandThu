@@ -1,0 +1,59 @@
+/* Places screen: segmented filter, chips row, calm list rows. */
+
+.places__title { padding-block: var(--s-4) var(--s-3); }
+.segmented--full { display: flex; width: 100%; }
+.segmented--full .segmented__option { flex: 1; }
+.segmented__option [id^="count-places"] { margin-inline-start: var(--s-1); color: var(--c-muted); }
+
+.chips {
+  display: flex;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.chips::-webkit-scrollbar { display: none; }
+.chips .chip { flex: none; }
+
+.places { padding-block: var(--s-3) var(--s-8); }
+.place {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-block: var(--s-4);
+  border-bottom: 1px solid var(--c-divider);
+  container-type: inline-size;
+}
+.place__head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.place__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  margin: 0;
+  font: 700 1.25rem/1.25 var(--font-display);
+}
+.place__title .status { align-self: center; }
+.place__distance {
+  flex: none;
+  color: var(--c-muted);
+  font: 500 var(--t-meta-size)/var(--t-meta-lh) var(--font-body);
+  font-variant-numeric: tabular-nums;
+}
+.place__distance.is-new { animation: place-fade-in var(--m-base) var(--ease-out); }
+@keyframes place-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.place__notes { margin: 0; }
+.place__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-1); }
+.place__actions .btn { height: 44px; padding-inline: var(--s-4); }
+.place__actions > * { flex: none; }
+.place__more { margin-inline-start: auto; }
+@container (max-width: 439px) {
+  .place__actions .btn--secondary .btn__label { display: none; }
+  .place__actions .btn--secondary { padding-inline: var(--s-3); }
+}
+@container (max-width: 319px) {
+  .place__actions { gap: var(--s-1); }
+  .place__actions .btn--soft { padding-inline: var(--s-3); }
+}
+.place__memory { align-self: flex-start; padding-inline: 0; }
+.place.is-highlighted { animation: place-highlight 360ms var(--ease-out); }
+@keyframes place-highlight { 50% { background: var(--c-primary-soft); } }

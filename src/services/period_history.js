@@ -41,6 +41,30 @@
     return normalizeHistory((history || []).concat(isValidIso(iso) ? [iso] : []));
   }
 
+  /** @returns {Array<string>} the history without `iso`. */
+  function removePeriodStart(history, iso) {
+    return normalizeHistory((history || []).filter((d) => d !== iso));
+  }
+
+  /** @returns {Array<string>} the history with `oldIso` replaced by `newIso` (ignored when newIso is invalid). */
+  function replacePeriodStart(history, oldIso, newIso) {
+    if (!isValidIso(newIso)) return normalizeHistory(history);
+    return normalizeHistory((history || []).filter((d) => d !== oldIso).concat([newIso]));
+  }
+
+  /**
+   * Rows for the history list, newest first. `cycleDays` is the number of days to the next (later) start,
+   * null for the latest one.
+   * @returns {Array<{start: string, cycleDays: (number|null)}>}
+   */
+  function historyRows(history) {
+    const sorted = normalizeHistory(history);
+    return sorted.map((start, i) => ({
+      start: start,
+      cycleDays: i < sorted.length - 1 ? toDayNumber(sorted[i + 1]) - toDayNumber(start) : null
+    })).reverse();
+  }
+
   function addDays(iso, days) {
     return fromDayNumber(toDayNumber(iso) + days);
   }
@@ -107,6 +131,9 @@
 
   root.normalizeHistory = normalizeHistory;
   root.addPeriodStart = addPeriodStart;
+  root.removePeriodStart = removePeriodStart;
+  root.replacePeriodStart = replacePeriodStart;
+  root.historyRows = historyRows;
   root.cycleIntervals = cycleIntervals;
   root.predictCycle = predictCycle;
   root.predictionWindow = predictionWindow;

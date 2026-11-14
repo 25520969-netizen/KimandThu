@@ -1,0 +1,19 @@
+/* Bé page: cycle ring, care note, history. */
+
+.be__title { padding-block: var(--s-4) var(--s-2); }
+.be { display: flex; flex-direction: column; gap: var(--s-5); padding-bottom: var(--s-8); }
+.be-status { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); text-align: center; }
+.be-status p { margin: 0; }
+.be-care h3 { margin: 0 0 var(--s-1); }
+.be-care p { margin: 0; }
+.be__history-title { margin: 0; }
+.be-history { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.be-history li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+  border-bottom: 1px solid var(--c-divider);
+}
+.cycle-ring { max-width: 100%; height: auto; }
+.be-history__more { margin-inline-end: calc(-1 * var(--s-2)); }

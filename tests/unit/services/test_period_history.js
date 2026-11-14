@@ -47,3 +47,21 @@ test("accuracy log keeps the last 12 entries", () => {
   assertEqual(accuracySummary(log).total, 12);
   assertEqual(accuracySummary([]), { hits: 0, total: 0 });
 });
+
+test("historyRows: newest first with the days to the next start", () => {
+  assertEqual(historyRows(["2026-10-01", "2026-08-01", "2026-09-01"]), [
+    { start: "2026-10-01", cycleDays: null },
+    { start: "2026-09-01", cycleDays: 30 },
+    { start: "2026-08-01", cycleDays: 31 }
+  ]);
+  assertEqual(historyRows([]), []);
+});
+
+test("removePeriodStart / replacePeriodStart: sorted, de-duplicated, invalid ignored", () => {
+  const h = ["2026-08-01", "2026-09-01", "2026-10-01"];
+  assertEqual(removePeriodStart(h, "2026-09-01"), ["2026-08-01", "2026-10-01"]);
+  assertEqual(removePeriodStart(h, "2000-01-01"), h);
+  assertEqual(replacePeriodStart(h, "2026-09-01", "2026-09-03"), ["2026-08-01", "2026-09-03", "2026-10-01"]);
+  assertEqual(replacePeriodStart(h, "2026-09-01", "2026-10-01"), ["2026-08-01", "2026-10-01"]);
+  assertEqual(replacePeriodStart(h, "2026-09-01", "nope"), h);
+});

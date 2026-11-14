@@ -11,7 +11,7 @@
     /**
      * @param {{store: Object, send: function(Object): Promise<Object>, now?: function(): number,
      *   onConfirmed?: function(Object, Object): void, onUnauthorized?: function(): void,
-     *   onChange?: function(): void}} deps
+     *   onChange?: function(): void, onRetry?: function(Object): void}} deps
      */
     constructor(deps) {
       this.store = deps.store;
@@ -20,6 +20,7 @@
       this.onConfirmed = deps.onConfirmed || function () {};
       this.onUnauthorized = deps.onUnauthorized || function () {};
       this.onChange = deps.onChange || function () {};
+      this.onRetry = deps.onRetry || function () {};
       this.entries = new Map();
       this.flushing = false;
     }
@@ -50,6 +51,15 @@
       this.entries.delete(key);
       await this.store.remove(key);
       this.onChange();
+    }
+
+    /** Makes one queued write due immediately and flushes (the "Thử lại" button). */
+    async retryNow(key) {
+      const entry = this.entries.get(key);
+      if (!entry) return;
+      entry.nextAttemptAt = 0;
+      await this.store.put(entry);
+      await this.flush();
     }
 
     /** Sends every due entry once, oldest first. Safe to call repeatedly. */
@@ -94,6 +104,7 @@
       entry.nextAttemptAt = this.now() + root.backoffMs(entry.attempts);
       entry.attempts += 1;
       await this.store.put(entry);
+      this.onRetry(entry);
     }
 
     /** Removes entries the server's pull proves are stored. @returns {Array<string>} removed keys */

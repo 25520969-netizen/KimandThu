@@ -2,17 +2,21 @@
 (function (root) {
   "use strict";
 
-  function resolve(choice) {
-    if (choice === "light" || choice === "dark") return choice;
-    return root.matchMedia && root.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
+  const PAPER_LIGHT = "#FBF7F2";
+  const PAPER_DARK = "#16110F";
 
   function applyTheme(choice) {
     const html = root.document.documentElement;
     if (choice === "light" || choice === "dark") html.setAttribute("data-theme", choice);
     else html.removeAttribute("data-theme");
-    const meta = root.document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", resolve(choice) === "dark" ? "#1f1418" : "#ff758f");
+    const metas = root.document.querySelectorAll('meta[name="theme-color"]');
+    metas.forEach((meta) => {
+      const media = meta.getAttribute("media") || "";
+      let color = media.indexOf("dark") !== -1 ? PAPER_DARK : PAPER_LIGHT;
+      if (choice === "light") color = PAPER_LIGHT;
+      if (choice === "dark") color = PAPER_DARK;
+      meta.setAttribute("content", color);
+    });
   }
 
   function saved() {

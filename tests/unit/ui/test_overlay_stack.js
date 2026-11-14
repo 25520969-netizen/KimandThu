@@ -1,7 +1,11 @@
 // OverlayStack: Back closes the top overlay first; closing by other means removes its history entry.
 
 function makeHistory() {
-  return { pushed: 0, backs: 0, pushState() { this.pushed += 1; }, back() { this.backs += 1; } };
+  return {
+    pushed: 0, backs: 0, urls: [],
+    pushState(state, title, url) { this.pushed += 1; this.urls.push(url); },
+    back() { this.backs += 1; }
+  };
 }
 
 test("OverlayStack: Back closes the top overlay and is consumed", () => {
@@ -37,4 +41,44 @@ test("OverlayStack: the same overlay is never pushed twice", () => {
   assertEqual(h.pushed, 1);
   stack.closed("nothing");
   assertEqual(h.backs, 0);
+});
+
+test("OverlayStack: open with a url pushes that url", () => {
+  const h = makeHistory();
+  const stack = new OverlayStack(h);
+  stack.open("chat", () => {}, "#chat");
+  assertEqual(h.urls[0], "#chat");
+  stack.open("sheet", () => {});
+  assertEqual(h.urls[1], undefined);
+});
+
+test("OverlayStack: has() reports registered tokens", () => {
+  const stack = new OverlayStack(makeHistory());
+  assertEqual(stack.has("sheet"), false);
+  stack.open("sheet", () => {});
+  assertEqual(stack.has("sheet"), true);
+});
+
+test("OverlayStack: a veto during Back re-registers the sheet", () => {
+  const h = makeHistory();
+  const stack = new OverlayStack(h);
+  stack.open("sheet", () => { stack.open("sheet", () => {}); });
+  assertEqual(stack.handlePop(), true);
+  assertEqual(stack.size, 1);
+  assertEqual(h.pushed, 2);
+});
+
+test("OverlayStack: open while a back is pending defers pushState", () => {
+  const h = makeHistory();
+  const stack = new OverlayStack(h);
+  stack.open("confirm", () => {});
+  stack.closed("confirm");
+  assertEqual(stack.pendingBacks, 1);
+  const before = h.pushed;
+  stack.open("sheet", () => {});
+  assertEqual(h.pushed, before);
+  assertEqual(stack.handlePop(), true);
+  assertEqual(h.pushed, before + 1);
+  assertEqual(stack.handlePop(), true);
+  assertEqual(stack.size, 0);
 });
