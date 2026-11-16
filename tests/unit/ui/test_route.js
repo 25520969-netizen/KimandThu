@@ -2,15 +2,15 @@
 
 test("parseRoute: empty and unknown hashes mean moments", () => {
   ["", "#", "#moments", "#nonsense", undefined].forEach((h) => {
-    assertEqual(parseRoute(h), { view: "moments", placesFilter: "unvisited", chat: false });
+    assertEqual(parseRoute(h), { view: "moments", placesFilter: "unvisited" });
   });
 });
 
-test("parseRoute: places, visited, be and chat", () => {
-  assertEqual(parseRoute("#places"), { view: "places", placesFilter: "unvisited", chat: false });
-  assertEqual(parseRoute("#places/visited"), { view: "places", placesFilter: "visited", chat: false });
+test("parseRoute: places, visited, be; chat is gone", () => {
+  assertEqual(parseRoute("#places"), { view: "places", placesFilter: "unvisited" });
+  assertEqual(parseRoute("#places/visited"), { view: "places", placesFilter: "visited" });
   assertEqual(parseRoute("#be").view, "be");
-  assertEqual(parseRoute("#chat"), { view: "moments", placesFilter: "unvisited", chat: true });
+  assertEqual(parseRoute("#chat"), { view: "moments", placesFilter: "unvisited" });
 });
 
 test("buildHash: moments is a clean URL, others map to their hash", () => {
@@ -26,6 +26,5 @@ test("route: parseRoute(buildHash(r)) round-trips the four views", () => {
     const back = parseRoute(buildHash(r));
     assertEqual(back.view, r.view);
     assertEqual(back.placesFilter, r.placesFilter);
-    assertEqual(back.chat, false);
   });
 });

@@ -1,5 +1,5 @@
 /**
- * Overlay stack (D-05): makes the phone Back gesture / Esc close the top overlay (chat, bottom sheet)
+ * Overlay stack (D-05): makes the phone Back gesture / Esc close the top overlay (a sheet)
  * before anything else happens. Pure logic: the history object is injected so it can be unit tested.
  *
  * open(token, close, url?) -> remember the overlay and add one history entry (at url, when given)

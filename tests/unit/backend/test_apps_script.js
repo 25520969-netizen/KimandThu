@@ -89,12 +89,12 @@ test("backend: fails closed when APP_PASSCODE is missing or too short", () => {
 
 test("backend: wrong or missing passcode cannot write or read private data", () => {
   const g = createGasHarness();
-  assertEqual(g.postRaw({ type: "chat_message", id: "c1", text: "hi", passcode: "kimthu" }).code, "unauthorized");
-  assertEqual(g.postRaw({ type: "chat_message", id: "c1", text: "hi" }).code, "unauthorized");
-  g.post({ type: "chat_message", id: "c1", sender: "Kim", text: "secret" });
-  assertEqual(g.get({}).messages, []);
+  assertEqual(g.postRaw({ type: "period", startDate: "2026-11-01", updatedAt: 1, passcode: "kimthu" }).code, "unauthorized");
+  assertEqual(g.postRaw({ type: "period", startDate: "2026-11-01", updatedAt: 1 }).code, "unauthorized");
+  g.post({ type: "period", startDate: "2026-11-01", updatedAt: 1 });
+  assertEqual(g.get({}).period, null);
   assertEqual(g.get({ passcode: "nope" }).isAuth, false);
-  assertEqual(g.get({ passcode: "Correct-Horse-Battery " }).messages.length, 1);
+  assertEqual(g.get({ passcode: "Correct-Horse-Battery " }).period.startDate, "2026-11-01");
 });
 
 test("backend: memory upsert is idempotent and uploads the photo once", () => {
@@ -178,16 +178,14 @@ test("backend: period syncs last-writer-wins and is private", () => {
   assertEqual([p.startDate, p.cycleLength, p.history, p.updatedAt], ["2026-10-01", 30, ["2026-10-01"], 2000]);
 });
 
-test("backend: timed notes keep their text hidden until openAt", () => {
+test("backend: chat and timed-note writes are ignored and never served", () => {
   const g = createGasHarness();
-  g.post({ type: "note", id: "n1", sender: "Kim", text: "mở sau nhé", openAt: new Date(Date.now() + 86400000).toISOString() });
-  g.post({ type: "note", id: "n2", sender: "Kim", text: "mở rồi", openAt: new Date(Date.now() - 86400000).toISOString() });
-  const notes = g.get({ passcode: "correct-horse-battery" }).notes;
-  const byId = {};
-  notes.forEach((n) => { byId[n.id] = n; });
-  assertEqual([byId.n1.locked, byId.n1.text], [true, ""]);
-  assertEqual([byId.n2.locked, byId.n2.text], [false, "mở rồi"]);
-  assertEqual(g.get({}).notes, [], "guests get no notes");
+  assertEqual(g.postRaw({ type: "chat_message", id: "c1", text: "hi", passcode: "correct-horse-battery" }).status, "ignored");
+  assertEqual(g.postRaw({ type: "note", id: "n1", text: "hi", passcode: "correct-horse-battery" }).status, "ignored");
+  const out = g.get({ passcode: "correct-horse-battery" });
+  assertEqual("messages" in out, false);
+  assertEqual("notes" in out, false);
+  assertEqual("notes" in out.deleted, false);
 });
 
 test("backend: rejects non-image and missing-id writes", () => {

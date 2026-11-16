@@ -83,11 +83,11 @@
     const dot = point(center, radius, model.todayDeg);
     const stroke = (color, extra) => `fill="none" stroke="${color}" stroke-width="${SVG_STROKE_PX}" ${extra || ""}`;
     return `<svg class="cycle-ring" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" role="img" aria-label="${esc(model.summary)}">` +
-      `<circle cx="${center}" cy="${center}" r="${radius}" ${stroke("var(--c-sunken)")}/>` +
-      `<path d="${arcPath(center, radius, model.arcs.window[0], model.arcs.window[1])}" ${stroke("var(--c-primary-soft)", 'stroke-dasharray="4 4"')}/>` +
+      `<circle cx="${center}" cy="${center}" r="${radius}" ${stroke("var(--c-primary-soft)")}/>` +
+      `<path d="${arcPath(center, radius, model.arcs.window[0], model.arcs.window[1])}" ${stroke("var(--c-primary)", 'stroke-dasharray="4 4"')}/>` +
       `<path d="${arcPath(center, radius, model.arcs.period[0], model.arcs.period[1])}" ${stroke("var(--c-primary)", 'stroke-linecap="round"')}/>` +
-      `<circle cx="${dot[0].toFixed(2)}" cy="${dot[1].toFixed(2)}" r="6" fill="var(--c-text)" stroke="var(--c-bg)" stroke-width="2"/>` +
-      `<text x="${center}" y="${center - 2}" text-anchor="middle" font-family="var(--font-display)" font-weight="700" font-size="26" fill="var(--c-text)">${esc(model.title)}</text>` +
+      `<circle cx="${dot[0].toFixed(2)}" cy="${dot[1].toFixed(2)}" r="6" fill="var(--c-surface)" stroke="var(--c-primary)" stroke-width="3"/>` +
+      `<text x="${center}" y="${center - 2}" text-anchor="middle" font-family="var(--font-display)" font-weight="800" font-size="26" fill="var(--c-text)">${esc(model.title)}</text>` +
       `<text x="${center}" y="${center + 20}" text-anchor="middle" font-size="13" fill="var(--c-muted)">${esc(model.subtitle)}</text></svg>`;
   }
 

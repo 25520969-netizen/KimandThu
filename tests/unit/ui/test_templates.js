@@ -5,26 +5,31 @@ const TPL_MEM = {
   location: "Quán (https://maps.google.com/?q=1,2)", image: "https://drive.google.com/thumbnail?id=abc&sz=w1000"
 };
 
-test("templates: title and story are escaped", () => {
+test("templates: title and story are escaped; the photo card shows no story", () => {
   const html = memoryBlockHtml(TPL_MEM, { couple: true });
   assertEqual(html.indexOf("<b>"), -1);
   assertTrue(html.indexOf("&lt;b&gt;") !== -1, "title escaped");
-  assertTrue(html.indexOf("&quot;đẹp&quot;") !== -1, "story quotes escaped");
+  assertEqual(html.indexOf("Nắng"), -1);
+  const text = memoryTextCardHtml(TPL_MEM);
+  assertEqual(text.indexOf("<b>"), -1);
+  assertTrue(text.indexOf("&quot;đẹp&quot;") !== -1, "story quotes escaped");
 });
 
 test("templates: no <button> nested inside .memory__open", () => {
-  [memoryBlockHtml(TPL_MEM, { couple: true }), memoryTextCardHtml(TPL_MEM, { retry: true })].forEach((html) => {
+  [memoryBlockHtml(TPL_MEM, { couple: true }), memoryTextCardHtml(TPL_MEM), memoryFailedCardHtml(TPL_MEM)].forEach((html) => {
     const open = html.match(/<button[^>]*memory__open[\s\S]*?<\/button>/)[0];
     assertEqual((open.match(/<button/g) || []).length, 1);
   });
 });
 
-test("templates: memory without a photo renders a text card; retry sits outside the open button", () => {
+test("templates: memory without a photo renders a text card; a failed photo renders the heart card with its retry outside the open button", () => {
   const html = memoryBlockHtml(Object.assign({}, TPL_MEM, { image: "" }), { couple: true });
   assertTrue(html.indexOf("memory--text") !== -1);
-  const retry = memoryTextCardHtml(TPL_MEM, { retry: true });
-  assertTrue(retry.indexOf("Thử lại") !== -1);
-  assertTrue(retry.indexOf("</button><button") !== -1, "retry follows the open button");
+  const failed = memoryFailedCardHtml(TPL_MEM);
+  assertTrue(failed.indexOf("memory--failed") !== -1);
+  assertTrue(failed.indexOf("Thử lại") !== -1);
+  assertTrue(failed.indexOf("</button><button") !== -1, "retry follows the open button");
+  assertTrue(failed.indexOf("M12 20s-8-4.9-8-11") !== -1, "heart path");
 });
 
 test("templates: photo has size attributes, alt text and the pending state", () => {
@@ -33,6 +38,8 @@ test("templates: photo has size attributes, alt text and the pending state", () 
   assertTrue(html.indexOf('alt="Quán &lt;b&gt;cà phê&lt;/b&gt;"') !== -1);
   assertTrue(html.indexOf("Chưa đồng bộ") !== -1);
   assertTrue(html.indexOf("25/10 · 17:09") !== -1);
+  assertTrue(html.indexOf("memory__overlay") !== -1, "title and meta sit on the photo");
+  assertTrue(html.indexOf("memory__badge") !== -1, "pending badge");
 });
 
 test("templates: locationLabel strips map urls", () => {
@@ -44,13 +51,13 @@ test("templates: locationLabel strips map urls", () => {
 test("templates: grid tile, month label and on-this-day row", () => {
   assertTrue(gridTileHtml(TPL_MEM).indexOf('class="tile"') !== -1);
   assertTrue(gridTileHtml(Object.assign({}, TPL_MEM, { image: "" })).indexOf("tile__text") !== -1);
-  assertEqual(monthLabelHtml("2026-10"), '<h2 class="month-label t-meta">Tháng 10, 2026</h2>');
+  assertEqual(monthLabelHtml("2026-10"), '<h2 class="month-label t-headline">Tháng 10, 2026</h2>');
   const row = onThisDayHtml({ memory: TPL_MEM, yearsAgo: 1 });
   assertTrue(row.indexOf("Ngày này năm xưa") !== -1 && row.indexOf("1 năm trước · Quán") !== -1);
 });
 
 test("templates: no emoji in markup built from emoji-free fixtures", () => {
-  const all = memoryBlockHtml(TPL_MEM, { couple: true }) + memoryTextCardHtml(TPL_MEM, { retry: true }) +
+  const all = memoryBlockHtml(TPL_MEM, { couple: true }) + memoryTextCardHtml(TPL_MEM) + memoryFailedCardHtml(TPL_MEM) +
     gridTileHtml(TPL_MEM) + monthLabelHtml("2026-10") + onThisDayHtml({ memory: TPL_MEM, yearsAgo: 2 }) + memorySkeletonHtml();
   assertEqual(/\p{Extended_Pictographic}/u.test(all), false);
 });
@@ -89,13 +96,25 @@ test("placeSkeletonHtml: one skeleton row", () => {
   assertTrue(placeSkeletonHtml().indexOf("skeleton--row") !== -1);
 });
 
-test("chatSkeletonHtml: three bubble skeletons", () => {
-  assertEqual((chatSkeletonHtml().match(/skeleton--bubble/g) || []).length, 3);
-});
-
 test("placeRowHtml: visited rows show the date from updatedAt, or just \"Đã đến\"", () => {
   const visited = Object.assign({}, TPL_PLACE, { visited: true, updatedAt: new Date(2026, 9, 12).getTime() });
   assertTrue(placeRowHtml(visited, TPL_PLACE_OPTS).indexOf("Đã đến · 12/10/2026") !== -1);
   const noDate = placeRowHtml(Object.assign({}, TPL_PLACE, { visited: true }), TPL_PLACE_OPTS);
   assertTrue(noDate.indexOf(">Đã đến<") !== -1 && noDate.indexOf("Đã đến ·") === -1);
+});
+
+test("detailPhotoHtml: a safe photo opens the lightbox; an unsafe or empty one renders nothing", () => {
+  const html = detailPhotoHtml(TPL_MEM);
+  assertTrue(html.indexOf('class="detail__photo"') !== -1);
+  assertTrue(html.indexOf('aria-label="Phóng to ảnh"') !== -1);
+  assertTrue(html.indexOf('alt="Quán &lt;b&gt;cà phê&lt;/b&gt;"') !== -1, "title escaped in alt");
+  assertEqual(html.indexOf("<b>"), -1);
+  assertEqual(detailPhotoHtml(Object.assign({}, TPL_MEM, { image: "" })), "");
+  assertEqual(detailPhotoHtml(Object.assign({}, TPL_MEM, { image: "javascript:alert(1)" })), "");
+});
+
+test("detailPhotoFailedHtml: heart box with a retry button that cannot open the lightbox", () => {
+  const html = detailPhotoFailedHtml();
+  ["detail__failed", "detail__retry", "Thử lại", "M12 20s-8-4.9-8-11"].forEach((needle) => assertTrue(html.indexOf(needle) !== -1, needle));
+  assertEqual(html.indexOf("detail__photo"), -1);
 });

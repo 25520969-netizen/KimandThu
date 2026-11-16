@@ -31,7 +31,7 @@ body.is-scrolled .app-header { border-bottom-color: var(--c-divider); }
   border: 0;
   background: transparent;
   color: var(--c-text);
-  font: 700 var(--t-title-size)/1 var(--font-display);
+  font: 800 var(--t-title-size)/1 var(--font-display);
   cursor: pointer;
 }
 body.counter-stuck .wordmark { display: none; }
@@ -39,16 +39,22 @@ body.counter-stuck .wordmark { display: none; }
 .sticky-counter-pill {
   flex: 1;
   max-width: 230px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1);
   padding: var(--s-1) var(--s-3);
   border-radius: var(--r-pill);
-  background: var(--c-sunken);
+  background: var(--c-surface);
+  box-shadow: var(--e-1);
   color: var(--c-muted);
   font: 500 var(--t-meta-size)/var(--t-meta-lh) var(--font-body);
   text-align: center;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.sticky-counter-pill strong { color: var(--c-primary); font-weight: 600; }
+.sticky-counter-pill strong { color: var(--c-primary-strong); font-weight: 600; }
+.sticky-counter-pill .ui-icon { width: 14px; height: 14px; color: var(--c-primary); }
 .sticky-counter-pill[hidden] { display: none; }
 
 #music-toggle-btn[aria-pressed="true"] { color: var(--c-primary); }
@@ -58,24 +64,27 @@ body.counter-stuck .wordmark { display: none; }
 /* ---------- Tab bar ---------- */
 .tab-bar {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: max(12px, var(--safe-left));
+  right: max(12px, var(--safe-right));
+  bottom: calc(8px + var(--safe-bottom));
   z-index: 50;
   display: flex;
   justify-content: center;
-  height: var(--bottom-nav-height);
-  padding-bottom: var(--safe-bottom);
-  padding-inline: var(--safe-left) var(--safe-right);
+  gap: 4px;
+  height: var(--tabbar-h);
+  max-width: 420px;
+  margin-inline: auto;
+  padding: 6px;
   background: var(--c-glass);
   -webkit-backdrop-filter: blur(20px) saturate(1.4);
   backdrop-filter: blur(20px) saturate(1.4);
-  border-top: 1px solid var(--c-divider);
+  border: 1px solid var(--card-border);
+  border-radius: var(--r-pill);
+  box-shadow: var(--e-2);
 }
 .tab {
   position: relative;
   flex: 1;
-  max-width: 160px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -85,32 +94,22 @@ body.counter-stuck .wordmark { display: none; }
   min-height: 44px;
   padding: 0;
   border: 0;
+  border-radius: var(--r-pill);
   background: transparent;
   color: var(--c-muted);
   cursor: pointer;
+  transition: background-color var(--m-base) var(--ease-out), transform var(--m-fast) var(--ease-out);
 }
 .tab .ui-icon { width: 24px; height: 24px; }
-.tab__label { font: 500 0.6875rem/1.2 var(--font-body); }
-.tab[aria-current="page"] { color: var(--c-primary); }
+.tab__label { font: 600 0.75rem/1.2 var(--font-body); }
+.tab[aria-current="page"] { background: var(--c-primary-soft); color: var(--c-primary-strong); }
 .tab[aria-current="page"] svg { fill: currentColor; }
-.tab-dot {
-  position: absolute;
-  top: 6px;
-  left: calc(50% + 6px);
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--c-primary);
-  border: 2px solid var(--c-bg);
-}
-
-body.chat-open .sticky-counter-pill { display: none; }
 
 /* ---------- FAB ---------- */
 .fab {
   position: fixed;
   right: max(var(--gutter), var(--safe-right));
-  bottom: calc(var(--s-4) + var(--bottom-nav-height));
+  bottom: calc(var(--bottom-nav-height) + 12px);
   z-index: 45;
   display: inline-flex;
   align-items: center;
@@ -128,7 +127,6 @@ body.chat-open .sticky-counter-pill { display: none; }
 }
 .fab.is-compact { width: 48px; height: 48px; }
 .fab[hidden] { display: none; }
-body.chat-open .fab { display: none; }
 
 .offline-banner { position: sticky; top: calc(var(--header-h) + var(--safe-top)); z-index: 40; margin: 0 var(--gutter); }
 .offline-banner[hidden] { display: none; }
@@ -141,5 +139,6 @@ body.chat-open .fab { display: none; }
   z-index: 10;
   max-width: 1060px;
   margin: 0 auto;
-  padding: var(--s-2) 0 calc(var(--bottom-nav-height) + var(--s-8));
+  padding: var(--s-2) 0 calc(var(--bottom-nav-height) + 16px);
 }
+body:not(.is-guest):not(.view-be) .main-content { padding-bottom: calc(var(--bottom-nav-height) + 84px); }

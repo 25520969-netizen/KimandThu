@@ -1,12 +1,11 @@
 # Kim & Thư 💕
 
-A single-page PWA for a couple: love counter, Moments timeline, Places wishlist, private chat and a gentle care reminder. Static files on GitHub Pages; Google Apps Script + Google Sheets/Drive as the backend.
+A single-page PWA for a couple: love counter, Moments timeline, Places wishlist and a gentle care reminder. Static files on GitHub Pages; Google Apps Script + Google Sheets/Drive as the backend.
 
 ## Features
 
 - **Moments** feed or 3-column grid, month separators, "Ngày này năm xưa", milestone countdown (every 100 days and each anniversary), photo placeholder for photo-less memories.
 - **Places** wishlist with GPS tools (nearest, "have we been here?", add current spot); marking a place visited offers to save a linked moment.
-- **Chat** with photos, last-activity line, vibration on incoming messages (Android), and **Thư hẹn giờ** (timed notes whose text the server withholds until the open time).
 - **Period care** with a recorded history, predictions from the mean of recent cycles shown as a date window, a once-a-day alert, and data synced between both phones (couple-only).
 - Bottom tab bar, bottom-sheet forms, pinch-zoom, reduced-motion support, offline viewing through a service worker.
 
@@ -34,7 +33,7 @@ tests/           unit tests                scripts/test.sh
 4. **Deploy → New deployment → Web app**: *Execute as* **Me**, *Who has access* **Anyone**. Copy the `/exec` URL.
    - After changing the script, use **Deploy → Manage deployments → Edit → New version**, or create a new deployment if the old URL must stop working.
 5. In the app, **Cài đặt → Link Google Apps Script Backend**: paste the `/exec` URL. Both phones must enter the passcode once.
-6. Sheets are created automatically (`Memories`, `Places`, `Messages`, `Notes`, `Period`). The old `Tasks` sheet is only kept for legacy clients.
+6. Sheets are created automatically (`Memories`, `Places`, `Period`). The old `Tasks` sheet is only kept for legacy clients.
 
 To rotate the passcode: change `APP_PASSCODE`. Phones notice on the next sync, return to guest mode and ask for the new one.
 
@@ -51,7 +50,7 @@ The Apps Script is tested against in-memory fakes of Sheets/Drive/Lock (`tests/u
 ## Security notes
 
 - The site and repo are public. Secrets live only in Script properties and in each user's head/device.
-- Guests can read the Moments timeline and Places; chat, notes and period data need the passcode.
+- Guests can read the Moments timeline and Places; period data needs the passcode.
 - All URLs rendered into HTML pass an `https`-only allow-list and are escaped; a Content-Security-Policy restricts scripts to this origin (no inline scripts or handlers; keep it that way — `tests/unit/ui` checks it).
 
 ## Known limitations

@@ -41,6 +41,8 @@ test("cycleRingSvg: accessible label equals the summary and colours use tokens",
   const m = cycleRingModel(crInput());
   const svg = cycleRingSvg(m, { size: 200 });
   assertTrue(svg.indexOf('aria-label="' + m.summary + '"') !== -1);
-  assertTrue(svg.indexOf("var(--c-primary)") !== -1 && svg.indexOf("var(--c-sunken)") !== -1);
+  assertTrue(svg.indexOf("var(--c-primary)") !== -1 && svg.indexOf("var(--c-primary-soft)") !== -1);
+  assertEqual(svg.indexOf("var(--c-sunken)"), -1);
+  assertTrue(svg.indexOf('stroke-dasharray="4 4"') !== -1, "predicted window is dashed");
   assertTrue(svg.indexOf('role="img"') !== -1);
 });

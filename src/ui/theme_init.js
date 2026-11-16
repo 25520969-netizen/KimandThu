@@ -2,8 +2,8 @@
 (function (root) {
   "use strict";
 
-  const PAPER_LIGHT = "#FBF7F2";
-  const PAPER_DARK = "#16110F";
+  const PAPER_LIGHT = "#FFF4F7";
+  const PAPER_DARK = "#1C1217";
 
   function applyTheme(choice) {
     const html = root.document.documentElement;

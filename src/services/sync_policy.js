@@ -15,7 +15,7 @@
   const KEY_PREFIX_BY_TYPE = {
     memory: "memory", delete_memory: "memory",
     place: "place", delete_place: "place", toggle_place: "place",
-    chat_message: "chat", note: "note", period: "period"
+    period: "period"
   };
 
   /** Writes to the same record share one key, so a newer write replaces an older queued one. */
@@ -23,6 +23,11 @@
     const prefix = KEY_PREFIX_BY_TYPE[payload && payload.type];
     if (!prefix) throw new Error(`Unsupported outbox payload type: ${payload && payload.type}`);
     return prefix === "period" ? "period" : `${prefix}:${payload.id}`;
+  }
+
+  /** True for outbox keys of the removed chat and timed-note features (dropped on start). */
+  function isRetiredOutboxKey(key) {
+    return String(key).startsWith("chat:") || String(key).startsWith("note:");
   }
 
   function backoffMs(attempts) {
@@ -38,7 +43,7 @@
   function pollIntervalMs(ctx) {
     if (!ctx.visible) return null;
     if (!ctx.isAuth) return POLL_GUEST_MS;
-    const recentlyActive = ctx.chatOpen || (ctx.now - ctx.lastActivityAt) < ACTIVE_WINDOW_MS;
+    const recentlyActive = (ctx.now - ctx.lastActivityAt) < ACTIVE_WINDOW_MS;
     return recentlyActive ? POLL_ACTIVE_MS : POLL_IDLE_MS;
   }
 
@@ -58,12 +63,11 @@
     if (p.type === "delete_place") return (deleted.places || []).map(String).includes(id);
     if (p.type === "memory") return idList(pulled.memories).includes(id);
     if (p.type === "place" || p.type === "toggle_place") return idList(pulled.places).includes(id);
-    if (p.type === "chat_message") return idList(pulled.messages).includes(id);
-    if (p.type === "note") return idList(pulled.notes).includes(id);
     return false;
   }
 
   root.outboxKey = outboxKey;
+  root.isRetiredOutboxKey = isRetiredOutboxKey;
   root.backoffMs = backoffMs;
   root.isDue = isDue;
   root.pollIntervalMs = pollIntervalMs;

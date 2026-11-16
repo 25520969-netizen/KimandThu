@@ -114,3 +114,10 @@ test("commitPeriodChange bumps updatedAt, sets startDate to the latest start, sa
     assertEqual(calls.queued, 1, label + ": queued once");
   });
 });
+
+asyncTest("purgeRetiredOutbox removes only chat and note entries", async () => {
+  const removed = [];
+  app.syncEngine = { keys: () => ["chat:c1", "memory:m1", "note:n1", "period"], remove: async (k) => { removed.push(k); } };
+  await app.purgeRetiredOutbox();
+  assertEqual(removed, ["chat:c1", "note:n1"]);
+});

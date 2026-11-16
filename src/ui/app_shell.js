@@ -1,5 +1,5 @@
 /**
- * Mobile app shell: tab bar, header state, sheets, chat state and the sticky counter pill.
+ * Mobile app shell: tab bar, header state, sheets and the sticky counter pill.
  * It routes clicks to journeyApp and mirrors a few states, so no feature logic is duplicated here.
  */
 (function (root) {
@@ -10,7 +10,7 @@
   const SCROLLED_THRESHOLD_PX = 4;
   const LARGE_TEXT_ROOT_PX = 20.8;
   const FAB_SCROLL_THRESHOLD_PX = 8;
-  const CHAT_INPUT_MAX_PX = 120;
+  const PILL_HEART_PX = 14;
   const LONG_PRESS_MS = 500;
   const LONG_PRESS_MOVE_PX = 10;
 
@@ -27,7 +27,6 @@
       this.bindStickyCounter();
       this.bindSheets();
       this.bindSegmented();
-      this.bindChatState();
       this.bindThemeChoice();
     }
 
@@ -89,10 +88,10 @@
       if (size >= LARGE_TEXT_ROOT_PX) this.doc.documentElement.setAttribute("data-large-text", "");
     }
 
-    // Every dialog except who-am-i joins the overlay stack (Back closes the top one). Sheets also close with a
+    // Every dialog joins the overlay stack (Back closes the top one). Sheets also close with a
     // backdrop tap, Esc and a grabber drag. All paths end in requestClose().
     bindSheets() {
-      this.doc.querySelectorAll("dialog:not(#who-am-i-modal)").forEach((dialog) => {
+      this.doc.querySelectorAll("dialog").forEach((dialog) => {
         new MutationObserver(() => {
           if (dialog.open) this.overlays.open(dialog.id, () => this.requestClose(dialog));
           else this.overlays.closed(dialog.id);
@@ -209,67 +208,6 @@
       });
     }
 
-    // UI-05/D-05: chat is a full-screen sheet on phones. While open the page behind it is inert, Back/Esc close it,
-    // focus moves into the input and returns to the opener; the send/heart button swaps by typed text.
-    bindChatState() {
-      const drawer = this.byId("chat-drawer");
-      const input = this.byId("chat-text-input");
-      if (drawer) {
-        const background = () => Array.from(this.doc.querySelectorAll("main, .app-header, .tab-bar, footer, .fab"));
-        let opener = null;
-        const sync = () => {
-          const open = drawer.classList.contains("open");
-          this.doc.body.classList.toggle("chat-open", open);
-          background().forEach((el) => { el.inert = open; });
-          if (open) {
-            opener = this.doc.activeElement && this.doc.activeElement !== this.doc.body ? this.doc.activeElement : null;
-            this.overlays.open("chat", () => { const close = this.byId("close-chat-btn"); if (close) close.click(); }, "#chat");
-            root.setTimeout(() => { if (input && drawer.classList.contains("open")) input.focus({ preventScroll: true }); }, 260);
-          } else {
-            this.overlays.closed("chat");
-            if (opener && opener.isConnected && typeof opener.focus === "function") opener.focus({ preventScroll: true });
-            opener = null;
-          }
-        };
-        new MutationObserver(sync).observe(drawer, { attributes: true, attributeFilter: ["class"] });
-        this.doc.addEventListener("keydown", (event) => {
-          if (event.key === "Escape" && drawer.classList.contains("open")) {
-            const close = this.byId("close-chat-btn");
-            if (close) close.click();
-          }
-        });
-      }
-      if (input) {
-        const form = this.byId("chat-form");
-        const sync = () => {
-          form.classList.toggle("has-text", input.value.trim() !== "");
-          input.style.height = "auto";
-          input.style.height = Math.min(input.scrollHeight, CHAT_INPUT_MAX_PX) + "px";
-        };
-        input.addEventListener("input", sync);
-        input.addEventListener("keydown", (event) => {
-          if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
-          event.preventDefault();
-          if (input.value.trim() !== "" || root.journeyApp.chatPendingImage) form.requestSubmit();
-        });
-        input.form.addEventListener("submit", () => root.setTimeout(sync, 0));
-        sync();
-        this.bindKeyboardOffset(drawer);
-      }
-    }
-
-    // Keeps the chat input above the on-screen keyboard (visualViewport): sets --kb-offset on the drawer.
-    bindKeyboardOffset(drawer) {
-      const viewport = root.visualViewport;
-      if (!drawer || !viewport) return;
-      const update = () => {
-        const offset = Math.max(0, root.innerHeight - viewport.height - viewport.offsetTop);
-        drawer.style.setProperty("--kb-offset", offset + "px");
-      };
-      viewport.addEventListener("resize", update);
-      viewport.addEventListener("scroll", update);
-    }
-
     // D-09: Auto / Light / Dark choice, stored on this device only (theme_init.js applies it before first paint)
     bindThemeChoice() {
       const buttons = Array.from(this.doc.querySelectorAll("[data-theme-choice]"));
@@ -361,7 +299,7 @@
       const days = this.byId("count-days");
       if (!pill || !hero || !days || typeof IntersectionObserver === "undefined") return;
       const refresh = () => {
-        pill.innerHTML = `<strong>${root.escapeHtml(days.textContent)}</strong> ngày`;
+        pill.innerHTML = `${root.icon("heart", { size: PILL_HEART_PX, filled: true })}<strong>${root.escapeHtml(days.textContent)}</strong> ngày`;
       };
       new MutationObserver(refresh).observe(days, { childList: true, characterData: true, subtree: true });
       new IntersectionObserver((entries) => {

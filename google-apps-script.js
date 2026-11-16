@@ -25,8 +25,6 @@ var MIN_PASSCODE_LENGTH = 12;
 var SHEET_DEFS = {
   memories: { name: "Memories", header: ["ID", "Title", "Date", "Location", "ImageUrl", "Story", "CreatedAt", "UpdatedAt", "Deleted", "PlaceId"] },
   places:   { name: "Places",   header: ["ID", "Name", "MapUrl", "TiktokUrl", "Lat", "Lng", "Notes", "Visited", "CreatedAt", "UpdatedAt", "Deleted"] },
-  messages: { name: "Messages", header: ["ID", "Sender", "Text", "ImageUrl", "Timestamp", "CreatedAt"] },
-  notes:    { name: "Notes",    header: ["ID", "Sender", "Text", "OpenAt", "CreatedAt", "UpdatedAt", "Deleted"] },
   period:   { name: "Period",   header: ["ID", "StartDate", "CycleLength", "DurationDays", "HistoryJson", "UpdatedAt"] },
   tasks:    { name: "Tasks",    header: ["ID", "Title", "Category", "TargetDate", "Notes", "Completed", "CreatedAt"] }
 };
@@ -203,20 +201,6 @@ function handleDeleteMemory_(ss, data) {
   return { status: "success", id: id, deletedId: id, deletedFileId: deletedFileId };
 }
 
-function handleChat_(ss, data) {
-  var id = requireId_(data);
-  var sheet = getSheet_(ss, SHEET_DEFS.messages);
-  var row = findRow_(sheet, id);
-  var old = readRow_(sheet, row, 6);
-  var imageUrl = old && old[3] ? String(old[3]) : saveImage_(data.imageBase64, "chat_");
-  if (!imageUrl && String(data.image || "").indexOf("https://") === 0) imageUrl = data.image;
-  writeRow_(sheet, row, [
-    id, data.sender || "", data.text || "", imageUrl,
-    data.timestamp || new Date().toISOString(), old ? old[5] : new Date()
-  ]);
-  return { status: "success", id: id, imageUrl: imageUrl };
-}
-
 function handlePlace_(ss, data) {
   var id = requireId_(data);
   var sheet = getSheet_(ss, SHEET_DEFS.places);
@@ -254,19 +238,6 @@ function handleTogglePlace_(ss, data) {
   return { status: "success", id: id };
 }
 
-function handleNote_(ss, data) {
-  var id = requireId_(data);
-  var sheet = getSheet_(ss, SHEET_DEFS.notes);
-  var row = findRow_(sheet, id);
-  var old = readRow_(sheet, row, 7);
-  if (old && isTrue_(old[6])) return { status: "success", deleted: true, id: id };
-  writeRow_(sheet, row, [
-    id, data.sender || "", data.text || "", data.openAt || "",
-    old ? old[4] : new Date().toISOString(), Date.now(), data.deleted === true
-  ]);
-  return { status: "success", id: id };
-}
-
 /** Dữ liệu kỳ dâu: last-writer-wins theo updatedAt do client gửi. */
 function handlePeriod_(ss, data) {
   var sheet = getSheet_(ss, SHEET_DEFS.period);
@@ -293,11 +264,9 @@ function handleTask_(ss, data) {
 var POST_HANDLERS = {
   memory: handleMemory_,
   delete_memory: handleDeleteMemory_,
-  chat_message: handleChat_,
   place: handlePlace_,
   delete_place: handleDeletePlace_,
   toggle_place: handleTogglePlace_,
-  note: handleNote_,
   period: handlePeriod_,
   task: handleTask_
 };
@@ -373,33 +342,6 @@ function collectPlaces_(ss, since, out) {
   });
 }
 
-function collectMessages_(ss, since, out) {
-  readRows_(ss, SHEET_DEFS.messages, 6).forEach(function (r) {
-    if (toMillis_(r[5]) <= since) return;
-    out.messages.push({ id: String(r[0]), sender: r[1], text: r[2], image: r[3], timestamp: r[4] });
-  });
-}
-
-/** Ghi chú hẹn giờ: server giữ kín nội dung cho tới khi đến giờ mở. */
-function collectNotes_(ss, since, out) {
-  var now = Date.now();
-  readRows_(ss, SHEET_DEFS.notes, 7).forEach(function (r) {
-    var updatedAt = toMillis_(r[5]);
-    var openAt = toMillis_(r[3]);
-    var unlocked = openAt > 0 && openAt <= now;
-    var justUnlocked = unlocked && openAt > since;
-    if (updatedAt <= since && !justUnlocked) return;
-    if (isTrue_(r[6])) {
-      out.deleted.notes.push(String(r[0]));
-      return;
-    }
-    out.notes.push({
-      id: String(r[0]), sender: r[1], text: unlocked ? r[2] : "", openAt: r[3] ? String(r[3]) : "",
-      locked: !unlocked, createdAt: r[4] ? String(r[4]) : "", updatedAt: updatedAt
-    });
-  });
-}
-
 function readPeriod_(ss) {
   var rows = readRows_(ss, SHEET_DEFS.period, 6);
   if (rows.length === 0) return null;
@@ -419,14 +361,12 @@ function doGet(e) {
   var since = Math.max(0, Number(params.since) || 0);
   var out = {
     serverTime: Date.now(), isAuth: isAuth, since: since,
-    memories: [], places: [], messages: [], notes: [], period: null, tasks: [],
-    deleted: { memories: [], places: [], notes: [] }
+    memories: [], places: [], period: null, tasks: [],
+    deleted: { memories: [], places: [] }
   };
   collectMemories_(ss, since, out);
   collectPlaces_(ss, since, out);
   if (isAuth) {
-    collectMessages_(ss, since, out);
-    collectNotes_(ss, since, out);
     out.period = readPeriod_(ss);
   }
   return json_(out);

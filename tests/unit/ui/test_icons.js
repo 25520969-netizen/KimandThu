@@ -1,7 +1,7 @@
 // icon(): every required glyph renders as a stroked currentColor SVG.
 
-const REQUIRED_ICONS = ["home", "pin", "chat", "drop", "plus", "music", "settings", "lock", "navigation", "check",
-  "cloud-pending", "more", "chevron-down", "chevron-right", "eye", "eye-off", "camera", "heart", "send", "close",
+const REQUIRED_ICONS = ["home", "pin", "drop", "plus", "music", "settings", "lock", "navigation", "check",
+  "cloud-pending", "more", "chevron-down", "chevron-right", "eye", "eye-off", "camera", "heart", "close",
   "clock", "alert", "share", "edit", "trash", "locate", "tiktok"];
 
 test("icon: every required name returns a stroked currentColor svg", () => {

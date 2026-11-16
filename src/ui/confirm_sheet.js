@@ -7,9 +7,10 @@
   "use strict";
 
   const SHEET_ID = "confirm-sheet";
+  const ICON_SIZE_PX = 18;
 
   /**
-   * @param {{title: string, body?: string, confirmLabel: string, cancelLabel?: string, danger?: boolean}} options
+   * @param {{title: string, body?: string, confirmLabel: string, cancelLabel?: string, danger?: boolean, icon?: string}} options
    * @returns {Promise<boolean>}
    */
   function confirmSheet(options) {
@@ -23,8 +24,12 @@
     const body = doc.getElementById("confirm-sheet-body");
     body.textContent = options.body || "";
     body.hidden = !options.body;
-    ok.textContent = options.confirmLabel;
-    ok.classList.toggle("btn--danger-text", !!options.danger);
+    ok.textContent = "";
+    if (options.icon) ok.insertAdjacentHTML("afterbegin", root.icon(options.icon, { size: ICON_SIZE_PX }));
+    const label = doc.createElement("span");
+    label.textContent = options.confirmLabel;
+    ok.appendChild(label);
+    ok.classList.toggle("btn--danger", !!options.danger);
     ok.classList.toggle("btn--primary", !options.danger);
     cancel.textContent = options.cancelLabel || "";
     cancel.hidden = !options.cancelLabel;

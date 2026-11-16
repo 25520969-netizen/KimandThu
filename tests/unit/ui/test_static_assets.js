@@ -5,7 +5,7 @@ const swSource = readText("sw.js");
 const appSource = readText("app.js");
 
 const NEW_CSS = ["src/styles/tokens.css", "src/styles/base.css", "src/styles/components.css", "src/styles/shell.css",
-  "src/styles/moments.css", "src/styles/places.css", "src/styles/chat.css", "src/styles/be.css"];
+  "src/styles/moments.css", "src/styles/places.css", "src/styles/be.css"];
 
 function localAssets(html) {
   const found = [];
@@ -74,7 +74,7 @@ function contrast(a, b) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-test("Album Kem: §2.1 text pairs meet 4.5:1 and controls 3:1 (light and dark)", () => {
+test("Kẹo Bông: §2.1 text pairs meet 4.5:1 and controls 3:1 (light and dark)", () => {
   const tokens = readText("src/styles/tokens.css");
   const lightBlock = tokens.match(/:root \{([\s\S]*?)\n\}/)[1];
   const darkBlock = tokens.match(/:root\[data-theme="dark"\] \{([\s\S]*?)\n\}/)[1];
@@ -86,7 +86,11 @@ test("Album Kem: §2.1 text pairs meet 4.5:1 and controls 3:1 (light and dark)",
     ["c-danger", "c-success", "c-warn"].forEach((n) => assertTrue(contrast(c(n), c(surfaceOnly)) >= 4.5, theme + " " + n));
     assertTrue(contrast(c("c-muted"), c("c-sunken")) >= 4.5, theme + " muted on sunken");
     assertTrue(contrast(c("c-on-primary"), c("c-primary")) >= 4.5, theme + " on-primary on primary");
-    assertTrue(contrast(c("c-primary"), c("c-primary-soft")) >= 4.5, theme + " primary on primary-soft");
+    assertTrue(contrast(c("c-primary-strong"), c("c-primary-soft")) >= 4.5, theme + " primary-strong on primary-soft");
+    assertTrue(contrast(c("c-primary-strong"), c("c-sunken")) >= 4.5, theme + " primary-strong on sunken");
+    assertTrue(contrast(c("c-on-toast"), c("c-toast")) >= 4.5, theme + " on-toast on toast");
+    assertTrue(contrast(c("c-toast-action"), c("c-toast")) >= 4.5, theme + " toast-action on toast");
+    assertTrue(contrast(c("c-control"), c("c-sunken")) >= 3, theme + " control on sunken");
     assertTrue(contrast(c("c-control"), c("c-bg")) >= 3, theme + " control on bg");
     assertTrue(contrast(c("c-control"), c("c-surface")) >= 3, theme + " control on surface");
     assertTrue(contrast(c("c-focus"), c("c-bg")) >= 3, theme + " focus on bg");
@@ -124,20 +128,20 @@ test("UI-09: at most 3 infinite animations in the new stylesheets (skeleton, but
   assertTrue(count <= 3, `infinite animations: ${count}`);
 });
 
-test("petals: at most 8 and the loop is gated", () => {
+test("hearts: 12 or 16, a static frame of 8, and a gated loop", () => {
   const petals = readText("src/ui/petal_canvas.js");
-  assertTrue(/DEFAULT_COUNT = [0-8];/.test(petals) && /MAX_COUNT = 8;/.test(petals), "petal count");
-  ["IntersectionObserver", "prefers-reduced-motion", "visibilitychange"].forEach((s) => assertTrue(petals.indexOf(s) !== -1, s));
+  [/PHONE_COUNT = 12;/, /WIDE_COUNT = 16;/, /STATIC_COUNT = 8;/].forEach((re) => assertTrue(re.test(petals), String(re)));
+  ["prefers-reduced-motion", "visibilitychange", "dialog[open]"].forEach((s) => assertTrue(petals.indexOf(s) !== -1, s));
   ["PETAL_COUNT", "spawnHeartBurst", "spawnHeartConfetti"].forEach((s) => assertEqual(appSource.indexOf(s), -1, s));
+  const base = readText("src/styles/base.css");
+  assertEqual(/#petal-canvas\s*\{\s*display:\s*none/.test(base), false);
+  assertTrue(/#burst-canvas\s*\{/.test(base), "burst canvas rule");
+  assertTrue(indexHtml.includes('id="burst-canvas"'), "burst canvas element");
 });
 
 test("D-02: app shell does not inject a second close button into sheets", () => {
   assertEqual(/sheet-close-btn/.test(readText("src/ui/app_shell.js")), false);
   assertEqual(/sheet-close-btn/.test(readText("src/styles/components.css")), false);
-});
-
-test("D-13: the who-am-i prompt cannot be dismissed by backdrop tap", () => {
-  assertEqual(/:not\(#who-am-i-modal\)/.test(readText("src/ui/app_shell.js")), true);
 });
 
 test("places: chip row scrolls inside itself", () => {
@@ -147,7 +151,6 @@ test("places: chip row scrolls inside itself", () => {
 
 test("D-04: form fields are 16px so iOS does not zoom on focus", () => {
   const css = readText("src/styles/components.css");
-  assertEqual(/#chat-text-input\s*\{[^}]*font-size:\s*16px/.test(readText("src/styles/chat.css")), true);
   assertEqual(/\.field (input|textarea|select)[^{]*\{[^}]*font-size:\s*16px/.test(css), true);
   ["input", "textarea", "select"].forEach((tag) => {
     const rule = css.match(/\.field input[^{]*\{[^}]*\}/);
@@ -155,18 +158,10 @@ test("D-04: form fields are 16px so iOS does not zoom on focus", () => {
   });
 });
 
-test("D-11: chat input asks for a send key", () => {
-  assertEqual(/id="chat-text-input"[^>]*enterkeyhint="send"/.test(indexHtml), true);
-});
-
 test("D-03: sheets drag by a grabber with touch-action none, not the whole card", () => {
   const css = readText("src/styles/components.css");
   assertEqual(/\.sheet__grabber\s*\{[^}]*touch-action:\s*none/.test(css), true);
   assertEqual(/\.sheet__card\s*\{[^}]*touch-action:\s*pan-y/.test(css), false);
-});
-
-test("D-05: chat is announced as a modal dialog", () => {
-  assertEqual(/id="chat-drawer"[^>]*role="dialog"[^>]*aria-modal="true"/.test(indexHtml), true);
 });
 
 test("D-07/D-09: tokens.css defines light and dark themes and loads first", () => {
@@ -176,16 +171,15 @@ test("D-07/D-09: tokens.css defines light and dark themes and loads first", () =
   assertEqual(indexHtml.indexOf("tokens.css") < indexHtml.indexOf('href="src/styles/base.css'), true);
 });
 
-test("D-09: dark tokens are warm brown-black, not pink-brown", () => {
+test("D-09: dark tokens are a warm plum-black, not pink-brown", () => {
   const tokens = readText("src/styles/tokens.css");
-  assertTrue(/--c-bg:\s*#16110F/.test(tokens), "dark --c-bg");
+  assertTrue(/--c-bg:\s*#1C1217/.test(tokens), "dark --c-bg");
   assertEqual(tokens.toLowerCase().indexOf("#1f1418"), -1);
 });
 
 test("D-10: petal canvas is DPR-aware and pauses under overlays", () => {
   const petals = readText("src/ui/petal_canvas.js");
   assertEqual(/devicePixelRatio/.test(petals), true);
-  assertEqual(/chat-open/.test(petals), true);
   assertEqual(/dialog\[open\]/.test(petals), true);
 });
 
@@ -197,10 +191,11 @@ test("theme defaults to light; dark/auto only when the user chooses it", () => {
   assertEqual(/getItem\("kimthu_theme"\) \|\| "light"/.test(readText("src/ui/theme_init.js")), true);
 });
 
-test("fonts: only Playfair Display, Be Vietnam Pro and Caveat load", () => {
+test("fonts: only Nunito, Be Vietnam Pro and Caveat load", () => {
   const url = indexHtml.match(/https:\/\/fonts\.googleapis\.com\/css2\?[^"]+/)[0];
   const families = (url.match(/family=[^:&]+/g) || []).map((f) => f.slice(7)).sort();
-  assertEqual(families.join(","), "Be+Vietnam+Pro,Caveat,Playfair+Display");
+  assertEqual(families.join(","), "Be+Vietnam+Pro,Caveat,Nunito");
+  assertEqual(/Playfair/.test(indexHtml), false);
   assertEqual(/Outfit/.test(indexHtml), false);
 });
 
@@ -217,20 +212,24 @@ test("fonts: Caveat is used only by .hand", () => {
   assertEqual(/Caveat|--font-hand/.test(appSource), false);
 });
 
-test("theme-color: two media metas with paper colours, no pink", () => {
-  assertTrue(/<meta name="theme-color" content="#FBF7F2" media="\(prefers-color-scheme: light\)">/.test(indexHtml), "light meta");
-  assertTrue(/<meta name="theme-color" content="#16110F" media="\(prefers-color-scheme: dark\)">/.test(indexHtml), "dark meta");
+test("theme-color: two media metas with the page colours", () => {
+  assertTrue(/<meta name="theme-color" content="#FFF4F7" media="\(prefers-color-scheme: light\)">/.test(indexHtml), "light meta");
+  assertTrue(/<meta name="theme-color" content="#1C1217" media="\(prefers-color-scheme: dark\)">/.test(indexHtml), "dark meta");
   const theme = readText("src/ui/theme_init.js");
-  ["#ff758f", "#1f1418"].forEach((hex) => {
+  ["#ff758f", "#1f1418", "#fbf7f2", "#16110f"].forEach((hex) => {
     assertEqual(indexHtml.toLowerCase().indexOf(hex), -1, hex + " in index.html");
     assertEqual(theme.toLowerCase().indexOf(hex), -1, hex + " in theme_init.js");
   });
+  const manifest = JSON.parse(readText("manifest.json"));
+  assertEqual([manifest.background_color, manifest.theme_color], ["#FFF4F7", "#FFF4F7"]);
 });
 
-test("components: no gradients and no pink-tinted shadows in the new stylesheets", () => {
+test("components: the photo scrim token is the only gradient", () => {
   NEW_CSS.forEach((f) => {
     const css = readText(f);
-    assertEqual(/gradient\(/.test(css), false, f + " has a gradient");
+    css.split("\n").filter((line) => /gradient\(/.test(line)).forEach((line) => {
+      assertTrue(f === "src/styles/tokens.css" && /^\s*--c-photo-scrim:/.test(line), f + " has a gradient: " + line.trim());
+    });
     assertEqual(/box-shadow:[^;]*rgba\((255|201),/.test(css), false, f + " has a pink shadow");
   });
 });
@@ -244,7 +243,7 @@ test("shell: legacy nav menu and floating chat button are gone", () => {
 test("shell: guest tab bar has no unlock tab", () => {
   const bar = indexHtml.match(/<nav class="tab-bar"[\s\S]*?<\/nav>/)[0];
   assertEqual(/class="tab[^"]*guest-only/.test(bar), false);
-  assertEqual((bar.match(/<button/g) || []).length, 4);
+  assertEqual((bar.match(/<button/g) || []).length, 3);
 });
 
 test("shell: header has at most two icon buttons per mode", () => {
@@ -262,11 +261,11 @@ test("FAB: one page-aware add button; no inline + buttons", () => {
   assertTrue(shell.indexOf("openMemoryDialog") !== -1 && shell.indexOf("openPlaceDialog") !== -1);
 });
 
-test("moments: no pink heart placeholder for failed photos", () => {
+test("moments: a failed photo becomes the heart card with a retry button", () => {
   assertEqual(/locket-photo-placeholder/.test(appSource), false);
   assertEqual(/locket-photo-placeholder/.test(readText("src/ui/templates.js")), false);
   const fn = appSource.slice(appSource.indexOf("showMemoryTextFallback("));
-  assertTrue(fn.indexOf("memoryTextCardHtml") !== -1, "failed photos become text cards");
+  assertTrue(fn.indexOf("memoryFailedCardHtml") !== -1, "failed photos become the heart card");
 });
 
 test("settings: no reset-to-defaults button; lock action lives in settings", () => {
@@ -380,9 +379,100 @@ test("fluid: place actions use container queries, not window width", () => {
   assertEqual(appSource.indexOf("COMPACT_WIDTH_PX"), -1);
 });
 
-test("fluid: FAB and tab bar clear the notch; chat content is centred", () => {
+test("fluid: FAB and tab bar clear the notch", () => {
   const shell = readText("src/styles/shell.css");
-  const chat = readText("src/styles/chat.css");
   assertTrue(shell.includes("var(--safe-left)") && shell.includes("max(var(--gutter), var(--safe-right))"), "shell safe areas");
-  assertTrue(chat.includes("calc((100% - 720px) / 2)") && !chat.includes("max-width: 720px"), "chat column");
+});
+
+test("chat and timed notes are gone from app.js", () => {
+  ["chatMessages", "toggleChatDrawer", "mergeChat", "mergeNotes", "promptSenderIfNeeded", "initChat", "initNotes", "NOTES_KEY", "chatOpen"]
+    .forEach((name) => assertEqual(appSource.includes(name), false, name));
+  ["journey_chat_messages_v1", "journey_notes_v1", "journey_chat_sender_v1", "journey_chat_sender_chosen_v1"]
+    .forEach((key) => assertTrue(appSource.includes(key), key));
+  assertTrue(appSource.includes("await this.purgeRetiredOutbox()"), "purge is awaited");
+  const ctor = appSource.slice(appSource.indexOf("constructor() {"), appSource.indexOf("loadData(key, fallback) {"));
+  assertTrue(ctor.includes("this.purgeRetiredLocalData()"), "constructor purges retired local data");
+});
+
+test("chat, who-am-i and timed notes are gone from the shell", () => {
+  ["chat-drawer", "tab-chat", "who-am-i", "notes-modal", "chat.css", "chat_layout"].forEach((name) => {
+    assertEqual(indexHtml.includes(name), false, "index.html " + name);
+    assertEqual(swSource.includes(name), false, "sw.js " + name);
+  });
+  NEW_CSS.concat(["src/ui/app_shell.js", "src/ui/petal_canvas.js"]).forEach((file) => assertEqual(readText(file).includes("chat-open"), false, file));
+});
+
+test("tokens: both dark blocks are identical", () => {
+  const tokens = readText("src/styles/tokens.css");
+  const dark = tokens.match(/:root\[data-theme="dark"\] \{([\s\S]*?)\n\}/)[1];
+  const auto = tokens.match(/:root:not\(\[data-theme="light"\]\):not\(\[data-theme="dark"\]\) \{([\s\S]*?)\n  \}/)[1];
+  const lines = (block) => block.split("\n").map((l) => l.trim()).filter(Boolean).join("\n");
+  assertEqual(lines(auto), lines(dark));
+});
+
+test("components: pill buttons, a filled danger button and 48 px fields", () => {
+  const css = readText("src/styles/components.css");
+  assertTrue(/\.btn--danger\s*\{/.test(css), ".btn--danger exists");
+  assertTrue(/\.btn\s*\{[^}]*border-radius:\s*var\(--r-pill\)/.test(css), ".btn is a pill");
+  assertTrue(/\.field input[^{]*\{[^}]*min-height:\s*48px/.test(css), "field controls are 48 px tall");
+  assertTrue(/\.field input[^{]*\{[^}]*font-size:\s*16px/.test(css), "field controls stay 16 px");
+  const confirm = readText("src/ui/confirm_sheet.js");
+  assertTrue(confirm.includes('"btn--danger"'), "confirm sheet uses btn--danger");
+  assertEqual(confirm.includes("btn--danger-text"), false);
+});
+
+test("shell: floating pill tab bar with a heart tab icon", () => {
+  const tokens = readText("src/styles/tokens.css");
+  assertTrue(tokens.includes("--tabbar-h: 60px"), "--tabbar-h");
+  const shell = readText("src/styles/shell.css");
+  const rule = shell.match(/\.tab-bar\s*\{[^}]*\}/)[0];
+  assertTrue(rule.includes("border-radius: var(--r-pill)") && rule.includes("var(--safe-left)"), ".tab-bar is a pill and clears the notch");
+  assertTrue(shell.includes("max(var(--gutter), var(--safe-right))"), "FAB clears the right notch");
+  const bar = indexHtml.match(/<nav class="tab-bar"[\s\S]*?<\/nav>/)[0];
+  assertTrue(bar.includes("M12 20s-8-4.9-8-11"), "heart path");
+  assertEqual(bar.includes("M3 11l9-8 9 8"), false);
+});
+
+test("hero: avatar pair, heart button, counter card and milestone heart", () => {
+  assertTrue(/id="hero-heart-btn"[^>]*aria-label="Thả tim"|aria-label="Thả tim"[^>]*id="hero-heart-btn"/.test(indexHtml), "heart button label");
+  ["id=\"avatar-one\"", "id=\"avatar-two\"", "class=\"counter-card\"", "milestone__heart", "id=\"hero-days\"", "id=\"count-days\"",
+    "id=\"milestone-bar\"", "id=\"milestone-fill\"", "id=\"milestone-line\"", "id=\"partner-one-name\"", "id=\"partner-two-name\"",
+    "id=\"hero-custom-quote\""].forEach((needle) => assertTrue(indexHtml.includes(needle), needle));
+  const hero = indexHtml.match(/<section class="hero page" id="hero"[\s\S]*?<\/section>/)[0];
+  assertTrue(/<h1 class="visually-hidden"/.test(hero), "hero h1 is visually hidden");
+});
+
+test("sheets: badges, large detail title, the failed detail photo and the hearts label", () => {
+  assertTrue(indexHtml.includes("Trái tim bay") && !indexHtml.includes("Cánh hoa bay"), "settings label");
+  ["auth-modal", "period-alert-modal"].forEach((id) => {
+    const block = indexHtml.match(new RegExp('<dialog id="' + id + '"[\\s\\S]*?</dialog>'))[0];
+    assertTrue(block.includes("sheet__badge"), id + " has a badge");
+  });
+  assertTrue(/id="memory-detail-title" class="large-title"/.test(indexHtml), "detail title is large");
+  const render = appSource.slice(appSource.indexOf("renderDetailPhoto(mem) {"));
+  const renderBody = render.slice(0, render.indexOf("\n  }\n"));
+  ["detailPhotoHtml", "detailPhotoFailedHtml", "error"].forEach((needle) => assertTrue(renderBody.includes(needle), "renderDetailPhoto " + needle));
+  const bind = appSource.slice(appSource.indexOf("bindMemoryDetail() {"), appSource.indexOf("async shareMemory("));
+  assertTrue(bind.includes("detail__retry"), "retry is handled");
+  const open = appSource.slice(appSource.indexOf("openMemoryDetail(mem) {"), appSource.indexOf("renderMemoryStory("));
+  assertTrue(open.includes("renderDetailPhoto") && !open.includes("<img"), "openMemoryDetail delegates the photo");
+  const moments = readText("src/styles/moments.css");
+  assertTrue(/\.photo-lightbox-modal\s*\{[^}]*background:\s*rgba\(0, 0, 0, 0\.92\)/.test(moments), "lightbox 92 % on the dialog");
+  assertTrue(/\.photo-lightbox-modal::backdrop\s*\{[^}]*background:\s*transparent/.test(moments), "backdrop transparent");
+});
+
+test("places: white cards, 40 px actions and a label-free row below 280 px", () => {
+  const places = readText("src/styles/places.css");
+  const place = places.match(/\.place\s*\{[^}]*\}/)[0];
+  assertTrue(place.includes("border-radius: var(--r-lg)") && place.includes("background: var(--c-surface)"), ".place is a card");
+  [/container-type:\s*inline-size/, /@container\s*\(max-width:\s*439px\)/, /@container\s*\(max-width:\s*319px\)/, /@container\s*\(max-width:\s*279px\)/]
+    .forEach((re) => assertTrue(re.test(places), String(re)));
+  assertTrue(/\.place__actions \.btn\s*\{[^}]*min-height:\s*40px/.test(places), "action buttons are 40 px tall");
+  assertTrue(appSource.includes("PLACES_SKELETON_ROWS = 4"), "four skeleton rows");
+});
+
+test("copy: no emoji in toasts, status text or placeholders", () => {
+  appSource.split("\n").filter((line) => /showToast\(|textContent\s*=|placeholder\s*=/.test(line))
+    .forEach((line) => assertEqual(EMOJI.test(line), false, line.trim()));
+  assertEqual(EMOJI.test(readText("src/services/milestones.js")), false, "milestones.js");
 });

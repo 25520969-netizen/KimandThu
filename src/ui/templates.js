@@ -29,53 +29,66 @@
     return label;
   }
 
-  function avatarHtml(initial) {
-    if (initial !== "K" && initial !== "T") return "";
-    return '<span class="avatar avatar--20 avatar--' + (initial === "K" ? "k" : "t") + '">' + initial + "</span>";
+  const STATUS_ICON_PX = 14;
+  const FAILED_ART_PX = 48;
+  const OTD_DISPLAY_PX = 48;
+
+  function pendingStatusHtml() {
+    return root.icon("cloud-pending", { size: STATUS_ICON_PX }) + "Chưa đồng bộ";
   }
 
-  function metaRowHtml(mem, senderInitial) {
+  /** "25/10 · 17:09 · Place" (plain text, escaped). */
+  function metaTextHtml(mem) {
     const place = locationLabel(mem.location);
     const parts = [root.escapeHtml(metaDate(mem.date))];
     if (place) parts.push(root.escapeHtml(place));
-    const pending = mem.syncState === "pending"
-      ? ' <span class="status status--warn">' + root.icon("cloud-pending", { size: 14 }) + "Chưa đồng bộ</span>"
-      : "";
-    return '<p class="memory__meta t-meta muted">' + parts.join(" · ") + pending + " " + avatarHtml(senderInitial) + "</p>";
+    return parts.join(" · ");
+  }
+
+  function metaRowHtml(mem, extraClasses) {
+    return '<p class="memory__meta t-meta' + (extraClasses || "") + '">' + metaTextHtml(mem) + "</p>";
+  }
+
+  function titleHtml(mem) {
+    return '<h3 class="memory__title t-title clamp-2">' + root.escapeHtml(mem.title) + "</h3>";
+  }
+
+  function openButtonOpen(mem) {
+    return '<button type="button" class="memory__open" aria-label="' + root.escapeHtml(mem.title) + '">';
   }
 
   function quoteHtml(mem) {
     return mem.story ? '<p class="memory__quote hand clamp-3">“' + root.escapeHtml(mem.story) + "”</p>" : "";
   }
 
-  function textBlock(mem, opts, classes, retry) {
-    const retryBtn = retry
-      ? '<button type="button" class="btn btn--text memory__retry" data-id="' + root.escapeHtml(mem.id) +
-        '">Ảnh chưa tải được · Thử lại</button>'
-      : "";
-    return '<article class="' + classes + '" data-id="' + root.escapeHtml(mem.id) + '">' +
-      '<button type="button" class="memory__open" aria-label="' + root.escapeHtml(mem.title) + '">' +
-      '<h3 class="memory__title t-title clamp-2">' + root.escapeHtml(mem.title) + "</h3>" +
-      metaRowHtml(mem, opts && opts.senderInitial) + quoteHtml(mem) + "</button>" + retryBtn + "</article>";
+  /** A moment without a photo: title, meta (with the inline pending status) and the story. */
+  function memoryTextCardHtml(mem) {
+    const pending = mem.syncState === "pending" ? ' <span class="status status--warn">' + pendingStatusHtml() + "</span>" : "";
+    return '<article class="memory memory--text" data-id="' + root.escapeHtml(mem.id) + '">' + openButtonOpen(mem) +
+      titleHtml(mem) + '<p class="memory__meta t-meta muted">' + metaTextHtml(mem) + pending + "</p>" + quoteHtml(mem) +
+      "</button></article>";
   }
 
-  /** @param {{retry: boolean}} opts */
-  function memoryTextCardHtml(mem, opts) {
-    return textBlock(mem, opts, "memory memory--text", !!(opts && opts.retry));
+  /** A photo that failed to load: the pink heart box, the title and a retry button outside the open button. */
+  function memoryFailedCardHtml(mem) {
+    return '<article class="memory memory--failed" data-id="' + root.escapeHtml(mem.id) + '">' + openButtonOpen(mem) +
+      '<div class="memory__photo memory__photo--failed">' + root.icon("heart", { size: FAILED_ART_PX }) + "</div>" +
+      '<div class="memory__overlay memory__overlay--plain">' + titleHtml(mem) + metaRowHtml(mem, " muted") + "</div></button>" +
+      '<button type="button" class="btn btn--text memory__retry" data-id="' + root.escapeHtml(mem.id) +
+      '">Ảnh chưa tải được · Thử lại</button></article>';
   }
 
-  /** @param {{couple: boolean, senderInitial?: string}} opts */
+  /** @param {{couple: boolean}} opts */
   function memoryBlockHtml(mem, opts) {
     const image = root.safeUrl(mem.image, IMAGE_URL_OPTIONS);
-    if (!image) return memoryTextCardHtml(mem, { retry: false, senderInitial: opts && opts.senderInitial });
+    if (!image) return memoryTextCardHtml(mem);
     const src = root.resizeDriveThumbnail(image, FEED_THUMB_PX);
-    return '<article class="memory" data-id="' + root.escapeHtml(mem.id) + '">' +
-      '<button type="button" class="memory__open" aria-label="' + root.escapeHtml(mem.title) + '">' +
+    const badge = mem.syncState === "pending" ? '<span class="memory__badge status status--warn">' + pendingStatusHtml() + "</span>" : "";
+    return '<article class="memory memory--photo" data-id="' + root.escapeHtml(mem.id) + '">' + openButtonOpen(mem) +
       '<div class="memory__photo skeleton"><img class="memory__img" src="' + root.escapeHtml(src) + '" alt="' +
       root.escapeHtml(mem.title) + '" width="800" height="1000" loading="lazy" decoding="async" data-fallback-src="' +
       root.escapeHtml(image) + '"></div>' +
-      '<h3 class="memory__title t-title clamp-2">' + root.escapeHtml(mem.title) + "</h3>" +
-      metaRowHtml(mem, opts && opts.senderInitial) + quoteHtml(mem) + "</button></article>";
+      '<div class="memory__overlay">' + titleHtml(mem) + metaRowHtml(mem) + "</div>" + badge + "</button></article>";
   }
 
   function gridTileHtml(mem) {
@@ -88,7 +101,7 @@
   }
 
   function monthLabelHtml(yearMonth) {
-    return '<h2 class="month-label t-meta">' + root.escapeHtml(root.formatMonthLabel(yearMonth)) + "</h2>";
+    return '<h2 class="month-label t-headline">' + root.escapeHtml(root.formatMonthLabel(yearMonth)) + "</h2>";
   }
 
   /** @param {{memory: object, yearsAgo: number}} hit */
@@ -96,7 +109,7 @@
     const mem = hit.memory;
     const image = root.safeUrl(mem.image, IMAGE_URL_OPTIONS);
     const thumb = image
-      ? '<img class="otd-row__thumb" src="' + root.escapeHtml(root.resizeDriveThumbnail(image, OTD_THUMB_PX)) + '" alt="" width="40" height="40">'
+      ? '<img class="otd-row__thumb" src="' + root.escapeHtml(root.resizeDriveThumbnail(image, OTD_THUMB_PX)) + '" alt="" width="' + OTD_DISPLAY_PX + '" height="' + OTD_DISPLAY_PX + '">'
       : '<span class="otd-row__thumb" aria-hidden="true"></span>';
     const place = locationLabel(mem.location);
     const sub = hit.yearsAgo + " năm trước" + (place ? " · " + place : "");
@@ -105,9 +118,22 @@
       root.escapeHtml(sub) + "</span></span>" + root.icon("chevron-right") + "</button>";
   }
 
+  /** The detail sheet's photo: a button that opens the lightbox; "" when the photo URL is empty or unsafe. */
+  function detailPhotoHtml(mem) {
+    const image = root.safeUrl(mem.image, IMAGE_URL_OPTIONS);
+    if (!image) return "";
+    return '<button type="button" class="detail__photo" aria-label="Phóng to ảnh"><img src="' + root.escapeHtml(image) +
+      '" alt="' + root.escapeHtml(mem.title) + '"></button>';
+  }
+
+  /** Shown when the detail photo fails to load. It must not carry the class detail__photo (that opens the lightbox). */
+  function detailPhotoFailedHtml() {
+    return '<div class="detail__failed">' + root.icon("heart", { size: FAILED_ART_PX }) +
+      '<button type="button" class="btn btn--secondary detail__retry">Ảnh chưa tải được · Thử lại</button></div>';
+  }
+
   function memorySkeletonHtml() {
-    return '<div class="memory-skeleton" aria-hidden="true"><div class="skeleton skeleton--photo"></div>' +
-      '<div class="skeleton skeleton--line"></div><div class="skeleton skeleton--line"></div></div>';
+    return '<div class="memory-skeleton skeleton skeleton--photo" aria-hidden="true"></div>';
   }
 
   /** Maps/TikTok/places helpers below build the Places rows (spec 4.4). */
@@ -168,19 +194,16 @@
     return '<div class="skeleton skeleton--row" aria-hidden="true"></div>';
   }
 
-  function chatSkeletonHtml() {
-    return '<div class="chat__skeleton" aria-hidden="true"><div class="skeleton skeleton--bubble"></div>' +
-      '<div class="skeleton skeleton--bubble is-own"></div><div class="skeleton skeleton--bubble"></div></div>';
-  }
-
-  root.chatSkeletonHtml = chatSkeletonHtml;
   root.placeRowHtml = placeRowHtml;
   root.placeSkeletonHtml = placeSkeletonHtml;
   root.locationLabel = locationLabel;
   root.memoryBlockHtml = memoryBlockHtml;
   root.memoryTextCardHtml = memoryTextCardHtml;
+  root.memoryFailedCardHtml = memoryFailedCardHtml;
   root.gridTileHtml = gridTileHtml;
   root.monthLabelHtml = monthLabelHtml;
   root.onThisDayHtml = onThisDayHtml;
   root.memorySkeletonHtml = memorySkeletonHtml;
+  root.detailPhotoHtml = detailPhotoHtml;
+  root.detailPhotoFailedHtml = detailPhotoFailedHtml;
 })(typeof window !== "undefined" ? window : this);

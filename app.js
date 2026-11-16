@@ -35,11 +35,15 @@ const LAST_SYNC_KEY = "journey_last_sync_at";
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 const STORY_MAX_HEIGHT_PX = 240;
 const HIGHLIGHT_MS = 360;
+const HEART_BURST_MS = 800;
+const HEART_BURST_COUNT = 8;
 const SYNC_TOAST_GAP_MS = 60000;
-const PLACES_SKELETON_ROWS = 3;
+const PLACES_SKELETON_ROWS = 4;
+const TIMELINE_SKELETON_CARDS = 3;
+const EMPTY_ART_PX = 64;
 const FLIP_MS = 220;
 const HAPTIC_TICK_MS = 10;
-const CHAT_VIBRATE_KEY = "journey_chat_vibrate_v1";
+const HAPTIC_SETTING_KEY = "journey_chat_vibrate_v1";
 const PETALS_SETTING_KEY = "kimthu_petals";
 const CELEBRATED_KEY = "journey_celebrated_v1";
 const CELEBRATE_MS = 1200;
@@ -47,7 +51,7 @@ const CELEBRATE_BANNER_MS = 4000;
 const ROLL_UP_FROM_DAYS = 30;
 const TOAST_DEFAULT_MS = 4000;
 const TOAST_ACTION_MS = 5000;
-const DIALOG_PRIORITY = { whoAmI: 1, periodAlert: 2, other: 3 };
+const DIALOG_PRIORITY = { periodAlert: 2, other: 3 };
 const VIEW_NAMES = ["moments", "places", "be"];
 const SYNC_CURSOR_KEY = "journey_sync_cursor_v2";
 const SYNC_CURSOR_OVERLAP_MS = 5000;
@@ -56,10 +60,9 @@ const GET_TIMEOUT_MS = 20000;
 const GEO_MIN_GAP_MS = 1100;
 const ROUTE_CACHE_KEY = "journey_route_cache_v1";
 const TIMELINE_VIEW_KEY = "journey_timeline_view";
-const NOTES_KEY = "journey_notes_v1";
 const PERIOD_ALERT_SEEN_KEY = "journey_period_alert_seen_v1";
-const SENDER_CHOSEN_KEY = "journey_chat_sender_chosen_v1";
-const VIBRATE_PATTERN_MS = [30, 40, 30];
+// Dữ liệu của chat và ghi chú hẹn giờ (đã gỡ): xóa khỏi máy khi khởi động
+const RETIRED_STORAGE_KEYS = ["journey_chat_messages_v1", "journey_notes_v1", "journey_chat_sender_v1", "journey_chat_sender_chosen_v1"];
 const DEFAULT_MEMORY_IDS = ["mem-1", "mem-2", "mem-3"];
 const DEFAULT_PLACE_IDS = ["place-1", "place-2", "place-3"];
 
@@ -96,23 +99,6 @@ const DEFAULT_PERIOD = {
   cycleLength: 28,
   durationDays: 5
 };
-
-const DEFAULT_CHAT_MESSAGES = [
-  {
-    id: "msg-1",
-    sender: "Kim",
-    text: "Chào bé Thư yêu của anh! 💕 Mỗi ngày bên em đều là một ngày ngọt ngào.",
-    image: "",
-    timestamp: "2025-04-02T19:05:00"
-  },
-  {
-    id: "msg-2",
-    sender: "Thư",
-    text: "Iu anh nhìu nhìu :3 ❤️ Chúng mình cùng lưu giữ thật nhiều kỷ niệm đẹp nha!",
-    image: "",
-    timestamp: "2025-04-02T19:06:00"
-  }
-];
 
 const DEFAULT_PLACES = [
   {
@@ -156,6 +142,7 @@ const DEFAULT_PLACES = [
 class JourneyApp {
   constructor() {
     this.config = this.loadData("journey_config_v3", DEFAULT_CONFIG);
+    this.purgeRetiredLocalData();
     if (!this.config.apiUrl || this.config.apiUrl.trim() === "") {
       this.config.apiUrl = DEFAULT_CONFIG.apiUrl;
       this.saveData("journey_config_v3", this.config);
@@ -175,11 +162,7 @@ class JourneyApp {
     this.placeRoutes = new Map();
     this.period = this.normalizePeriod(this.loadData("journey_period_v1", DEFAULT_PERIOD));
     this.timelineView = this.loadData(TIMELINE_VIEW_KEY, "feed") === "grid" ? "grid" : "feed";
-    this.notes = this.loadData(NOTES_KEY, []);
     this.pendingMemoryPlaceId = "";
-    this.chatMessages = this.loadData("journey_chat_messages_v1", DEFAULT_CHAT_MESSAGES);
-    this.currentSender = this.loadData("journey_chat_sender_v1", "Kim");
-    this.chatPendingImage = null;
     this.audioContext = null;
     this.isPlayingMelody = false;
     this.melodyTimer = null;
@@ -198,11 +181,9 @@ class JourneyApp {
     this.initAuth();
     this.initEvents();
     this.initPeriodTracker();
-    this.initChat();
     this.initPhotoUpload();
     this.initPlaces();
     this.initTimelineViewToggle();
-    this.initNotes();
     this.startLiveCounter();
     this.renderProfile();
     this.renderPeriodTracker();
@@ -213,6 +194,15 @@ class JourneyApp {
     this.bindOfflineBanner();
     this.checkPeriodAlert();
     this.syncReady = this.initSync();
+  }
+
+  // Xóa dữ liệu chat / ghi chú hẹn giờ đã lưu trên máy (tính năng đã bị gỡ)
+  purgeRetiredLocalData() {
+    try {
+      RETIRED_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    } catch (e) {
+      console.warn("Không xóa được dữ liệu cũ:", e);
+    }
   }
 
   loadData(key, fallback) {
@@ -231,7 +221,7 @@ class JourneyApp {
       return true;
     } catch (e) {
       console.error("Lỗi lưu dữ liệu:", e);
-      this.showToast("⚠️ Bộ nhớ trên máy đã đầy nên chưa lưu được. Hãy xóa bớt ảnh cũ nhé!", 6000);
+      this.showToast("Bộ nhớ trên máy đã đầy nên chưa lưu được. Hãy xóa bớt ảnh cũ nhé!", 6000);
       return false;
     }
   }
@@ -240,11 +230,6 @@ class JourneyApp {
   persistMemories() {
     const slim = this.memories.map((m) => (String(m.image || "").startsWith("data:") ? { ...m, image: "" } : m));
     this.saveData("journey_memories_v3", slim);
-  }
-
-  persistChat() {
-    const slim = this.chatMessages.map((m) => (String(m.image || "").startsWith("data:") ? { ...m, image: "" } : m));
-    this.saveData("journey_chat_messages_v1", slim);
   }
 
   // ==========================================
@@ -256,6 +241,10 @@ class JourneyApp {
     this.partnerOneName = document.getElementById("partner-one-name");
     this.partnerTwoName = document.getElementById("partner-two-name");
     this.heroQuote = document.getElementById("hero-custom-quote");
+    this.heroTitle = document.getElementById("hero-title");
+    this.avatarOne = document.getElementById("avatar-one");
+    this.avatarTwo = document.getElementById("avatar-two");
+    this.heroHeartBtn = document.getElementById("hero-heart-btn");
 
     // Live Counter
     this.countDays = document.getElementById("count-days");
@@ -472,7 +461,7 @@ class JourneyApp {
       this.copySecretLinkBtn.addEventListener("click", () => {
         const pass = this.config.passcode;
         if (!pass) {
-          this.showToast("Hãy mở khóa trước khi sao chép link tự mở khóa nhé 💕");
+          this.showToast("Hãy mở khóa trước khi sao chép link tự mở khóa nhé");
           return;
         }
         let secretLink = `${window.location.origin}${window.location.pathname}?key=${encodeURIComponent(pass)}`;
@@ -480,7 +469,7 @@ class JourneyApp {
           secretLink += `&api=${encodeURIComponent(this.config.apiUrl)}`;
         }
         navigator.clipboard.writeText(secretLink).then(() => {
-          this.showToast("Đã sao chép link tự mở khóa & đồng bộ Google Drive! Gửi link này cho Thư nhé 💕");
+          this.showToast("Đã sao chép link tự mở khóa & đồng bộ Google Drive! Gửi link này cho Thư nhé");
         }).catch(() => {
           prompt("Sao chép link này gửi cho Thư nha:", secretLink);
         });
@@ -593,13 +582,9 @@ class JourneyApp {
     if (this.isAuthenticated) {
       document.body.classList.remove("is-guest");
       this.checkPeriodAlert();
-      this.promptSenderIfNeeded();
     } else {
       document.body.classList.add("is-guest");
 
-      if (this.chatDrawer && this.chatDrawer.classList.contains("open")) {
-        this.toggleChatDrawer(false);
-      }
       if (this.periodAlertModal && this.periodAlertModal.open) this.periodAlertModal.close();
       if (this.periodModal && this.periodModal.open) this.periodModal.close();
       if (this.settingsModal && this.settingsModal.open) this.settingsModal.close();
@@ -690,7 +675,7 @@ class JourneyApp {
   /** Validates and saves the add / edit form (edit keeps the photo, id and place link). */
   submitMemoryForm() {
     if (!this.isAuthenticated) {
-      this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
+      this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi!");
       return;
     }
     const titleInput = document.getElementById("memory-title-input");
@@ -743,7 +728,7 @@ class JourneyApp {
       block.classList.add("is-highlighted");
       setTimeout(() => block.classList.remove("is-highlighted"), HIGHLIGHT_MS);
     }
-    if (!editing) this.celebrate({ reason: "save" });
+    if (!editing) this.celebrate({ reason: "save", origin: block || undefined });
     this.showToast(editing ? "Đã lưu thay đổi" : "Đã lưu khoảnh khắc");
     if (!this.config.apiUrl) {
       this.showToast("Chưa có link đồng bộ trong Cài đặt nên khoảnh khắc chỉ lưu trên máy này.", 6000);
@@ -949,7 +934,7 @@ class JourneyApp {
       // Gán toạ độ Google Maps ngay tức thì vào ô nhập vị trí
       if (locInput) locInput.value = mapsUrl;
       if (refreshBtn) refreshBtn.setAttribute("aria-busy", "false");
-      if (isUserInitiated) this.showToast("📍 Đã định vị toạ độ thành công!", 2500);
+      if (isUserInitiated) this.showToast("Đã định vị toạ độ thành công!", 2500);
 
       // Tra cứu địa chỉ đường phố/phường xã ở chế độ nền (không làm trễ toạ độ)
       const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
@@ -987,7 +972,7 @@ class JourneyApp {
         if (locInput && !locInput.value) {
           locInput.placeholder = "Cần mở quyền Vị trí cho Chrome...";
         }
-        this.showToast("Bé mở Cài đặt iPhone > Chrome > Cho phép Vị trí nhé 💕", 5000);
+        this.showToast("Bé mở Cài đặt iPhone > Chrome > Cho phép Vị trí nhé", 5000);
       } else {
         if (locInput && !locInput.value) {
           locInput.placeholder = "Chưa nhận được GPS (chạm nút xoay để thử lại)";
@@ -1062,6 +1047,8 @@ class JourneyApp {
       this.submitMemoryForm();
     });
 
+    this.heroHeartBtn.addEventListener("click", () => this.beatHeart());
+
     // Cài đặt thông tin
     this.openSettingsBtn.addEventListener("click", () => {
       if (!this.isAuthenticated) {
@@ -1089,7 +1076,7 @@ class JourneyApp {
     this.settingsForm.addEventListener("submit", (e) => {
       e.preventDefault();
       if (!this.isAuthenticated) {
-        this.showToast("Chế độ chỉ xem: Không thể thay đổi cài đặt! 💕");
+        this.showToast("Chế độ chỉ xem: Không thể thay đổi cài đặt!");
         return;
       }
       this.config.partnerOne = document.getElementById("cfg-him-name").value.trim() || "Kim";
@@ -1131,6 +1118,27 @@ class JourneyApp {
     this.partnerOneName.textContent = this.config.partnerOne;
     this.partnerTwoName.textContent = this.config.partnerTwo;
     this.heroQuote.textContent = this.config.quote;
+    this.heroTitle.textContent = `${this.config.partnerOne} & ${this.config.partnerTwo}`;
+    this.avatarOne.textContent = this.avatarInitial(this.config.partnerOne);
+    this.avatarTwo.textContent = this.avatarInitial(this.config.partnerTwo);
+  }
+
+  /** First character of the trimmed name in upper case ("?" when the name is empty). */
+  avatarInitial(name) {
+    const first = Array.from(String(name || "").trim())[0];
+    return first ? first.toUpperCase() : "?";
+  }
+
+  /** The heart between the avatars: a short beat, a tick and a small burst from the button. */
+  beatHeart() {
+    const button = this.heroHeartBtn;
+    if (!button) return;
+    button.classList.remove("is-beating");
+    void button.offsetWidth;
+    button.classList.add("is-beating");
+    this.hapticTick();
+    const rect = button.getBoundingClientRect();
+    if (this.petals) this.petals.burst(rect.left + rect.width / 2, rect.top + rect.height / 2, HEART_BURST_MS, HEART_BURST_COUNT);
   }
 
   startLiveCounter() {
@@ -1202,7 +1210,7 @@ class JourneyApp {
       this.periodForm.addEventListener("submit", (e) => {
         e.preventDefault();
         if (!this.isAuthenticated) {
-          this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi! 💕");
+          this.showToast("Chế độ chỉ xem: Không thể thực hiện thay đổi!");
           return;
         }
         const startVal = this.periodStartDateInput.value;
@@ -1227,7 +1235,7 @@ class JourneyApp {
   /** Opens the "Ghi nhận kỳ mới" sheet with today as the default start date. */
   openPeriodLogForm() {
     if (!this.isAuthenticated) {
-      this.showToast("Khu vực riêng tư: Chỉ dành riêng cho Kim & Thư 💕");
+      this.showToast("Khu vực riêng tư: Chỉ dành riêng cho Kim & Thư");
       this.openAuthModal();
       return;
     }
@@ -1382,7 +1390,8 @@ class JourneyApp {
       body: "Dự đoán kỳ tới sẽ được tính lại.",
       confirmLabel: "Xóa",
       cancelLabel: "Giữ lại",
-      danger: true
+      danger: true,
+      icon: "trash"
     });
     if (!confirmed) return;
     this.commitPeriodChange(removePeriodStart(this.period.history, start));
@@ -1451,7 +1460,7 @@ class JourneyApp {
     this.memories.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (this.shouldShowTimelineSkeleton()) {
-      container.innerHTML = memorySkeletonHtml() + memorySkeletonHtml();
+      container.innerHTML = memorySkeletonHtml().repeat(TIMELINE_SKELETON_CARDS);
       return;
     }
 
@@ -1473,7 +1482,7 @@ class JourneyApp {
     const addButton = this.isAuthenticated
       ? '<button type="button" class="btn btn--primary" id="empty-add-memory-btn">Thêm khoảnh khắc</button>'
       : "";
-    container.innerHTML = `<div class="empty"><p class="t-headline">Chưa có khoảnh khắc nào.</p>` +
+    container.innerHTML = `<div class="empty"><span class="empty__art">${icon("heart", { size: EMPTY_ART_PX })}</span><p class="t-headline">Chưa có khoảnh khắc nào.</p>` +
       `<p class="muted">Lưu lại kỷ niệm đầu tiên của hai đứa nhé.</p>${addButton}</div>`;
     const button = document.getElementById("empty-add-memory-btn");
     if (button) button.addEventListener("click", () => this.openMemoryDialog());
@@ -1520,7 +1529,7 @@ class JourneyApp {
    */
   async deleteMemory(memId) {
     if (!this.isAuthenticated) {
-      this.showToast("Chỉ Kim & Thư mới có quyền xóa kỷ niệm 💕");
+      this.showToast("Chỉ Kim & Thư mới có quyền xóa kỷ niệm");
       this.openAuthModal();
       return;
     }
@@ -1532,7 +1541,8 @@ class JourneyApp {
       body: "Ảnh và nội dung sẽ bị xóa trên cả hai điện thoại.",
       confirmLabel: "Xóa",
       cancelLabel: "Giữ lại",
-      danger: true
+      danger: true,
+      icon: "trash"
     });
     if (!confirmed) return;
     this.pendingDeleteIds.memory.add(id);
@@ -1578,11 +1588,7 @@ class JourneyApp {
   openMemoryDetail(mem) {
     if (!this.memoryDetailModal || !mem) return;
     this.detailMemoryId = String(mem.id);
-    const image = safeUrl(mem.image, MEMORY_IMAGE_URL_OPTIONS);
-    const photo = document.getElementById("memory-detail-photo");
-    photo.innerHTML = image
-      ? `<button type="button" class="detail__photo" aria-label="Phóng to ảnh"><img src="${this.escapeHTML(image)}" alt="${this.escapeHTML(mem.title)}"></button>`
-      : "";
+    this.renderDetailPhoto(mem);
     document.getElementById("memory-detail-title").textContent = mem.title || "";
     const place = locationLabel(mem.location);
     const when = [formatDateVi(String(mem.date || "").slice(0, 10)), String(mem.date || "").split("T")[1] ? formatTime24(new Date(mem.date)) : "", place].filter(Boolean);
@@ -1591,6 +1597,15 @@ class JourneyApp {
     meta.innerHTML = this.escapeHTML(when.join(" · ")) + (link ? " " + link : "");
     this.renderMemoryStory(document.getElementById("memory-detail-story"), mem.story || "");
     this.memoryDetailModal.showModal();
+  }
+
+  /** Puts the photo in the detail sheet; a photo that fails to load becomes the heart box with a retry button. */
+  renderDetailPhoto(mem) {
+    const photo = document.getElementById("memory-detail-photo");
+    photo.innerHTML = detailPhotoHtml(mem);
+    const img = photo.querySelector("img");
+    if (!img) return;
+    img.addEventListener("error", () => { photo.innerHTML = detailPhotoFailedHtml(); }, { once: true });
   }
 
   /** The first line renders in the handwriting face when it is wrapped in quotes. */
@@ -1607,7 +1622,12 @@ class JourneyApp {
     const current = () => this.memories.find((m) => String(m.id) === this.detailMemoryId);
     this.memoryDetailModal.addEventListener("click", (e) => {
       const mem = current();
-      if (mem && e.target.closest && e.target.closest(".detail__photo")) this.openMemoryLightbox(mem);
+      if (!mem || !e.target.closest) return;
+      if (e.target.closest(".detail__retry")) {
+        this.renderDetailPhoto(mem);
+        return;
+      }
+      if (e.target.closest(".detail__photo")) this.openMemoryLightbox(mem);
     });
     document.getElementById("memory-detail-edit-btn").addEventListener("click", () => {
       const mem = current();
@@ -1719,7 +1739,7 @@ class JourneyApp {
               this.placeMapInput.value = `https://www.google.com/maps?q=${lat},${lng}`;
             }
             this.btnPlaceUseCurrentGps.setAttribute("aria-busy", "false");
-            this.showToast("📍 Đã lấy toạ độ vị trí hiện tại!");
+            this.showToast("Đã lấy toạ độ vị trí hiện tại!");
           },
           (err) => {
             console.warn("Lỗi GPS:", err);
@@ -1807,7 +1827,7 @@ class JourneyApp {
 
         // 3. Nếu đã trích xuất được toạ độ:
         if (directCoords) {
-          this.showToast("Đã lưu địa điểm mới & đang tính đường đi ngắn nhất 💕");
+          this.showToast("Đã lưu địa điểm mới & đang tính đường đi ngắn nhất");
           if (this.lastUserPosition) {
             calculateForPlace(newPlace);
           } else {
@@ -1859,12 +1879,8 @@ class JourneyApp {
 
     // Xử lý nút Back/Forward trên điện thoại và trình duyệt
     window.addEventListener("popstate", () => {
-      if (window.appShell && window.appShell.consumeBack()) return; // Back closed chat or a sheet first
+      if (window.appShell && window.appShell.consumeBack()) return; // Back closed a sheet first
       const route = parseRoute(window.location.hash);
-      if (route.chat) {
-        if (this.isAuthenticated) this.toggleChatDrawer(true);
-        return;
-      }
       this.placesFilter = route.placesFilter;
       this.switchView(route.view, false);
     });
@@ -1873,7 +1889,6 @@ class JourneyApp {
     const initialRoute = parseRoute(window.location.hash);
     this.placesFilter = initialRoute.placesFilter;
     this.switchView(initialRoute.view, false);
-    if (initialRoute.chat && this.isAuthenticated) this.toggleChatDrawer(true);
 
     // 8. Nút Kiểm tra xem nơi đang đứng đã từng đi đến chưa
     if (this.checkVisitedGpsBtn) {
@@ -2550,7 +2565,7 @@ class JourneyApp {
   // ==========================================
   openAddCurrentLocationModal(fixedLat = null, fixedLng = null, fixedName = null) {
     if (!this.isAuthenticated) {
-      this.showToast("Chỉ Kim & Thư mới có quyền thêm địa điểm 💕");
+      this.showToast("Chỉ Kim & Thư mới có quyền thêm địa điểm");
       this.openAuthModal();
       return;
     }
@@ -2560,7 +2575,7 @@ class JourneyApp {
       if (this.addCurrentLocForm) this.addCurrentLocForm.reset();
 
       if (this.currentLocCoordsDisplay) {
-        this.currentLocCoordsDisplay.textContent = `📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+        this.currentLocCoordsDisplay.textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
       }
       if (this.currentLocNameInput) {
         this.currentLocNameInput.value = suggestedName || "";
@@ -2571,7 +2586,7 @@ class JourneyApp {
       if (this.currentLocNotesInput) {
         const today = new Date();
         const dateStr = `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`;
-        this.currentLocNotesInput.placeholder = `Ghé thăm cùng em ngày ${dateStr} 💕`;
+        this.currentLocNotesInput.placeholder = `Ghé thăm cùng em ngày ${dateStr}`;
       }
 
       if (this.addCurrentLocModal) this.addCurrentLocModal.showModal();
@@ -2586,7 +2601,7 @@ class JourneyApp {
     if (this.addCurrentLocationBtn) {
       this.addCurrentLocationBtn.classList.add("spinning");
     }
-    this.showToast("Đang lấy toạ độ vị trí hiện tại của bạn... 🛰️", 2500);
+    this.showToast("Đang lấy toạ độ vị trí hiện tại của bạn...", 2500);
 
     this.getUserPosition(
       async (pos) => {
@@ -2603,7 +2618,7 @@ class JourneyApp {
           this.addCurrentLocationBtn.classList.remove("spinning");
         }
         if (err && err.code === 1) {
-          this.showToast("Cần bật quyền Vị trí cho trình duyệt trong Cài đặt máy nhé 💕", 4500);
+          this.showToast("Cần bật quyền Vị trí cho trình duyệt trong Cài đặt máy nhé", 4500);
         } else {
           this.showToast("Không lấy được GPS. Bé kiểm tra lại định vị máy nhé!", 3500);
         }
@@ -2623,7 +2638,7 @@ class JourneyApp {
     const tiktokUrl = (this.currentLocTiktokInput ? this.currentLocTiktokInput.value : "").trim();
 
     if (!name) {
-      this.showToast("Bé vui lòng nhập tên địa điểm nhé! 🌸");
+      this.showToast("Bé vui lòng nhập tên địa điểm nhé!");
       return;
     }
 
@@ -2648,7 +2663,7 @@ class JourneyApp {
     this.sendPlaceToBackend(newPlace);
 
     if (this.addCurrentLocModal) this.addCurrentLocModal.close();
-    this.showToast("🌸 Đã thêm vị trí hiện tại vào danh sách Đã Đến!");
+    this.showToast("Đã thêm vị trí hiện tại vào danh sách Đã Đến!");
 
     // Chuyển sang tab "Đã đến" và highlight thẻ vừa tạo
     this.highlightPlaceInList(newPlace.id, "visited");
@@ -2691,7 +2706,7 @@ class JourneyApp {
   /** Asks before marking a place as visited (the sheet offers "Đã đến" and "Đã đến và lưu khoảnh khắc"). */
   openMarkVisitedSheet(id) {
     if (!this.isAuthenticated) {
-      this.showToast("Chỉ Kim & Thư mới có quyền đánh dấu đã đi 💕");
+      this.showToast("Chỉ Kim & Thư mới có quyền đánh dấu đã đi");
       this.openAuthModal();
       return;
     }
@@ -2742,7 +2757,7 @@ class JourneyApp {
   /** Delete with a 5 s undo window, same rules as deleteMemory. */
   async deletePlace(id) {
     if (!this.isAuthenticated) {
-      this.showToast("Chỉ Kim & Thư mới có quyền xóa địa điểm 💕");
+      this.showToast("Chỉ Kim & Thư mới có quyền xóa địa điểm");
       this.openAuthModal();
       return;
     }
@@ -2754,7 +2769,8 @@ class JourneyApp {
       body: "Địa điểm sẽ bị xóa trên cả hai điện thoại.",
       confirmLabel: "Xóa",
       cancelLabel: "Giữ lại",
-      danger: true
+      danger: true,
+      icon: "trash"
     });
     if (!confirmed) return;
     this.pendingDeleteIds.place.add(pid);
@@ -2853,7 +2869,7 @@ class JourneyApp {
     const body = visited ? "Đánh dấu một nơi là đã đến để lưu lại nhé." : "Lưu quán xinh hay điểm hẹn để đi cùng nhau nhé.";
     const addButton = !visited && this.isAuthenticated
       ? '<button type="button" class="btn btn--primary" id="empty-add-place-btn">Thêm địa điểm</button>' : "";
-    this.placesListContainer.innerHTML = `<div class="empty"><p class="t-headline">${title}</p><p class="muted">${body}</p>${addButton}</div>`;
+    this.placesListContainer.innerHTML = `<div class="empty"><span class="empty__art">${icon("pin", { size: EMPTY_ART_PX })}</span><p class="t-headline">${title}</p><p class="muted">${body}</p>${addButton}</div>`;
     const button = document.getElementById("empty-add-place-btn");
     if (button) button.addEventListener("click", () => this.openPlaceDialog());
   }
@@ -2911,15 +2927,15 @@ class JourneyApp {
   }
 
   // ==========================================
-  // HIỆU ỨNG CÁNH HOA RƠI (CANVAS PETALS)
+  // TRÁI TIM BAY (CANVAS NỀN) VÀ LỚP PHÁO TIM (CANVAS TRÊN CÙNG)
   // ==========================================
   initPetalsCanvas() {
     const canvas = document.getElementById("petal-canvas");
-    const hero = document.getElementById("hero");
-    if (!canvas || !hero) return;
+    const burstCanvas = document.getElementById("burst-canvas");
+    if (!canvas || !burstCanvas) return;
     this.petals = new PetalCanvas({
       canvas: canvas,
-      hero: hero,
+      burstCanvas: burstCanvas,
       enabled: () => this.loadData(PETALS_SETTING_KEY, "on") !== "off"
     });
     this.petals.start();
@@ -2928,14 +2944,15 @@ class JourneyApp {
   // ==========================================
   // KHOẢNH KHẮC ĂN MỪNG (CHỈ MỘT CHUYỂN ĐỘNG LỚN)
   // ==========================================
-  /** @param {{reason: "milestone"|"save", label?: string}} options */
+  /** @param {{reason: "milestone"|"save", label?: string, origin?: Element}} options */
   celebrate(options) {
     const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
       if (options.reason === "milestone") this.showCelebrateBanner(options.label);
       return;
     }
-    const target = this.countDays ? this.countDays.getBoundingClientRect() : null;
+    const originEl = options.origin || this.countDays;
+    const target = originEl ? originEl.getBoundingClientRect() : null;
     const x = target ? target.left + target.width / 2 : window.innerWidth / 2;
     const y = target ? target.top + target.height / 2 : window.innerHeight / 2;
     if (this.petals) this.petals.burst(x, y, CELEBRATE_MS);
@@ -2947,7 +2964,7 @@ class JourneyApp {
     const banner = document.createElement("p");
     banner.className = "celebrate-banner";
     banner.setAttribute("role", "status");
-    banner.textContent = `🎉 Tròn ${label}`;
+    banner.textContent = `Tròn ${label}`;
     this.milestoneLine.insertAdjacentElement("afterend", banner);
     setTimeout(() => banner.remove(), CELEBRATE_BANNER_MS);
   }
@@ -3066,13 +3083,19 @@ class JourneyApp {
         onChange: () => {}
       });
       await this.syncEngine.load();
+      await this.purgeRetiredOutbox();
       await this.restoreQueuedState();
     } catch (e) {
       console.error("Không khởi tạo được hàng đợi đồng bộ:", e);
-      this.showToast("⚠️ Không bật được hàng đợi đồng bộ, dữ liệu mới có thể chưa được gửi lên.", 6000);
+      this.showToast("Không bật được hàng đợi đồng bộ, dữ liệu mới có thể chưa được gửi lên.", 6000);
     }
     this.bindSyncTriggers();
     await this.syncFromBackend();
+  }
+
+  // Bỏ các mục chat / ghi chú hẹn giờ còn nằm trong hàng đợi (tính năng đã bị gỡ)
+  async purgeRetiredOutbox() {
+    for (const key of this.syncEngine.keys().filter(isRetiredOutboxKey)) await this.syncEngine.remove(key);
   }
 
   // Khôi phục ảnh đang chờ gửi và đưa lại vào hàng đợi các mục đang "chờ" nhưng mất hàng đợi
@@ -3080,8 +3103,8 @@ class JourneyApp {
     this.syncEngine.keys().forEach((key) => {
       const payload = this.syncEngine.getEntry(key).payload;
       if (!payload.imageBase64) return;
-      const list = payload.type === "memory" ? this.memories : this.chatMessages;
-      const item = list.find((x) => String(x.id) === String(payload.id));
+      if (payload.type !== "memory") return;
+      const item = this.memories.find((x) => String(x.id) === String(payload.id));
       if (item && !item.image) item.image = payload.imageBase64;
     });
     const queued = new Set(this.syncEngine.keys());
@@ -3090,12 +3113,10 @@ class JourneyApp {
     for (const m of orphanMemories) await this.queueMemory(m);
     for (const p of orphanPlaces) await this.sendPlaceToBackend(p);
     this.renderTimeline();
-    this.renderChatMessages();
   }
 
   /** First failed attempt: tell the user once a minute (only when a sync link is set and the phone is online). */
   handleSyncRetry(entry) {
-    if (entry.key.startsWith("chat:")) this.renderChatMessages();
     if (!this.config.apiUrl || entry.attempts !== 1 || !navigator.onLine) return;
     const now = Date.now();
     if (now - (this.lastSyncToastAt || 0) < SYNC_TOAST_GAP_MS) return;
@@ -3131,7 +3152,6 @@ class JourneyApp {
     const delay = pollIntervalMs({
       visible: document.visibilityState !== "hidden",
       isAuth: this.isAuthenticated,
-      chatOpen: !!(this.chatDrawer && this.chatDrawer.classList.contains("open")),
       lastActivityAt: this.lastActivityAt,
       now: Date.now()
     });
@@ -3170,7 +3190,7 @@ class JourneyApp {
       await this.syncEngine.enqueue(outboxKey(payload), payload);
     } catch (e) {
       console.error("Không lưu được vào hàng đợi:", e);
-      this.showToast("⚠️ Chưa lưu được thay đổi vào hàng đợi đồng bộ. Hãy thử lại nhé!", 5000);
+      this.showToast("Chưa lưu được thay đổi vào hàng đợi đồng bộ. Hãy thử lại nhé!", 5000);
       return;
     }
     this.syncEngine.flush();
@@ -3215,12 +3235,6 @@ class JourneyApp {
     } else if (p.type === "place" && clear(this.places, p.id)) {
       this.saveData("journey_places_v2", this.places);
       this.renderPlaces();
-    } else if (p.type === "chat_message" && clear(this.chatMessages, p.id)) {
-      this.persistChat();
-      this.renderChatMessages();
-    } else if (p.type === "note" && clear(this.notes, p.id)) {
-      this.saveData(NOTES_KEY, this.notes);
-      if (this.notesModal && this.notesModal.open) this.renderNotes();
     }
   }
 
@@ -3252,142 +3266,6 @@ class JourneyApp {
     }
   }
 
-  // ==========================================
-  // THƯ HẸN GIỜ, "BẠN LÀ AI?", HIỆN DIỆN TRONG CHAT
-  // ==========================================
-  initNotes() {
-    this.notesModal = document.getElementById("notes-modal");
-    const openBtn = document.getElementById("open-notes-btn");
-    const closeBtn = document.getElementById("close-notes-modal-btn");
-    const form = document.getElementById("note-form");
-    if (!this.notesModal || !openBtn || !closeBtn || !form) return;
-    openBtn.addEventListener("click", () => this.openNotes());
-    closeBtn.addEventListener("click", () => this.notesModal.close());
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.submitNote(form);
-    });
-  }
-
-  toLocalInputValue(date) {
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${formatLocalDate(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  }
-
-  openNotes() {
-    if (!this.isAuthenticated) {
-      this.openAuthModal();
-      return;
-    }
-    document.getElementById("note-open-at-input").min = this.toLocalInputValue(new Date());
-    this.renderNotes();
-    this.notesModal.showModal();
-  }
-
-  submitNote(form) {
-    if (!this.isAuthenticated) return;
-    const text = document.getElementById("note-text-input").value.trim();
-    const openAt = new Date(document.getElementById("note-open-at-input").value);
-    if (!text || Number.isNaN(openAt.getTime()) || openAt <= new Date()) {
-      this.showToast("Hãy chọn thời điểm mở trong tương lai nhé 💕");
-      return;
-    }
-    const note = {
-      id: "note-" + Date.now(), sender: this.currentSender, text: text,
-      openAt: openAt.toISOString(), createdAt: new Date().toISOString(), syncState: "pending"
-    };
-    this.notes.push(note);
-    this.saveData(NOTES_KEY, this.notes);
-    this.sendToBackend({ type: "note", id: note.id, sender: note.sender, text: note.text, openAt: note.openAt });
-    form.reset();
-    this.renderNotes();
-    this.showToast("💌 Đã gửi vào tương lai! Thư sẽ mở đúng giờ hẹn.");
-  }
-
-  renderNotes() {
-    const list = document.getElementById("notes-list");
-    if (!list) return;
-    const now = Date.now();
-    const sorted = [...this.notes].sort((a, b) => new Date(a.openAt) - new Date(b.openAt));
-    if (sorted.length === 0) {
-      list.innerHTML = `<div class="empty"><p class="muted">Chưa có thư nào. Viết một lá thư để người ấy mở vào đúng lúc nhé.</p></div>`;
-      return;
-    }
-    list.innerHTML = sorted.map((n) => {
-      const openAt = new Date(n.openAt);
-      const locked = openAt.getTime() > now;
-      const when = `${formatTime24(openAt)}, ${formatDayMonth(openAt)}`;
-      const recipient = n.sender === this.currentSender ? (this.chatReceiverName ? this.chatReceiverName.textContent : "") : this.currentSender;
-      const status = locked ? `${icon("lock", { size: 16 })}Mở lúc ${this.escapeHTML(when)}` : `Đã mở · ${this.escapeHTML(when)}`;
-      const body = locked
-        ? (n.sender === this.currentSender ? `<p class="muted">${this.escapeHTML(n.text)}</p>` : "")
-        : `<p class="hand">${this.escapeHTML(n.text)}</p>`;
-      const pending = n.syncState === "pending" ? ` ${icon("cloud-pending", { size: 14 })}` : "";
-      return `<div class="note ${locked ? "is-locked" : ""}"><p class="t-meta muted note__meta">${this.escapeHTML(n.sender)} → ${this.escapeHTML(recipient)} · ${status}${pending}</p>${body}</div>`;
-    }).join("");
-  }
-
-  mergeNotes(upserts, deletedIds) {
-    const justOpened = upserts.filter((u) => u.locked === false && u.sender !== this.currentSender &&
-      !this.notes.some((n) => n.id === u.id && n.locked === false));
-    const result = applyDelta(this.notes, { upserts: upserts, deletedIds: deletedIds }, {
-      pendingIds: this.pendingIdsFor("note"), keepLocalWhenEmpty: ["text"]
-    });
-    if (!result.changed) return;
-    this.notes = result.items;
-    this.saveData(NOTES_KEY, this.notes);
-    if (this.notesModal && this.notesModal.open) this.renderNotes();
-    if (justOpened.length > 0 && this.syncCursor > 0) {
-      this.showToast("💌 Có một lá thư hẹn giờ vừa được mở!", 5000);
-      this.vibrate();
-    }
-  }
-
-  // Hỏi "Bạn là ai?" đúng một lần trên mỗi thiết bị để tin nhắn luôn mang đúng tên (UX-06)
-  promptSenderIfNeeded() {
-    if (!this.isAuthenticated || this.loadData(SENDER_CHOSEN_KEY, false)) return;
-    this.dialogQueue.request("who-am-i", DIALOG_PRIORITY.whoAmI, () => {
-      const modal = document.getElementById("who-am-i-modal");
-      const first = document.getElementById("who-first-btn");
-      const second = document.getElementById("who-second-btn");
-      if (!this.isAuthenticated || !modal || !first || !second || modal.open) return null;
-      first.dataset.name = this.config.partnerOne || "Kim";
-      second.dataset.name = this.config.partnerTwo || "Thư";
-      [first, second].forEach((button) => {
-        button.querySelector(".who-option__name").textContent = button.dataset.name;
-        button.querySelector(".avatar").textContent = button.dataset.name.charAt(0).toUpperCase();
-      });
-      const choose = (name) => {
-        this.currentSender = name;
-        this.saveData("journey_chat_sender_v1", name);
-        this.saveData(SENDER_CHOSEN_KEY, true);
-        this.updateChatHeaderLabels();
-        this.renderChatMessages();
-        modal.close();
-      };
-      first.onclick = () => choose(first.dataset.name);
-      second.onclick = () => choose(second.dataset.name);
-      modal.showModal();
-      return modal;
-    });
-  }
-
-  // "Hiện diện" nhẹ nhàng: lần nhắn gần nhất của người kia (không theo dõi gì thêm)
-  updateChatPresence() {
-    const el = document.getElementById("chat-status-text");
-    if (!el) return;
-    const lastOther = [...this.chatMessages].reverse().find((m) => m.sender !== this.currentSender && m.timestamp);
-    if (!lastOther) {
-      el.textContent = "";
-      el.hidden = true;
-      return;
-    }
-    const when = new Date(lastOther.timestamp);
-    const sameDay = formatLocalDate(when) === formatLocalDate(new Date());
-    el.hidden = false;
-    el.textContent = `Nhắn lúc ${sameDay ? formatTime24(when) : formatDateVi(when)}`;
-  }
-
   async applyPulledData(data) {
     if (this.isAuthenticated && data.isAuth === false) {
       this.lockForRejectedPasscode();
@@ -3397,8 +3275,6 @@ class JourneyApp {
     const deleted = data.deleted || {};
     this.mergeMemories(data.memories || [], deleted.memories || []);
     this.mergePlaces(data.places || [], deleted.places || []);
-    this.mergeChat(data.messages || []);
-    this.mergeNotes(data.notes || [], deleted.notes || []);
     this.mergePeriod(data.period);
     if (data.since === 0 && this.isAuthenticated) await this.adoptUnsyncedLocal(data);
     if (Number.isFinite(Number(data.serverTime))) {
@@ -3460,30 +3336,6 @@ class JourneyApp {
     this.calculateAllDistancesAndRoutes(false);
   }
 
-  mergeChat(messages) {
-    const pending = new Set(this.pendingIdsFor("chat"));
-    let hasNew = false;
-    let hasIncoming = false;
-    messages.forEach((serverMsg) => {
-      const existing = this.chatMessages.find((m) => m.id === serverMsg.id);
-      if (!existing) {
-        this.chatMessages.push(serverMsg);
-        hasNew = true;
-        if (serverMsg.sender !== this.currentSender) hasIncoming = true;
-      } else if (!pending.has(String(existing.id)) && serverMsg.image && serverMsg.image !== existing.image) {
-        existing.image = serverMsg.image;
-        hasNew = true;
-      }
-    });
-    if (!hasNew) return;
-    if (hasIncoming && this.syncCursor > 0) this.vibrate();
-    this.persistChat();
-    this.renderChatMessages();
-    if (this.chatUnreadDot && (!this.chatDrawer || !this.chatDrawer.classList.contains("open"))) {
-      this.setChatUnread(true);
-    }
-  }
-
   // Kỳ dâu đồng bộ giữa hai máy: bản mới hơn (updatedAt) thắng, trừ khi máy này đang chờ gửi bản của mình
   mergePeriod(serverPeriod) {
     if (!serverPeriod || !serverPeriod.startDate) return;
@@ -3512,286 +3364,16 @@ class JourneyApp {
     }
   }
 
-  // ==========================================
-  // HỘP THƯ CHAT RIÊNG TƯ (LƯU DRIVE & GOOGLE CLOUD)
-  // ==========================================
-  initChat() {
-    this.chatTabBtn = document.getElementById("tab-chat");
-    this.chatDrawer = document.getElementById("chat-drawer");
-    this.closeChatBtn = document.getElementById("close-chat-btn");
-    this.chatMoreBtn = document.getElementById("chat-more-btn");
-    this.chatReceiverAvatar = document.getElementById("chat-receiver-avatar");
-    this.chatReceiverName = document.getElementById("chat-receiver-name");
-    this.chatMessagesContainer = document.getElementById("chat-messages-container");
-    if (this.chatMessagesContainer) {
-      this.chatMessagesContainer.addEventListener("click", (e) => {
-        const retry = e.target.closest ? e.target.closest(".chat__retry") : null;
-        if (retry) {
-          if (this.syncEngine) this.syncEngine.retryNow(retry.dataset.key);
-          return;
-        }
-        const img = e.target.closest ? e.target.closest(".chat-msg-img") : null;
-        if (!img) return;
-        const msg = this.chatMessages.find((m) => String(m.id) === img.dataset.msgId);
-        if (msg) this.viewChatImage(msg.image);
-      });
-    }
-    this.chatForm = document.getElementById("chat-form");
-    this.chatTextInput = document.getElementById("chat-text-input");
-    this.chatImageFileInput = document.getElementById("chat-image-file-input");
-    this.chatImgPreviewBox = document.getElementById("chat-img-preview-box");
-    this.chatImgPreviewTag = document.getElementById("chat-img-preview-tag");
-    this.chatRemoveImgBtn = document.getElementById("chat-remove-img-btn");
-    this.chatQuickHeartBtn = document.getElementById("chat-quick-heart-btn");
-    this.chatUnreadDot = document.getElementById("tab-chat-dot");
-
-    if (this.chatTabBtn) {
-      this.chatTabBtn.addEventListener("click", () => {
-        if (!this.isAuthenticated) {
-          this.showToast("Hộp thư tình yêu chỉ dành riêng cho Kim & Thư 💕");
-          this.openAuthModal();
-          return;
-        }
-        this.toggleChatDrawer(true);
-      });
-    }
-
-    if (this.closeChatBtn) {
-      this.closeChatBtn.addEventListener("click", () => this.toggleChatDrawer(false));
-    }
-
-    if (this.chatMoreBtn) {
-      this.chatMoreBtn.addEventListener("click", () => this.openChatMenu(this.chatMoreBtn));
-    }
-
-    // Chọn ảnh gửi trong chat (tự động nén và tải lên Google Drive)
-    if (this.chatImageFileInput) {
-      this.chatImageFileInput.addEventListener("change", (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const rawUrl = event.target.result;
-          this.compressImage(rawUrl, 900, 0.82, (compressed) => {
-            this.chatPendingImage = compressed;
-            if (this.chatImgPreviewTag) this.chatImgPreviewTag.src = compressed;
-            if (this.chatImgPreviewBox) this.chatImgPreviewBox.hidden = false;
-            if (this.chatTextInput) this.chatTextInput.focus();
-          });
-        };
-        reader.readAsDataURL(file);
-      });
-    }
-
-    if (this.chatRemoveImgBtn) {
-      this.chatRemoveImgBtn.addEventListener("click", () => this.clearChatPendingImage());
-    }
-
-    // Nút thả tim nhanh trong chat
-    if (this.chatQuickHeartBtn) {
-      this.chatQuickHeartBtn.addEventListener("click", () => {
-        this.sendChatMessage("❤️", null);
-      });
-    }
-
-    // Gửi tin nhắn
-    if (this.chatForm) {
-      this.chatForm.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const text = this.chatTextInput ? this.chatTextInput.value.trim() : "";
-        if (!text && !this.chatPendingImage) return;
-
-        this.sendChatMessage(text, this.chatPendingImage);
-        if (this.chatTextInput) this.chatTextInput.value = "";
-      });
-    }
-
-    this.updateChatHeaderLabels();
-    this.renderChatMessages();
-  }
-
-  /** Shows or hides the unread dot on the Chat tab and keeps the tab's accessible name in step. */
-  setChatUnread(unread) {
-    if (this.chatUnreadDot) this.chatUnreadDot.hidden = !unread;
-    if (this.chatTabBtn) this.chatTabBtn.setAttribute("aria-label", unread ? "Chat (có tin mới)" : "Chat");
-  }
-
-  toggleChatDrawer(force) {
-    if (!this.chatDrawer) return;
-    const shouldOpen = force !== undefined ? force : !this.chatDrawer.classList.contains("open");
-    if (shouldOpen) {
-      this.chatDrawer.classList.add("open");
-      this.chatDrawer.setAttribute("aria-hidden", "false");
-      this.setChatUnread(false);
-      if (this.chatTextInput) this.chatTextInput.focus();
-      this.renderChatMessages();
-    } else {
-      this.chatDrawer.classList.remove("open");
-      this.chatDrawer.setAttribute("aria-hidden", "true");
-    }
-  }
-
-  /** Vibrates for an incoming message unless the user turned it off in the chat menu. */
   /** A tiny tick for long-press, unless vibration is turned off. */
   hapticTick() {
-    if (this.loadData(CHAT_VIBRATE_KEY, "on") === "off") return;
+    if (this.loadData(HAPTIC_SETTING_KEY, "on") === "off") return;
     if (navigator.vibrate) navigator.vibrate(HAPTIC_TICK_MS);
-  }
-
-  vibrate() {
-    if (this.loadData(CHAT_VIBRATE_KEY, "on") === "off") return;
-    if (navigator.vibrate) navigator.vibrate(VIBRATE_PATTERN_MS);
-  }
-
-  setChatSender(name) {
-    this.currentSender = name;
-    this.saveData("journey_chat_sender_v1", name);
-    this.saveData(SENDER_CHOSEN_KEY, true);
-    this.updateChatHeaderLabels();
-    this.renderChatMessages();
-  }
-
-  updateChatHeaderLabels() {
-    const him = this.config.partnerOne || "Kim";
-    const her = this.config.partnerTwo || "Thư";
-    const receiver = (this.currentSender === him) ? her : him;
-    if (this.chatReceiverName) this.chatReceiverName.textContent = receiver;
-    if (this.chatReceiverAvatar) {
-      this.chatReceiverAvatar.textContent = receiver.charAt(0).toUpperCase();
-      this.chatReceiverAvatar.classList.toggle("avatar--k", receiver === him);
-      this.chatReceiverAvatar.classList.toggle("avatar--t", receiver !== him);
-    }
-    const recipient = document.getElementById("note-recipient");
-    if (recipient) recipient.textContent = receiver;
-  }
-
-  /** ⋯ menu: timed notes, "who am I", and the vibration switch. */
-  openChatMenu(anchor) {
-    const him = this.config.partnerOne || "Kim";
-    const her = this.config.partnerTwo || "Thư";
-    const vibrateOff = this.loadData(CHAT_VIBRATE_KEY, "on") === "off";
-    actionMenu.open({
-      anchor: anchor,
-      items: [
-        { label: "Thư hẹn giờ", icon: "clock", onSelect: () => this.openNotes() },
-        { label: `Tôi là: ${him}`, checked: this.currentSender === him, onSelect: () => this.setChatSender(him) },
-        { label: `Tôi là: ${her}`, checked: this.currentSender === her, onSelect: () => this.setChatSender(her) },
-        { label: "Tắt rung khi có tin", checked: vibrateOff, onSelect: () => this.saveData(CHAT_VIBRATE_KEY, vibrateOff ? "on" : "off") }
-      ]
-    });
-  }
-
-  clearChatPendingImage() {
-    this.chatPendingImage = null;
-    if (this.chatImageFileInput) this.chatImageFileInput.value = "";
-    if (this.chatImgPreviewBox) this.chatImgPreviewBox.hidden = true;
-  }
-
-  sendChatMessage(text, imageBase64) {
-    if (!this.isAuthenticated) {
-      this.showToast("Chế độ chỉ xem: Bạn không thể gửi tin nhắn! 💕");
-      this.openAuthModal();
-      return;
-    }
-    if (!text && !imageBase64) return;
-
-    const newMsg = {
-      id: "msg-" + Date.now(),
-      sender: this.currentSender,
-      text: text || "",
-      image: imageBase64 || "",
-      timestamp: new Date().toISOString(),
-      syncState: "pending"
-    };
-
-    this.chatMessages.push(newMsg);
-    this.persistChat();
-    this.renderChatMessages();
-    this.clearChatPendingImage();
-
-    // Lưu vào Google Drive và Google Sheet Backend
-    this.sendToBackend({
-      type: "chat_message", id: newMsg.id, sender: newMsg.sender, text: newMsg.text,
-      timestamp: newMsg.timestamp, image: "", imageBase64: imageBase64 || ""
-    });
-    if (!this.config.apiUrl && imageBase64) {
-      this.showToast("⚠️ Lưu ý: Chưa kết nối link Google Drive trong Cài Đặt nên ảnh này chỉ lưu trên máy bạn!");
-    }
-  }
-
-  /** Keys of chat messages still in the outbox, and those that already failed at least once. */
-  chatOutboxKeys() {
-    const pending = new Set();
-    const failed = new Set();
-    if (this.syncEngine) {
-      this.syncEngine.keys().filter((k) => k.startsWith("chat:")).forEach((key) => {
-        pending.add(key);
-        const entry = this.syncEngine.getEntry(key);
-        if (entry && entry.attempts >= 1) failed.add(key);
-      });
-    }
-    return { pending: pending, failed: failed };
-  }
-
-  renderChatMessages() {
-    if (!this.chatMessagesContainer) return;
-    if (this.chatMessages.length === 0) {
-      this.chatMessagesContainer.innerHTML = `<div class="empty"><p class="t-headline">Chưa có tin nhắn nào.</p><p class="muted">Gửi một trái tim cho ${this.escapeHTML(this.chatReceiverName ? this.chatReceiverName.textContent : "Thư")} nhé.</p></div>`;
-      if (this.chatQuickHeartBtn) this.chatQuickHeartBtn.classList.add("is-highlighted");
-      this.updateChatPresence();
-      return;
-    }
-    if (this.chatQuickHeartBtn) this.chatQuickHeartBtn.classList.remove("is-highlighted");
-    if (this.shouldShowChatSkeleton()) {
-      this.chatMessagesContainer.innerHTML = chatSkeletonHtml();
-      return;
-    }
-    const keys = this.chatOutboxKeys();
-    const items = layoutMessages(this.chatMessages, {
-      me: this.currentSender, now: new Date(), pendingKeys: keys.pending, failedKeys: keys.failed
-    });
-    this.chatMessagesContainer.innerHTML = items.map((item) => this.chatItemHtml(item)).join("");
-    this.chatMessagesContainer.scrollTop = this.chatMessagesContainer.scrollHeight;
-    this.updateChatPresence();
-  }
-
-  /** Skeleton bubbles only while the sample messages are shown and the first backend sync is pending. */
-  shouldShowChatSkeleton() {
-    if (!this.config.apiUrl || this.firstSyncDone === true) return false;
-    return this.chatMessages.every((m) => DEFAULT_CHAT_MESSAGES.some((d) => d.id === m.id));
-  }
-
-  chatItemHtml(item) {
-    if (item.kind === "day") return `<p class="chat__day t-meta muted">${this.escapeHTML(item.label)}</p>`;
-    const msg = item.msg;
-    const image = safeUrl(msg.image, MEMORY_IMAGE_URL_OPTIONS);
-    const classes = ["chat__row", item.own ? "is-own" : "is-other", item.groupStart ? "is-start" : "", item.groupEnd ? "is-end" : "",
-      item.state === "sending" ? "is-sending" : ""].filter(Boolean).join(" ");
-    const photo = image ? `<img src="${this.escapeHTML(image)}" alt="Ảnh tin nhắn" class="chat-msg-img" data-msg-id="${this.escapeHTML(msg.id)}">` : "";
-    const text = msg.text ? `<span>${this.escapeHTML(msg.text)}</span>` : "";
-    const time = item.showTime && msg.timestamp ? this.escapeHTML(formatTime24(new Date(msg.timestamp))) : "";
-    let meta = time ? `<span class="chat__time t-meta muted">${time}</span>` : "";
-    if (item.state === "sending") meta = `<span class="chat__time t-meta muted">${icon("clock", { size: 14 })}${time}</span>`;
-    if (item.state === "failed") {
-      meta = `<span class="chat__time t-meta status status--danger">${icon("alert", { size: 14 })}` +
-        `<button type="button" class="btn btn--text chat__retry" data-key="chat:${this.escapeHTML(msg.id)}">Chưa gửi được · Chạm để thử lại</button></span>`;
-    }
-    return `<div class="${classes}"><div class="chat__bubble">${photo}${text}</div>${meta}</div>`;
-  }
-
-  viewChatImage(url) {
-    if (this.lightboxModal && this.lightboxImg) {
-      this.lightboxImg.src = safeUrl(url, MEMORY_IMAGE_URL_OPTIONS);
-      this.lightboxImg.alt = "Ảnh trong tin nhắn";
-      this.lightboxModal.showModal();
-    }
   }
 
   // UI-01: ảnh Drive lỗi → thử lại ảnh gốc một lần, rồi hiện ô hồng có trái tim.
   /**
-   * Fades photos in on load, retries a failed photo once with its original URL, then swaps the memory for a
-   * text card (feed) or a text tile (grid) with a retry button.
+   * Fades photos in on load, retries a failed photo once with its original URL, then swaps the memory for the
+   * heart card with a retry button (feed) or a text tile (grid).
    */
   attachImageFallbacks(root) {
     root.querySelectorAll("img[data-fallback-src]").forEach((img) => {
@@ -3815,7 +3397,7 @@ class JourneyApp {
     const mem = holder ? this.memories.find((m) => String(m.id) === holder.dataset.id) : null;
     if (!mem) return;
     if (holder.classList.contains("memory")) {
-      holder.outerHTML = memoryTextCardHtml(mem, { retry: true });
+      holder.outerHTML = memoryFailedCardHtml(mem);
     } else if (holder.classList.contains("tile")) {
       holder.outerHTML = gridTileHtml(Object.assign({}, mem, { image: "" }));
     }

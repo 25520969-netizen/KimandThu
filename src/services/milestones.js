@@ -66,7 +66,7 @@
 
   function milestoneText(milestone) {
     if (!milestone) return "";
-    if (milestone.daysLeft === 0) return `Hôm nay tròn ${milestone.label} 💕`;
+    if (milestone.daysLeft === 0) return `Hôm nay tròn ${milestone.label}`;
     return `Còn ${milestone.daysLeft} ngày nữa là tròn ${milestone.label}`;
   }
 

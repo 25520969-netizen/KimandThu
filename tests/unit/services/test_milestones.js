@@ -19,7 +19,7 @@ test("nextMilestone: today counts and anniversaries win ties", () => {
   const start = "2025-04-02T19:00:00";
   const exact = nextMilestone(start, new Date(2025, 3, 2 + 500, 12));
   assertEqual([exact.label, exact.daysLeft], ["500 ngày", 0]);
-  assertEqual(milestoneText(exact), "Hôm nay tròn 500 ngày 💕");
+  assertEqual(milestoneText(exact), "Hôm nay tròn 500 ngày");
   const nearYear = nextMilestone(start, day(2026, 3, 30));
   assertEqual([nearYear.kind, nearYear.label, nearYear.daysLeft], ["year", "1 năm", 3]);
 });

@@ -3,7 +3,7 @@
  * same-origin files stale-while-revalidate. Backend and map APIs are never cached
  * (they are cross-origin and carry private data).
  */
-const CACHE_VERSION = "6.1";
+const CACHE_VERSION = "7.0";
 const CACHE_NAME = `kimthu-shell-${CACHE_VERSION}`;
 const SHELL_FILES = [
   "./",
@@ -14,7 +14,6 @@ const SHELL_FILES = [
   "src/styles/shell.css",
   "src/styles/moments.css",
   "src/styles/places.css",
-  "src/styles/chat.css",
   "src/styles/be.css",
   "app.js",
   "manifest.json",
@@ -43,7 +42,6 @@ const SHELL_FILES = [
   "src/ui/icons.js",
   "src/ui/petal_canvas.js",
   "src/ui/templates.js",
-  "src/ui/chat_layout.js",
   "src/ui/cycle_ring.js",
   "src/ui/overlay_stack.js",
   "src/ui/route.js",

@@ -11,14 +11,22 @@ html { font-size: 100%; overflow-x: clip; }
 button, input, textarea, select { font-family: inherit; color: inherit; }
 a { color: var(--c-primary); }
 
-/* Fixed canvas for the hero petals and the celebration burst. */
+/* Fixed canvases: floating hearts behind the page, the celebration burst above it. */
 #petal-canvas {
   position: fixed;
   inset: 0;
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 1;
+  z-index: 0;
+}
+#burst-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 60;
 }
 
 ::view-transition-old(root),
@@ -46,18 +54,19 @@ body {
 
 .large-title {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 800;
   font-size: var(--t-display-size);
   line-height: var(--t-display-lh);
 }
 .t-title {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-weight: 800;
   font-size: var(--t-title-size);
   line-height: var(--t-title-lh);
 }
 .t-headline {
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 700;
   font-size: var(--t-headline-size);
   line-height: var(--t-headline-lh);
 }
@@ -112,7 +121,7 @@ body:not(.is-guest) .guest-only { display: none !important; }
 
 @media (prefers-reduced-motion: reduce) {
   ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
-  #petal-canvas { display: none; }
+  #burst-canvas { display: none; }
   *, *::before, *::after {
     animation: none !important;
     transition: opacity var(--m-fast) linear !important;
