@@ -224,14 +224,60 @@ test("theme-color: two media metas with the page colours", () => {
   assertEqual([manifest.background_color, manifest.theme_color], ["#FFF4F7", "#FFF4F7"]);
 });
 
-test("components: the photo scrim token is the only gradient", () => {
+test("card boxes: edge and shadow tokens in all three theme blocks", () => {
+  const css = readText("src/styles/tokens.css");
+  const darkAt = css.indexOf(':root[data-theme="dark"]');
+  const autoAt = css.indexOf("@media (prefers-color-scheme: dark)");
+  const light = css.slice(0, darkAt);
+  const dark = css.slice(darkAt, autoAt);
+  const auto = css.slice(autoAt);
+  assertTrue(light.indexOf("--c-card-edge: #EFB6C8;") !== -1, "light edge");
+  assertTrue(light.indexOf("--e-card: 0 1px 2px rgba(216, 27, 96, 0.08), 0 8px 20px rgba(216, 27, 96, 0.12);") !== -1, "light shadow");
+  [dark, auto].forEach((block) => {
+    assertTrue(block.indexOf("--c-card-edge: #5A3D4A;") !== -1, "dark edge");
+    assertTrue(block.indexOf("--e-card: none;") !== -1, "dark shadow");
+  });
+  assertTrue(light.indexOf("--card-border: transparent;") !== -1, "card-border unchanged");
+  assertTrue(light.indexOf("--e-1: 0 1px 2px rgba(216, 27, 96, 0.06), 0 6px 16px rgba(216, 27, 96, 0.08);") !== -1, "e-1 unchanged");
+  assertEqual(css.indexOf("--c-photo-scrim"), -1, "scrim token");
+  assertEqual(css.indexOf("--c-on-photo"), -1, "on-photo token");
+});
+
+test("components: no gradients and no pink box-shadows", () => {
   NEW_CSS.forEach((f) => {
     const css = readText(f);
     css.split("\n").filter((line) => /gradient\(/.test(line)).forEach((line) => {
-      assertTrue(f === "src/styles/tokens.css" && /^\s*--c-photo-scrim:/.test(line), f + " has a gradient: " + line.trim());
+      assertTrue(false, f + " has a gradient: " + line.trim());
     });
     assertEqual(/box-shadow:[^;]*rgba\((255|201),/.test(css), false, f + " has a pink shadow");
   });
+});
+
+test("card boxes: moments use one edge, inset photo, body below and box press", () => {
+  const m = readText("src/styles/moments.css");
+  const rule = (sel) => {
+    const hit = m.match(new RegExp(sel + "\\s*\\{[^}]*\\}"));
+    assertTrue(hit !== null, sel + " rule exists");
+    return hit[0];
+  };
+  [".memory", ".memory-skeleton", ".counter-card", ".otd-row"].forEach((sel) => {
+    const r = rule("\\" + sel);
+    assertTrue(r.indexOf("border: 1.5px solid var(--c-card-edge)") !== -1, sel + " edge");
+    assertTrue(r.indexOf("box-shadow: var(--e-card)") !== -1, sel + " shadow");
+  });
+  const memory = rule("\\.memory");
+  ["padding: var(--s-2)", "background: var(--c-surface)", "contain-intrinsic-size: auto 540px"].forEach((d) => assertTrue(memory.indexOf(d) !== -1, ".memory " + d));
+  const sk = rule("\\.memory-skeleton");
+  assertTrue(sk.indexOf("padding: var(--s-2)") !== -1 && sk.indexOf("background: var(--c-surface)") !== -1, "skeleton box");
+  const photo = rule("\\.memory__photo");
+  assertTrue(photo.indexOf("border-radius: calc(var(--r-lg) - var(--s-2))") !== -1 && photo.indexOf("max-height: 75svh") !== -1, "inset photo");
+  assertTrue(rule("\\.memory__body").indexOf("padding: var(--s-3) var(--s-2) var(--s-2)") !== -1, "body padding");
+  assertTrue(m.indexOf("memory__overlay") === -1 && m.indexOf("photo-scrim") === -1, "overlay gone");
+  assertTrue(/\.memory__open:active\s*\{[^}]*transform:\s*none/.test(m), "no inner scale");
+  assertTrue(/\.memory:has\(\.memory__open:active\)\s*\{[^}]*scale\(0\.98\)/.test(m), "box press");
+  const reduced = m.match(/@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\n\}/);
+  assertTrue(reduced !== null && /\.memory:has\(\.memory__open:active\)[^}]*border-color: var\(--c-primary\)/.test(reduced[0]), "reduced motion border");
+  assertTrue(/\.memory--failed \.memory__retry\s*\{[^}]*top:\s*calc\(var\(--s-2\) \+ var\(--s-3\)\)/.test(m), "retry offset");
 });
 
 test("shell: legacy nav menu and floating chat button are gone", () => {
@@ -469,6 +515,11 @@ test("places: white cards, 40 px actions and a label-free row below 280 px", () 
     .forEach((re) => assertTrue(re.test(places), String(re)));
   assertTrue(/\.place__actions \.btn\s*\{[^}]*min-height:\s*40px/.test(places), "action buttons are 40 px tall");
   assertTrue(appSource.includes("PLACES_SKELETON_ROWS = 4"), "four skeleton rows");
+  assertTrue(place.includes("border: 1.5px solid var(--c-card-edge)") && place.includes("box-shadow: var(--e-card)"), ".place edge and shadow");
+  assertTrue(/\.places\s*\{[^}]*gap:\s*var\(--s-4\)/.test(places), "list gap");
+  const sk = places.match(/\.places \.skeleton--row\s*\{[^}]*\}/);
+  assertTrue(sk !== null, "skeleton row rule");
+  assertTrue(sk[0].includes("border: 1.5px solid var(--c-card-edge)") && sk[0].includes("margin-bottom: 0") && !sk[0].includes("box-shadow"), "skeleton edge, no shadow");
 });
 
 test("copy: no emoji in toasts, status text or placeholders", () => {

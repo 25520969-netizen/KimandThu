@@ -3,7 +3,7 @@
  * same-origin files stale-while-revalidate. Backend and map APIs are never cached
  * (they are cross-origin and carry private data).
  */
-const CACHE_VERSION = "7.0";
+const CACHE_VERSION = "7.1";
 const CACHE_NAME = `kimthu-shell-${CACHE_VERSION}`;
 const SHELL_FILES = [
   "./",

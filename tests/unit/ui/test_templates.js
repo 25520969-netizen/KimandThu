@@ -5,14 +5,15 @@ const TPL_MEM = {
   location: "Quán (https://maps.google.com/?q=1,2)", image: "https://drive.google.com/thumbnail?id=abc&sz=w1000"
 };
 
-test("templates: title and story are escaped; the photo card shows no story", () => {
+test("templates: title and story are escaped; the photo card shows the story below the photo", () => {
   const html = memoryBlockHtml(TPL_MEM, { couple: true });
   assertEqual(html.indexOf("<b>"), -1);
   assertTrue(html.indexOf("&lt;b&gt;") !== -1, "title escaped");
-  assertEqual(html.indexOf("Nắng"), -1);
+  assertTrue(html.indexOf('<p class="memory__quote hand clamp-2">“Nắng &quot;đẹp&quot;”</p>') !== -1, "photo card story");
   const text = memoryTextCardHtml(TPL_MEM);
   assertEqual(text.indexOf("<b>"), -1);
   assertTrue(text.indexOf("&quot;đẹp&quot;") !== -1, "story quotes escaped");
+  assertTrue(text.indexOf("memory__quote hand clamp-3") !== -1, "text card clamp-3");
 });
 
 test("templates: no <button> nested inside .memory__open", () => {
@@ -38,8 +39,43 @@ test("templates: photo has size attributes, alt text and the pending state", () 
   assertTrue(html.indexOf('alt="Quán &lt;b&gt;cà phê&lt;/b&gt;"') !== -1);
   assertTrue(html.indexOf("Chưa đồng bộ") !== -1);
   assertTrue(html.indexOf("25/10 · 17:09") !== -1);
-  assertTrue(html.indexOf("memory__overlay") !== -1, "title and meta sit on the photo");
+  assertEqual(html.indexOf("memory__overlay"), -1, "no overlay");
+  assertTrue(html.indexOf("memory__body") > html.indexOf("memory__photo"), "body after the photo");
+  const body = html.slice(html.indexOf("memory__body"), html.indexOf("memory__badge"));
+  assertTrue(body.indexOf("memory__title") !== -1, "title in body");
+  assertTrue(body.indexOf("memory__meta t-meta muted") !== -1, "meta in body");
+  assertTrue(body.indexOf("25/10 · 17:09") !== -1, "date in body");
   assertTrue(html.indexOf("memory__badge") !== -1, "pending badge");
+});
+
+test("templates: a moment without a story shows no quote in any card", () => {
+  const mem = Object.assign({}, TPL_MEM, { story: "" });
+  [memoryBlockHtml(mem, { couple: true }), memoryFailedCardHtml(mem), memoryTextCardHtml(mem)].forEach((html) => {
+    assertEqual(html.indexOf("memory__quote"), -1);
+    assertEqual(html.indexOf("“"), -1);
+  });
+});
+
+test("templates: the failed card shows title, meta and story below the heart", () => {
+  const html = memoryFailedCardHtml(TPL_MEM);
+  assertTrue(html.indexOf("memory__body") > html.indexOf("memory__photo--failed"), "body after the heart");
+  assertTrue(html.indexOf("memory__quote hand clamp-2") !== -1, "story");
+  assertEqual(html.indexOf("memory__overlay"), -1);
+});
+
+test("templates: the open button is named by the title only", () => {
+  const html = memoryBlockHtml(TPL_MEM, { couple: true });
+  const label = html.match(/<button[^>]*memory__open" aria-label="([^"]*)"/)[1];
+  assertEqual(label, "Quán &lt;b&gt;cà phê&lt;/b&gt;");
+  assertEqual(label.indexOf("Nắng"), -1);
+});
+
+test("templates: the moment skeleton is a box with a photo block and two bars", () => {
+  const html = memorySkeletonHtml();
+  assertTrue(html.indexOf('<div class="memory-skeleton" aria-hidden="true">') === 0, "outer box");
+  assertEqual(html.split("memory-skeleton__photo").length - 1, 1);
+  assertEqual(html.split("memory-skeleton__bar ").length - 1, 2);
+  assertTrue(html.indexOf("memory-skeleton__bar--title") !== -1 && html.indexOf("memory-skeleton__bar--meta") !== -1);
 });
 
 test("templates: locationLabel strips map urls", () => {

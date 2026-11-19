@@ -57,15 +57,21 @@
     return '<button type="button" class="memory__open" aria-label="' + root.escapeHtml(mem.title) + '">';
   }
 
-  function quoteHtml(mem) {
-    return mem.story ? '<p class="memory__quote hand clamp-3">“' + root.escapeHtml(mem.story) + "”</p>" : "";
+  /** The story in handwriting; clampClass is "clamp-2" (boxes with a photo) or "clamp-3" (text card). */
+  function quoteHtml(mem, clampClass) {
+    return mem.story ? '<p class="memory__quote hand ' + clampClass + '">“' + root.escapeHtml(mem.story) + "”</p>" : "";
+  }
+
+  /** Title, meta and a 2-line story on white, below the photo. */
+  function bodyHtml(mem) {
+    return '<div class="memory__body">' + titleHtml(mem) + metaRowHtml(mem, " muted") + quoteHtml(mem, "clamp-2") + "</div>";
   }
 
   /** A moment without a photo: title, meta (with the inline pending status) and the story. */
   function memoryTextCardHtml(mem) {
     const pending = mem.syncState === "pending" ? ' <span class="status status--warn">' + pendingStatusHtml() + "</span>" : "";
     return '<article class="memory memory--text" data-id="' + root.escapeHtml(mem.id) + '">' + openButtonOpen(mem) +
-      titleHtml(mem) + '<p class="memory__meta t-meta muted">' + metaTextHtml(mem) + pending + "</p>" + quoteHtml(mem) +
+      titleHtml(mem) + '<p class="memory__meta t-meta muted">' + metaTextHtml(mem) + pending + "</p>" + quoteHtml(mem, "clamp-3") +
       "</button></article>";
   }
 
@@ -73,7 +79,7 @@
   function memoryFailedCardHtml(mem) {
     return '<article class="memory memory--failed" data-id="' + root.escapeHtml(mem.id) + '">' + openButtonOpen(mem) +
       '<div class="memory__photo memory__photo--failed">' + root.icon("heart", { size: FAILED_ART_PX }) + "</div>" +
-      '<div class="memory__overlay memory__overlay--plain">' + titleHtml(mem) + metaRowHtml(mem, " muted") + "</div></button>" +
+      bodyHtml(mem) + "</button>" +
       '<button type="button" class="btn btn--text memory__retry" data-id="' + root.escapeHtml(mem.id) +
       '">Ảnh chưa tải được · Thử lại</button></article>';
   }
@@ -88,7 +94,7 @@
       '<div class="memory__photo skeleton"><img class="memory__img" src="' + root.escapeHtml(src) + '" alt="' +
       root.escapeHtml(mem.title) + '" width="800" height="1000" loading="lazy" decoding="async" data-fallback-src="' +
       root.escapeHtml(image) + '"></div>' +
-      '<div class="memory__overlay">' + titleHtml(mem) + metaRowHtml(mem) + "</div>" + badge + "</button></article>";
+      bodyHtml(mem) + badge + "</button></article>";
   }
 
   function gridTileHtml(mem) {
@@ -133,7 +139,10 @@
   }
 
   function memorySkeletonHtml() {
-    return '<div class="memory-skeleton skeleton skeleton--photo" aria-hidden="true"></div>';
+    return '<div class="memory-skeleton" aria-hidden="true">' +
+      '<div class="skeleton skeleton--photo memory-skeleton__photo"></div>' +
+      '<div class="skeleton skeleton--line memory-skeleton__bar memory-skeleton__bar--title"></div>' +
+      '<div class="skeleton skeleton--line memory-skeleton__bar memory-skeleton__bar--meta"></div></div>';
   }
 
   /** Maps/TikTok/places helpers below build the Places rows (spec 4.4). */
